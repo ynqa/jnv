@@ -30,6 +30,10 @@ brew install ynqa/tap/jnv
 
 ### Cargo
 
+#### Requirements
+
+- [automake](https://www.gnu.org/software/automake/)
+
 ```bash
 cargo install jnv
 ```
