@@ -74,8 +74,8 @@ impl Jnv {
                 history: Default::default(),
                 prefix: String::from("❯❯ "),
                 mask: Default::default(),
-                prefix_style: StyleBuilder::new().fgc(Color::DarkCyan).build(),
-                active_char_style: StyleBuilder::new().bgc(Color::DarkMagenta).build(),
+                prefix_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
                 inactive_char_style: StyleBuilder::new().build(),
                 edit_mode,
                 lines: Default::default(),
@@ -83,7 +83,7 @@ impl Jnv {
             hint_message_renderer: text::Renderer {
                 text: Default::default(),
                 style: StyleBuilder::new()
-                    .fgc(Color::DarkGreen)
+                    .fgc(Color::Green)
                     .attrs(Attributes::from(Attribute::Bold))
                     .build(),
             },
@@ -92,10 +92,10 @@ impl Jnv {
                 listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
                 cursor: String::from("❯ "),
                 active_item_style: StyleBuilder::new()
-                    .fgc(Color::DarkGrey)
-                    .bgc(Color::DarkYellow)
+                    .fgc(Color::Grey)
+                    .bgc(Color::Yellow)
                     .build(),
-                inactive_item_style: StyleBuilder::new().fgc(Color::DarkGrey).build(),
+                inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
                 lines: Some(suggestion_list_length),
             },
             keymap: KeymapManager::new("default", self::keymap::default)
@@ -121,11 +121,11 @@ impl Jnv {
                     square_brackets_style: StyleBuilder::new()
                         .attrs(Attributes::from(Attribute::Bold))
                         .build(),
-                    key_style: StyleBuilder::new().fgc(Color::DarkBlue).build(),
-                    string_value_style: StyleBuilder::new().fgc(Color::DarkGreen).build(),
+                    key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                    string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
                     number_value_style: StyleBuilder::new().build(),
                     boolean_value_style: StyleBuilder::new().build(),
-                    null_value_style: StyleBuilder::new().fgc(Color::DarkGrey).build(),
+                    null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
                     active_item_attribute: Attribute::Bold,
                     inactive_item_attribute: Attribute::Dim,
                     lines: Default::default(),
@@ -207,7 +207,7 @@ impl Jnv {
                                     renderer.hint_message_snapshot.after_mut().replace(text::Renderer {
                                         text: format!("JSON query ('{}') was executed, but no results were returned.", &completed),
                                         style: StyleBuilder::new()
-                                            .fgc(Color::DarkRed)
+                                            .fgc(Color::Red)
                                             .attrs(Attributes::from(Attribute::Bold))
                                             .build(),
                                     });
@@ -228,7 +228,7 @@ impl Jnv {
                                                     &completed,
                                                 ),
                                                 style: StyleBuilder::new()
-                                                    .fgc(Color::DarkYellow)
+                                                    .fgc(Color::Yellow)
                                                     .attrs(Attributes::from(Attribute::Bold))
                                                     .build(),
                                             });
@@ -250,7 +250,7 @@ impl Jnv {
                                                 e
                                             ),
                                             style: StyleBuilder::new()
-                                                .fgc(Color::DarkRed)
+                                                .fgc(Color::Red)
                                                 .attrs(Attributes::from(Attribute::Bold))
                                                 .build(),
                                         })
@@ -266,7 +266,7 @@ impl Jnv {
                                 renderer.hint_message_snapshot.after_mut().replace(text::Renderer {
                                     text: format!("Failed to execute jq query '{}'", &completed),
                                     style: StyleBuilder::new()
-                                        .fgc(Color::DarkRed)
+                                        .fgc(Color::Red)
                                         .attrs(Attributes::from(Attribute::Bold))
                                         .build(),
                                     },
