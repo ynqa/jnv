@@ -1,0 +1,42 @@
+[package]
+name = "jnv"
+version = "0.1.0"
+authors = ["ynqa <un.pensiero.vano@gmail.com>"]
+edition = "2021"
+description = "JSON navigator and interactive filter leveraging jq"
+repository = "https://github.com/ynqa/jnv"
+license = "MIT"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.80"
+clap = { version = "4.5.1", features = ["derive"] }
+gag = "1.0.0"
+j9 = "0.1.1"
+promkit = "0.3.1"
+radix_trie = "0.2.1"
+
+# The profile that 'cargo dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
+
+# Config for 'cargo dist'
+[workspace.metadata.dist]
+# The preferred cargo-dist version to use in CI (Cargo.toml SemVer syntax)
+cargo-dist-version = "0.11.1"
+# CI backends to support
+ci = ["github"]
+# The installers to generate for each app
+installers = ["homebrew"]
+# A GitHub repo to push Homebrew formulas to
+tap = "ynqa/homebrew-tap"
+# Target platforms to build apps for (Rust target-triple syntax)
+targets = ["x86_64-apple-darwin"]
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Publish jobs to run in CI
+pr-run-mode = "plan"
+
+[workspace.metadata.dist.dependencies.homebrew]
+automake = '*'
