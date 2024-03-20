@@ -1,6 +1,6 @@
 [package]
 name = "jnv"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["ynqa <un.pensiero.vano@gmail.com>"]
 edition = "2021"
 description = "JSON navigator and interactive filter leveraging jq"
@@ -12,7 +12,7 @@ readme = "README.md"
 anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
 gag = "1.0.0"
-j9 = "0.1.1"
+j9 = "0.1.2"
 promkit = "0.3.1"
 radix_trie = "0.2.1"
 
@@ -32,7 +32,7 @@ installers = ["homebrew"]
 # A GitHub repo to push Homebrew formulas to
 tap = "ynqa/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["x86_64-apple-darwin"]
+targets = ["x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
 # Publish jobs to run in CI
 publish-jobs = ["homebrew"]
 # Publish jobs to run in CI
