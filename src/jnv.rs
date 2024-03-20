@@ -74,7 +74,7 @@ impl Jnv {
                 history: Default::default(),
                 prefix: String::from("❯❯ "),
                 mask: Default::default(),
-                prefix_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
                 active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
                 inactive_char_style: StyleBuilder::new().build(),
                 edit_mode,
