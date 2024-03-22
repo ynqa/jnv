@@ -125,3 +125,6 @@ Options:
   -V, --version
           Print version
 ```
+
+## Stargazers over time
+[![Stargazers over time](https://starchart.cc/ynqa/jnv.svg?variant=adaptive)](https://starchart.cc/ynqa/jnv)
