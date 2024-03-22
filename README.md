@@ -8,7 +8,7 @@ offering an interactive JSON viewer and `jq` filter editor.
 Inspired by [jid](https://github.com/simeji/jid)
 and [jiq](https://github.com/fiatjaf/jiq).
 
-## Features
+## Features :
 
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
@@ -28,9 +28,9 @@ and [jiq](https://github.com/fiatjaf/jiq).
 brew install ynqa/tap/jnv
 ```
 
-### Cargo
+### Cargo :
 
-#### Requirements
+#### Requirements :
 
 - [automake](https://www.gnu.org/software/automake/)
 
@@ -42,7 +42,7 @@ cargo install jnv
 > *jnv* does not require users to install `jq` on their system,
 > because it utilizes [j9](https://github.com/ynqa/j9) Rust bindings.
 
-## Examples
+## Examples :
 
 ```bash
 cat data.json | jnv
@@ -54,7 +54,7 @@ Or
 jnv data.json
 ```
 
-## Keymap
+## Keymap :
 
 | Key                  | Action
 | :-                   | :-
@@ -74,7 +74,7 @@ jnv data.json
 | <kbd>Ctrl + P</kbd>  | Expand all folds in JSON viewer
 | <kbd>Ctrl + N</kbd>  | Collapse all folds in JSON viewer
 
-## Usage
+## Usage :
 
 ```bash
 JSON navigator and interactive filter leveraging jq
