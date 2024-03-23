@@ -53,7 +53,7 @@ impl Jnv {
                     .iter()
                     .map(|segment| match segment {
                         JsonPathSegment::Key(key) => {
-                            if key.contains('.') || key.contains('-') {
+                            if key.contains('.') || key.contains('-') || key.contains('@') {
                                 format!(".\"{}\"", key)
                             } else {
                                 format!(".{}", key)
