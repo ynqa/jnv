@@ -3,6 +3,7 @@ use promkit::{
     suggest::Suggest, text, text_editor,
 };
 
+#[derive(Clone)]
 pub struct Renderer {
     pub keymap: KeymapManager<Self>,
     pub query_editor_snapshot: Snapshot<text_editor::Renderer>,
