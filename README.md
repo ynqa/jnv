@@ -40,6 +40,7 @@ More info [here](https://ports.macports.org/port/jnv/)
 
 #### Requirements
 
+- [autoconf](https://www.gnu.org/software/autoconf/)
 - [automake](https://www.gnu.org/software/automake/)
 
 ```bash
