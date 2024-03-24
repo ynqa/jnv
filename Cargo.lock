@@ -504,6 +504,7 @@ dependencies = [
 [[package]]
 name = "promkit"
 version = "0.3.2"
+source = "git+https://github.com/ynqa/promkit?branch=dev-0.3.2/main#94c1e139f20b4ffb51649a288c41d63327b04400"
 dependencies = [
  "anyhow",
  "crossterm",
