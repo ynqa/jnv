@@ -7,7 +7,7 @@ use promkit::{
 pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Result<PromptSignal> {
     let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
     let suggest_after_mut = renderer.suggest_snapshot.after_mut();
-    let json_bundle_after_mut = renderer.json_bundle_snapshot.after_mut();
+    let json_after_mut = renderer.json_snapshot.after_mut();
 
     match event {
         Event::Key(KeyEvent {
@@ -96,7 +96,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.backward();
+            json_after_mut.stream.backward();
         }
 
         // Move down.
@@ -112,7 +112,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.forward();
+            json_after_mut.stream.forward();
         }
 
         // Move to tail
@@ -122,7 +122,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.move_to_tail();
+            json_after_mut.stream.move_to_tail();
         }
 
         // Move to head
@@ -132,7 +132,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.move_to_head();
+            json_after_mut.stream.move_to_head();
         }
 
         // Toggle collapse/expand
@@ -142,7 +142,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.toggle();
+            json_after_mut.stream.toggle();
         }
 
         Event::Key(KeyEvent {
@@ -151,7 +151,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.expand_all();
+            json_after_mut.stream.expand_all();
         }
 
         Event::Key(KeyEvent {
@@ -160,7 +160,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_bundle_after_mut.bundle.collapse_all();
+            json_after_mut.stream.collapse_all();
         }
 
         // Input char.
