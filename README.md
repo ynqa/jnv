@@ -28,6 +28,14 @@ and [jiq](https://github.com/fiatjaf/jiq).
 brew install ynqa/tap/jnv
 ```
 
+### MacPorts
+
+```bash
+sudo port install jnv
+```
+
+More info [here](https://ports.macports.org/port/jnv/)
+
 ### Cargo
 
 #### Requirements
