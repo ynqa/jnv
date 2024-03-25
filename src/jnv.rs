@@ -18,6 +18,7 @@ use promkit::{
     text, text_editor, Prompt, PromptSignal, Renderer,
 };
 
+mod editing;
 mod keymap;
 mod render;
 mod trie;
