@@ -12,7 +12,12 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
-- Accept JSON from stdin, file, URL
+- Capable of accommodating various format
+  - Input: File, Stdin
+  - Data: A JSON or multiple JSON structures
+    that can be deserialized with 
+    [StreamDeserializer](https://docs.rs/serde_json/latest/serde_json/struct.StreamDeserializer.html),
+    such as [JSON Lines](https://jsonlines.org/)
 - Auto-completion for the filter
   - Only supports:
     - [Identity](https://jqlang.github.io/jq/manual/#identity)
