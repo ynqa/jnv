@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use anyhow::Result;
 use gag::Gag;
@@ -83,6 +83,7 @@ impl Jnv {
                 active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
                 inactive_char_style: StyleBuilder::new().build(),
                 edit_mode,
+                word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
                 lines: Default::default(),
             },
             hint_message_renderer: text::Renderer {
