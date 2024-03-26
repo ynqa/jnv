@@ -1,5 +1,7 @@
 # jnv
 
+[![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)
+
 *jnv* is designed for navigating JSON,
 offering an interactive JSON viewer and `jq` filter editor.
 
