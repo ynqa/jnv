@@ -10,11 +10,10 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.80"
-clap = { version = "4.5.1", features = ["derive"] }
+clap = { version = "4.5.4", features = ["derive"] }
 gag = "1.0.0"
 j9 = "0.1.3"
-# promkit = "0.3.2"
-promkit = { git = "https://github.com/ynqa/promkit", branch = "dev-0.3.3/main" }
+promkit = "0.3.3"
 radix_trie = "0.2.1"
 
 # The profile that 'cargo dist' will build with
