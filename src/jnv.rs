@@ -56,7 +56,8 @@ impl Jnv {
                 } else {
                     segments
                         .iter()
-                        .map(|segment| match segment {
+                        .enumerate()
+                        .map(|(i, segment)| match segment {
                             JsonPathSegment::Key(key) => {
                                 if key.contains('.') || key.contains('-') || key.contains('@') {
                                     format!(".\"{}\"", key)
@@ -64,7 +65,13 @@ impl Jnv {
                                     format!(".{}", key)
                                 }
                             }
-                            JsonPathSegment::Index(index) => format!("[{}]", index),
+                            JsonPathSegment::Index(index) => {
+                                if i == 0 {
+                                    format!(".[{}]", index)
+                                } else {
+                                    format!("[{}]", index)
+                                }
+                            }
                         })
                         .collect::<String>()
                 }
