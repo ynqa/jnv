@@ -1,4 +1,4 @@
-use super::editing::add_to_nearest_integer;
+use super::editing::add_to_nearest_array_index;
 use promkit::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     listbox::Listbox,
@@ -166,19 +166,19 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
 
         Event::Key(KeyEvent {
             code: KeyCode::Down,
-            modifiers: KeyModifiers::CONTROL,
+            modifiers: KeyModifiers::SHIFT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            add_to_nearest_integer(query_editor_after_mut, 1);
+            add_to_nearest_array_index(renderer, 1);
         }
         Event::Key(KeyEvent {
             code: KeyCode::Up,
-            modifiers: KeyModifiers::CONTROL,
+            modifiers: KeyModifiers::SHIFT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            add_to_nearest_integer(query_editor_after_mut, -1);
+            add_to_nearest_array_index(renderer, -1);
         }
 
         // Input char.
