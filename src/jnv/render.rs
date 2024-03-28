@@ -1,6 +1,5 @@
 use promkit::{
-    impl_as_any, impl_cast, json, keymap::KeymapManager, listbox, pane::Pane, snapshot::Snapshot,
-    suggest::Suggest, text, text_editor,
+    impl_as_any, impl_cast, json, keymap::KeymapManager, listbox, pane::Pane, serde_json::Value, snapshot::Snapshot, suggest::Suggest, text, text_editor
 };
 
 #[derive(Clone)]
@@ -11,6 +10,7 @@ pub struct Renderer {
     pub suggest: Suggest,
     pub suggest_snapshot: Snapshot<listbox::Renderer>,
     pub json_snapshot: Snapshot<json::Renderer>,
+    pub input_json_stream: Vec<Value>
 }
 
 impl_as_any!(Renderer);

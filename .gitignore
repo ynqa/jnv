@@ -11,3 +11,5 @@ target/
 
 # Ignore GIF files in the tapes directory
 tapes/*.gif
+
+.vscode

@@ -18,6 +18,7 @@ use promkit::{
     text, text_editor, Prompt, PromptSignal, Renderer,
 };
 
+mod editing;
 mod keymap;
 mod render;
 mod trie;
@@ -90,6 +91,7 @@ impl Jnv {
                 active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
                 inactive_char_style: StyleBuilder::new().build(),
                 edit_mode,
+                word_break_chars: Default::default(),
                 lines: Default::default(),
             },
             hint_message_renderer: text::Renderer {
@@ -299,6 +301,8 @@ impl Jnv {
         let suggest_clone = rc_self_clone.borrow().suggest.clone();
         let suggest_renderer_clone = rc_self_clone.borrow().suggest_renderer.clone();
         let json_renderer_clone = rc_self_clone.borrow().json_renderer.clone();
+        let input_json_stream_clone = rc_self_clone.borrow().input_json_stream.clone();
+
         Ok(Prompt::try_new(
             Box::new(self::render::Renderer {
                 keymap: keymap_clone,
@@ -309,6 +313,7 @@ impl Jnv {
                 suggest: suggest_clone,
                 suggest_snapshot: Snapshot::<listbox::Renderer>::new(suggest_renderer_clone),
                 json_snapshot: Snapshot::<json::Renderer>::new(json_renderer_clone),
+                input_json_stream: input_json_stream_clone
             }),
             Box::new(
                 move |event: &Event,

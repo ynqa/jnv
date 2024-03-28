@@ -1,3 +1,4 @@
+use super::editing::add_to_nearest_array_index;
 use promkit::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     listbox::Listbox,
@@ -161,6 +162,23 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             state: KeyEventState::NONE,
         }) => {
             json_after_mut.stream.collapse_all();
+        }
+
+        Event::Key(KeyEvent {
+            code: KeyCode::Down,
+            modifiers: KeyModifiers::SHIFT,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => {
+            add_to_nearest_array_index(renderer, 1);
+        }
+        Event::Key(KeyEvent {
+            code: KeyCode::Up,
+            modifiers: KeyModifiers::SHIFT,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => {
+            add_to_nearest_array_index(renderer, -1);
         }
 
         // Input char.
