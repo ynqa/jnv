@@ -69,6 +69,24 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             state: KeyEventState::NONE,
         }) => query_editor_after_mut.texteditor.move_to_tail(),
 
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('b'),
+            modifiers: KeyModifiers::ALT,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => query_editor_after_mut
+            .texteditor
+            .move_to_previous_nearest(&query_editor_after_mut.word_break_chars),
+
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('f'),
+            modifiers: KeyModifiers::ALT,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => query_editor_after_mut
+            .texteditor
+            .move_to_next_nearest(&query_editor_after_mut.word_break_chars),
+
         // Erase char(s).
         Event::Key(KeyEvent {
             code: KeyCode::Backspace,
@@ -82,6 +100,25 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => query_editor_after_mut.texteditor.erase_all(),
+
+        // Erase to the nearest character.
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('w'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => query_editor_after_mut
+            .texteditor
+            .erase_to_previous_nearest(&query_editor_after_mut.word_break_chars),
+
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::ALT,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => query_editor_after_mut
+            .texteditor
+            .erase_to_next_nearest(&query_editor_after_mut.word_break_chars),
 
         // Move up.
         Event::Key(KeyEvent {
