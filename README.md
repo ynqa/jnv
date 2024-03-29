@@ -1,5 +1,7 @@
 # jnv
 
+[![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)
+
 *jnv* is designed for navigating JSON,
 offering an interactive JSON viewer and `jq` filter editor.
 
@@ -87,6 +89,10 @@ jnv data.json
 | <kbd>Enter</kbd>     | Toggle expand/collapse in JSON viewer
 | <kbd>Ctrl + P</kbd>  | Expand all folds in JSON viewer
 | <kbd>Ctrl + N</kbd>  | Collapse all folds in JSON viewer
+| <kbd>Alt + B</kbd>   | Move the cursor to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
+| <kbd>Alt + F</kbd>   | Move the cursor to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
+| <kbd>Ctrl + W</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
+| <kbd>Alt + D</kbd>   | Erase to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
 
 ## Usage
 
