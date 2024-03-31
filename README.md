@@ -31,17 +31,25 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 ### Homebrew
 
+See [here](https://formulae.brew.sh/formula/jnv) for more info.
+
+```bash
+brew install jnv
+```
+
+Or install via Homebrew Tap:
+
 ```bash
 brew install ynqa/tap/jnv
 ```
 
 ### MacPorts
 
+See [here](https://ports.macports.org/port/jnv/) for more info.
+
 ```bash
 sudo port install jnv
 ```
-
-More info [here](https://ports.macports.org/port/jnv/)
 
 ### Cargo
 
