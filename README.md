@@ -51,6 +51,14 @@ See [here](https://ports.macports.org/port/jnv/) for more info.
 sudo port install jnv
 ```
 
+### Nix / NixOS
+
+See [package entry on search.nixos.org](https://search.nixos.org/packages?channel=unstable&query=jnv) for more info.
+
+```bash
+nix-shell -p jnv
+```
+
 ### Cargo
 
 #### Requirements
