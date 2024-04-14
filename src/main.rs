@@ -149,8 +149,7 @@ fn main() -> Result<()> {
         args.edit_mode,
         args.indent,
         args.suggestion_list_length,
-    )?
-    .prompt()?;
+    )?;
     let _ = prompt.run()?;
     Ok(())
 }

@@ -4,15 +4,10 @@ use promkit::{
     text_editor, PromptSignal,
 };
 
-pub type Keymap = fn(&Event, &mut crate::jnv::render::Renderer) -> anyhow::Result<PromptSignal>;
+pub type Keymap = fn(&Event, &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal>;
 
-pub fn default(
-    event: &Event,
-    renderer: &mut crate::jnv::render::Renderer,
-) -> anyhow::Result<PromptSignal> {
-    let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
-    let suggest_after_mut = renderer.suggest_snapshot.after_mut();
-    let json_after_mut = renderer.json_snapshot.after_mut();
+pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal> {
+    let query_editor_after_mut = jnv.query_editor_snapshot.after_mut();
 
     match event {
         Event::Key(KeyEvent {
@@ -25,15 +20,15 @@ pub fn default(
                 .texteditor
                 .text_without_cursor()
                 .to_string();
-            if let Some(mut candidates) = renderer.suggest.prefix_search(query) {
+            if let Some(mut candidates) = jnv.suggest.prefix_search(query) {
                 candidates.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
 
-                suggest_after_mut.listbox = Listbox::from_iter(candidates);
+                jnv.suggest_state.listbox = Listbox::from_iter(candidates);
                 query_editor_after_mut
                     .texteditor
-                    .replace(&suggest_after_mut.listbox.get());
+                    .replace(&jnv.suggest_state.listbox.get());
 
-                renderer.keymap.borrow_mut().switch("on_suggest");
+                jnv.keymap.borrow_mut().switch("on_suggest");
             }
         }
 
@@ -138,7 +133,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.backward();
+            jnv.json_state.stream.backward();
         }
 
         // Move down.
@@ -154,7 +149,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.forward();
+            jnv.json_state.stream.forward();
         }
 
         // Move to tail
@@ -164,7 +159,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.move_to_tail();
+            jnv.json_state.stream.move_to_tail();
         }
 
         // Move to head
@@ -174,7 +169,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.move_to_head();
+            jnv.json_state.stream.move_to_head();
         }
 
         // Toggle collapse/expand
@@ -184,7 +179,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.toggle();
+            jnv.json_state.stream.toggle();
         }
 
         Event::Key(KeyEvent {
@@ -193,7 +188,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.expand_all();
+            jnv.json_state.stream.expand_all();
         }
 
         Event::Key(KeyEvent {
@@ -202,7 +197,7 @@ pub fn default(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.collapse_all();
+            jnv.json_state.stream.collapse_all();
         }
 
         // Input char.
@@ -227,12 +222,8 @@ pub fn default(
     Ok(PromptSignal::Continue)
 }
 
-pub fn on_suggest(
-    event: &Event,
-    renderer: &mut crate::jnv::render::Renderer,
-) -> anyhow::Result<PromptSignal> {
-    let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
-    let suggest_after_mut = renderer.suggest_snapshot.after_mut();
+pub fn on_suggest(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal> {
+    let query_editor_after_mut = jnv.query_editor_snapshot.after_mut();
 
     match event {
         Event::Key(KeyEvent {
@@ -254,10 +245,10 @@ pub fn on_suggest(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            suggest_after_mut.listbox.forward();
+            jnv.suggest_state.listbox.forward();
             query_editor_after_mut
                 .texteditor
-                .replace(&suggest_after_mut.listbox.get());
+                .replace(&jnv.suggest_state.listbox.get());
         }
 
         Event::Key(KeyEvent {
@@ -266,15 +257,15 @@ pub fn on_suggest(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            suggest_after_mut.listbox.backward();
+            jnv.suggest_state.listbox.backward();
             query_editor_after_mut
                 .texteditor
-                .replace(&suggest_after_mut.listbox.get());
+                .replace(&jnv.suggest_state.listbox.get());
         }
 
         _ => {
-            suggest_after_mut.listbox = Listbox::from_iter(Vec::<String>::new());
-            renderer.keymap.borrow_mut().switch("default");
+            jnv.suggest_state.listbox = Listbox::from_iter(Vec::<String>::new());
+            jnv.keymap.borrow_mut().switch("default");
 
             // This block is specifically designed to prevent the default action of toggling collapse/expand
             // from being executed when the Enter key is pressed. This is done from the perspective of user
@@ -288,7 +279,7 @@ pub fn on_suggest(
             }) = event
             {
             } else {
-                return default(event, renderer);
+                return default(event, jnv);
             }
         }
     }
