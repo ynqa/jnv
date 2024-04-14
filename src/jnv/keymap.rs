@@ -1,10 +1,15 @@
 use promkit::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     listbox::Listbox,
-    text_editor, PromptSignal, Result,
+    text_editor, PromptSignal,
 };
 
-pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Result<PromptSignal> {
+pub type Keymap = fn(&Event, &mut crate::jnv::render::Renderer) -> anyhow::Result<PromptSignal>;
+
+pub fn default(
+    event: &Event,
+    renderer: &mut crate::jnv::render::Renderer,
+) -> anyhow::Result<PromptSignal> {
     let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
     let suggest_after_mut = renderer.suggest_snapshot.after_mut();
     let json_after_mut = renderer.json_snapshot.after_mut();
@@ -28,7 +33,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
                     .texteditor
                     .replace(&suggest_after_mut.listbox.get());
 
-                renderer.keymap.switch("on_suggest");
+                renderer.keymap.borrow_mut().switch("on_suggest");
             }
         }
 
@@ -225,7 +230,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
 pub fn on_suggest(
     event: &Event,
     renderer: &mut crate::jnv::render::Renderer,
-) -> Result<PromptSignal> {
+) -> anyhow::Result<PromptSignal> {
     let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
     let suggest_after_mut = renderer.suggest_snapshot.after_mut();
 
@@ -269,7 +274,7 @@ pub fn on_suggest(
 
         _ => {
             suggest_after_mut.listbox = Listbox::from_iter(Vec::<String>::new());
-            renderer.keymap.switch("default");
+            renderer.keymap.borrow_mut().switch("default");
 
             // This block is specifically designed to prevent the default action of toggling collapse/expand
             // from being executed when the Enter key is pressed. This is done from the perspective of user

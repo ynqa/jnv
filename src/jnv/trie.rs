@@ -2,7 +2,7 @@ use radix_trie::{Trie, TrieCommon};
 
 use promkit::serde_json;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct QueryTrie(Trie<String, Vec<serde_json::Value>>);
 
 impl QueryTrie {

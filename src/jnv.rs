@@ -1,21 +1,17 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{cell::RefCell, collections::HashSet};
 
 use anyhow::Result;
-use gag::Gag;
 
 use promkit::{
-    crossterm::{
-        event::Event,
-        style::{Attribute, Attributes, Color, ContentStyle},
-    },
-    json::{self, JsonNode, JsonPathSegment, JsonStream},
-    keymap::KeymapManager,
+    crossterm::style::{Attribute, Attributes, Color},
+    json::{self, JsonPathSegment, JsonStream},
     listbox,
-    serde_json::{self, Deserializer},
+    serde_json::{self},
     snapshot::Snapshot,
     style::StyleBuilder,
     suggest::Suggest,
-    text, text_editor, Prompt, PromptSignal, Renderer,
+    switch::ActiveKeySwitcher,
+    text, text_editor, Prompt,
 };
 
 mod keymap;
@@ -23,17 +19,19 @@ mod render;
 mod trie;
 use trie::QueryTrie;
 
+use crate::util;
+
 pub struct Jnv {
     input_json_stream: Vec<serde_json::Value>,
     expand_depth: Option<usize>,
     no_hint: bool,
 
-    query_editor_renderer: text_editor::Renderer,
-    hint_message_renderer: text::Renderer,
+    query_editor_state: text_editor::State,
+    hint_message_state: text::State,
     suggest: Suggest,
-    suggest_renderer: listbox::Renderer,
-    json_renderer: json::Renderer,
-    keymap: KeymapManager<self::render::Renderer>,
+    suggest_state: listbox::State,
+    json_state: json::State,
+    keymap: ActiveKeySwitcher<keymap::Keymap>,
 }
 
 impl Jnv {
@@ -45,7 +43,7 @@ impl Jnv {
         indent: usize,
         suggestion_list_length: usize,
     ) -> Result<Self> {
-        let stream = deserialize_json(&input_json_str)?;
+        let stream = util::deserialize_json(&input_json_str)?;
         let all_kinds = JsonStream::new(stream.clone(), None).flatten_kinds();
         let suggestions = all_kinds
             .iter()
@@ -81,7 +79,7 @@ impl Jnv {
             input_json_stream: stream.clone(),
             expand_depth,
             no_hint,
-            query_editor_renderer: text_editor::Renderer {
+            query_editor_state: text_editor::State {
                 texteditor: Default::default(),
                 history: Default::default(),
                 prefix: String::from("❯❯ "),
@@ -93,7 +91,7 @@ impl Jnv {
                 word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
                 lines: Default::default(),
             },
-            hint_message_renderer: text::Renderer {
+            hint_message_state: text::State {
                 text: Default::default(),
                 style: StyleBuilder::new()
                     .fgc(Color::Green)
@@ -101,7 +99,7 @@ impl Jnv {
                     .build(),
             },
             suggest: Suggest::from_iter(suggestions),
-            suggest_renderer: listbox::Renderer {
+            suggest_state: listbox::State {
                 listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
                 cursor: String::from("❯ "),
                 active_item_style: StyleBuilder::new()
@@ -111,9 +109,9 @@ impl Jnv {
                 inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
                 lines: Some(suggestion_list_length),
             },
-            keymap: KeymapManager::new("default", self::keymap::default)
+            keymap: ActiveKeySwitcher::new("default", self::keymap::default as keymap::Keymap)
                 .register("on_suggest", self::keymap::on_suggest),
-            json_renderer: json::Renderer {
+            json_state: json::State {
                 stream: JsonStream::new(stream, expand_depth),
                 theme: json::Theme {
                     curly_brackets_style: StyleBuilder::new()
@@ -136,204 +134,20 @@ impl Jnv {
         })
     }
 
-    fn update_hint_message(
-        &self,
-        renderer: &mut self::render::Renderer,
-        text: String,
-        style: ContentStyle,
-    ) {
-        if !self.no_hint {
-            renderer
-                .hint_message_snapshot
-                .after_mut()
-                .replace(text::Renderer { text, style })
-        }
-    }
-
-    fn evaluate(
-        &self,
-        event: &Event,
-        renderer: &mut Box<dyn Renderer + 'static>,
-        trie: RefCell<QueryTrie>,
-    ) -> promkit::Result<PromptSignal> {
-        let renderer = self::render::Renderer::cast_mut(renderer.as_mut())?;
-        let signal = match renderer.keymap.get() {
-            Some(f) => f(event, renderer),
-            None => Ok(PromptSignal::Quit),
-        }?;
-        let completed = renderer
-            .query_editor_snapshot
-            .after()
-            .texteditor
-            .text_without_cursor()
-            .to_string();
-
-        if completed
-            != renderer
-                .query_editor_snapshot
-                .borrow_before()
-                .texteditor
-                .text_without_cursor()
-                .to_string()
-        {
-            renderer.hint_message_snapshot.reset_after_to_init();
-
-            // libjq writes to the console when an internal error occurs.
-            //
-            // e.g.
-            // ```
-            // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
-            // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
-            //     . | select(.number == invalid_no_quote)
-            // ```
-            //
-            // While errors themselves are not an issue,
-            // they interfere with the console output handling mechanism
-            // in promkit and qjq (e.g., causing line numbers to shift).
-            // Therefore, we'll ignore console output produced inside j9::run.
-            //
-            // It's possible that this could be handled
-            // within github.com/ynqa/j9, but for now,
-            // we'll proceed with this workaround.
-            //
-            // For reference, the functionality of a quiet mode in libjq is
-            // also being discussed at https://github.com/jqlang/jq/issues/1225.
-            let ignore_err = Gag::stderr().unwrap();
-
-            let mut flatten_ret = Vec::<String>::new();
-            for v in &self.input_json_stream {
-                let inner_ret: Vec<String> = match j9::run(&completed, &v.to_string()) {
-                    Ok(ret) => ret,
-                    Err(_e) => {
-                        self.update_hint_message(
-                            renderer,
-                            format!("Failed to execute jq query '{}'", &completed),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                            renderer.json_snapshot.after_mut().stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
-                        }
-                        return Ok(signal);
-                    }
-                };
-                flatten_ret.extend(inner_ret);
-            }
-            drop(ignore_err);
-
-            if flatten_ret.is_empty() {
-                self.update_hint_message(
-                    renderer,
-                    format!(
-                        "JSON query ('{}') was executed, but no results were returned.",
-                        &completed
-                    ),
-                    StyleBuilder::new()
-                        .fgc(Color::Red)
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                );
-                if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                    renderer.json_snapshot.after_mut().stream =
-                        JsonStream::new(searched.clone(), self.expand_depth);
-                }
-            } else {
-                match deserialize_json(&flatten_ret.join("\n")) {
-                    Ok(jsonl) => {
-                        let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
-
-                        let is_null = stream
-                            .roots()
-                            .iter()
-                            .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
-                        if is_null {
-                            self.update_hint_message(
-                                renderer,
-                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &completed),
-                                StyleBuilder::new()
-                                    .fgc(Color::Yellow)
-                                    .attrs(Attributes::from(Attribute::Bold))
-                                    .build(),
-                            );
-                            if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                                renderer.json_snapshot.after_mut().stream =
-                                    JsonStream::new(searched.clone(), self.expand_depth);
-                            }
-                        } else {
-                            // SUCCESS!
-                            trie.borrow_mut().insert(&completed, jsonl);
-                            renderer.json_snapshot.after_mut().stream = stream;
-                        }
-                    }
-                    Err(e) => {
-                        self.update_hint_message(
-                            renderer,
-                            format!("Failed to parse query result for viewing: {}", e),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                            renderer.json_snapshot.after_mut().stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
-                        }
-                    }
-                }
-                // flatten_ret.is_empty()
-            }
-            // before != completed
-        }
-        Ok(signal)
-    }
-
-    pub fn prompt(self) -> Result<Prompt<String>> {
-        let rc_self = Rc::new(RefCell::new(self));
-        let rc_self_clone = rc_self.clone();
-
-        let keymap_clone = rc_self_clone.borrow().keymap.clone();
-        let query_editor_renderer_clone = rc_self_clone.borrow().query_editor_renderer.clone();
-        let hint_message_renderer_clone = rc_self_clone.borrow().hint_message_renderer.clone();
-        let suggest_clone = rc_self_clone.borrow().suggest.clone();
-        let suggest_renderer_clone = rc_self_clone.borrow().suggest_renderer.clone();
-        let json_renderer_clone = rc_self_clone.borrow().json_renderer.clone();
-        Ok(Prompt::try_new(
-            Box::new(self::render::Renderer {
-                keymap: keymap_clone,
-                query_editor_snapshot: Snapshot::<text_editor::Renderer>::new(
-                    query_editor_renderer_clone,
-                ),
-                hint_message_snapshot: Snapshot::<text::Renderer>::new(hint_message_renderer_clone),
-                suggest: suggest_clone,
-                suggest_snapshot: Snapshot::<listbox::Renderer>::new(suggest_renderer_clone),
-                json_snapshot: Snapshot::<json::Renderer>::new(json_renderer_clone),
-            }),
-            Box::new(
-                move |event: &Event,
-                      renderer: &mut Box<dyn Renderer + 'static>|
-                      -> promkit::Result<PromptSignal> {
-                    let trie = RefCell::new(QueryTrie::default());
-                    rc_self_clone.borrow().evaluate(event, renderer, trie)
-                },
-            ),
-            |renderer: &(dyn Renderer + '_)| -> promkit::Result<String> {
-                Ok(self::render::Renderer::cast(renderer)?
-                    .query_editor_snapshot
-                    .after()
-                    .texteditor
-                    .text_without_cursor()
-                    .to_string())
+    pub fn prompt(self) -> Result<Prompt<render::Renderer>> {
+        Ok(Prompt {
+            renderer: render::Renderer {
+                keymap: RefCell::new(self.keymap),
+                query_editor_snapshot: Snapshot::<text_editor::State>::new(self.query_editor_state),
+                hint_message_snapshot: Snapshot::<text::State>::new(self.hint_message_state),
+                suggest: self.suggest,
+                suggest_snapshot: Snapshot::<listbox::State>::new(self.suggest_state),
+                json_snapshot: Snapshot::<json::State>::new(self.json_state),
+                trie: QueryTrie::default(),
+                input_json_stream: self.input_json_stream,
+                expand_depth: self.expand_depth,
+                no_hint: self.no_hint,
             },
-        )?)
+        })
     }
-}
-
-fn deserialize_json(json_str: &str) -> Result<Vec<serde_json::Value>> {
-    Deserializer::from_str(json_str)
-        .into_iter::<serde_json::Value>()
-        .map(|res| res.map_err(anyhow::Error::new))
-        .collect::<Result<Vec<serde_json::Value>>>()
 }
