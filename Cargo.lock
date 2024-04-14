@@ -689,7 +689,7 @@ dependencies = [
 [[package]]
 name = "promkit"
 version = "0.4.0"
-source = "git+https://github.com/ynqa/promkit?branch=dev-0.4.0/main#a219034de8e63433c6287aef3d6b962023c00b3a"
+source = "git+https://github.com/ynqa/promkit?branch=dev-0.4.0/main#d90a5931988b4fce507961244b06d0f0a67ffb51"
 dependencies = [
  "anyhow",
  "crossterm",

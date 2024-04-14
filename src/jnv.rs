@@ -155,9 +155,20 @@ impl Jnv {
 
 impl_as_any!(Jnv);
 
-impl promkit::Renderer for Jnv {
+impl promkit::Finalizer for Jnv {
     type Return = String;
 
+    fn finalize(&self) -> anyhow::Result<Self::Return> {
+        Ok(self
+            .query_editor_snapshot
+            .after()
+            .texteditor
+            .text_without_cursor()
+            .to_string())
+    }
+}
+
+impl promkit::Renderer for Jnv {
     fn create_panes(&self, width: u16) -> Vec<Pane> {
         vec![
             self.query_editor_snapshot.create_pane(width),
@@ -293,14 +304,5 @@ impl promkit::Renderer for Jnv {
             // before != completed
         }
         signal
-    }
-
-    fn finalize(&self) -> anyhow::Result<Self::Return> {
-        Ok(self
-            .query_editor_snapshot
-            .after()
-            .texteditor
-            .text_without_cursor()
-            .to_string())
     }
 }
