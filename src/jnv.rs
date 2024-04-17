@@ -169,12 +169,12 @@ impl promkit::Finalizer for Jnv {
 }
 
 impl promkit::Renderer for Jnv {
-    fn create_panes(&self, width: u16) -> Vec<Pane> {
+    fn create_panes(&self, width: u16, height: u16) -> Vec<Pane> {
         vec![
-            self.query_editor_snapshot.create_pane(width),
-            self.hint_message_snapshot.create_pane(width),
-            self.suggest_state.create_pane(width),
-            self.json_state.create_pane(width),
+            self.query_editor_snapshot.create_pane(width, height),
+            self.hint_message_snapshot.create_pane(width, height),
+            self.suggest_state.create_pane(width, height),
+            self.json_state.create_pane(width, height),
         ]
     }
 
