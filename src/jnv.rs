@@ -30,6 +30,42 @@ fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
         .collect::<anyhow::Result<Vec<serde_json::Value>>>()
 }
 
+fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
+    // libjq writes to the console when an internal error occurs.
+    //
+    // e.g.
+    // ```
+    // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
+    // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
+    //     . | select(.number == invalid_no_quote)
+    // ```
+    //
+    // While errors themselves are not an issue,
+    // they interfere with the console output handling mechanism
+    // in promkit and qjq (e.g., causing line numbers to shift).
+    // Therefore, we'll ignore console output produced inside j9::run.
+    //
+    // It's possible that this could be handled
+    // within github.com/ynqa/j9, but for now,
+    // we'll proceed with this workaround.
+    //
+    // For reference, the functionality of a quiet mode in libjq is
+    // also being discussed at https://github.com/jqlang/jq/issues/1225.
+    let ignore_err = Gag::stderr().unwrap();
+    let mut jq_ret = Vec::<String>::new();
+    for v in json_stream.iter() {
+        let inner_ret: Vec<String> = match j9::run(&query, &v.to_string()) {
+            Ok(ret) => ret,
+            Err(e) => {
+                return Err(anyhow::anyhow!(e));
+            }
+        };
+        jq_ret.extend(inner_ret);
+    }
+    drop(ignore_err);
+    Ok(jq_ret)
+}
+
 pub struct Jnv {
     keymap: RefCell<ActiveKeySwitcher<keymap::Keymap>>,
     query_editor_snapshot: Snapshot<text_editor::State>,
@@ -201,35 +237,14 @@ impl promkit::Renderer for Jnv {
         {
             self.hint_message_snapshot.reset_after_to_init();
 
-            // libjq writes to the console when an internal error occurs.
-            //
-            // e.g.
-            // ```
-            // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
-            // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
-            //     . | select(.number == invalid_no_quote)
-            // ```
-            //
-            // While errors themselves are not an issue,
-            // they interfere with the console output handling mechanism
-            // in promkit and qjq (e.g., causing line numbers to shift).
-            // Therefore, we'll ignore console output produced inside j9::run.
-            //
-            // It's possible that this could be handled
-            // within github.com/ynqa/j9, but for now,
-            // we'll proceed with this workaround.
-            //
-            // For reference, the functionality of a quiet mode in libjq is
-            // also being discussed at https://github.com/jqlang/jq/issues/1225.
-            let ignore_err = Gag::stderr().unwrap();
-
-            let mut flatten_ret = Vec::<String>::new();
-            for v in &self.input_json_stream {
-                let inner_ret: Vec<String> = match j9::run(&completed, &v.to_string()) {
-                    Ok(ret) => ret,
-                    Err(_e) => {
+            match run_jq(&completed, &self.input_json_stream) {
+                Ok(ret) => {
+                    if ret.is_empty() {
                         self.update_hint_message(
-                            format!("Failed to execute jq query '{}'", &completed),
+                            format!(
+                                "JSON query ('{}') was executed, but no results were returned.",
+                                &completed
+                            ),
                             StyleBuilder::new()
                                 .fgc(Color::Red)
                                 .attrs(Attributes::from(Attribute::Bold))
@@ -239,71 +254,66 @@ impl promkit::Renderer for Jnv {
                             self.json_state.stream =
                                 JsonStream::new(searched.clone(), self.expand_depth);
                         }
-                        return signal;
-                    }
-                };
-                flatten_ret.extend(inner_ret);
-            }
-            drop(ignore_err);
+                    } else {
+                        match deserialize_json(&ret.join("\n")) {
+                            Ok(jsonl) => {
+                                let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
 
-            if flatten_ret.is_empty() {
-                self.update_hint_message(
-                    format!(
-                        "JSON query ('{}') was executed, but no results were returned.",
-                        &completed
-                    ),
-                    StyleBuilder::new()
-                        .fgc(Color::Red)
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                );
-                if let Some(searched) = self.trie.prefix_search_value(&completed) {
-                    self.json_state.stream = JsonStream::new(searched.clone(), self.expand_depth);
-                }
-            } else {
-                match deserialize_json(&flatten_ret.join("\n")) {
-                    Ok(jsonl) => {
-                        let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
-
-                        let is_null = stream
-                            .roots()
-                            .iter()
-                            .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
-                        if is_null {
-                            self.update_hint_message(
-                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &completed),
-                                StyleBuilder::new()
-                                    .fgc(Color::Yellow)
-                                    .attrs(Attributes::from(Attribute::Bold))
-                                    .build(),
-                            );
-                            if let Some(searched) = self.trie.prefix_search_value(&completed) {
-                                self.json_state.stream =
-                                    JsonStream::new(searched.clone(), self.expand_depth);
+                                let is_null = stream
+                                    .roots()
+                                    .iter()
+                                    .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
+                                if is_null {
+                                    self.update_hint_message(
+                                        format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &completed),
+                                        StyleBuilder::new()
+                                            .fgc(Color::Yellow)
+                                            .attrs(Attributes::from(Attribute::Bold))
+                                            .build(),
+                                    );
+                                    if let Some(searched) =
+                                        self.trie.prefix_search_value(&completed)
+                                    {
+                                        self.json_state.stream =
+                                            JsonStream::new(searched.clone(), self.expand_depth);
+                                    }
+                                } else {
+                                    // SUCCESS!
+                                    self.trie.insert(&completed, jsonl);
+                                    self.json_state.stream = stream;
+                                }
                             }
-                        } else {
-                            // SUCCESS!
-                            self.trie.insert(&completed, jsonl);
-                            self.json_state.stream = stream;
-                        }
-                    }
-                    Err(e) => {
-                        self.update_hint_message(
-                            format!("Failed to parse query result for viewing: {}", e),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = self.trie.prefix_search_value(&completed) {
-                            self.json_state.stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
+                            Err(e) => {
+                                self.update_hint_message(
+                                    format!("Failed to parse query result for viewing: {}", e),
+                                    StyleBuilder::new()
+                                        .fgc(Color::Red)
+                                        .attrs(Attributes::from(Attribute::Bold))
+                                        .build(),
+                                );
+                                if let Some(searched) = self.trie.prefix_search_value(&completed) {
+                                    self.json_state.stream =
+                                        JsonStream::new(searched.clone(), self.expand_depth);
+                                }
+                            }
                         }
                     }
                 }
-                // flatten_ret.is_empty()
+                Err(_) => {
+                    self.update_hint_message(
+                        format!("Failed to execute jq query '{}'", &completed),
+                        StyleBuilder::new()
+                            .fgc(Color::Red)
+                            .attrs(Attributes::from(Attribute::Bold))
+                            .build(),
+                    );
+                    if let Some(searched) = self.trie.prefix_search_value(&completed) {
+                        self.json_state.stream =
+                            JsonStream::new(searched.clone(), self.expand_depth);
+                    }
+                    return signal;
+                }
             }
-            // before != completed
         }
         signal
     }
