@@ -8,7 +8,6 @@ use promkit::{
         event::Event,
         style::{Attribute, Attributes, Color, ContentStyle},
     },
-    impl_as_any,
     json::{self, JsonNode, JsonPathSegment, JsonStream},
     listbox,
     pane::Pane,
@@ -152,8 +151,6 @@ impl Jnv {
         }
     }
 }
-
-impl_as_any!(Jnv);
 
 impl promkit::Finalizer for Jnv {
     type Return = String;
