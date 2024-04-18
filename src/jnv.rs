@@ -11,7 +11,7 @@ use promkit::{
     json::{self, JsonNode, JsonPathSegment, JsonStream},
     listbox,
     pane::Pane,
-    serde_json,
+    serde_json::{self, Deserializer},
     snapshot::Snapshot,
     style::StyleBuilder,
     suggest::Suggest,
@@ -23,7 +23,12 @@ mod keymap;
 mod trie;
 use trie::QueryTrie;
 
-use crate::util;
+fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    Deserializer::from_str(json_str)
+        .into_iter::<serde_json::Value>()
+        .map(|res| res.map_err(anyhow::Error::from))
+        .collect::<anyhow::Result<Vec<serde_json::Value>>>()
+}
 
 pub struct Jnv {
     keymap: RefCell<ActiveKeySwitcher<keymap::Keymap>>,
@@ -47,7 +52,7 @@ impl Jnv {
         indent: usize,
         suggestion_list_length: usize,
     ) -> Result<Prompt<Self>> {
-        let stream = util::deserialize_json(&input_json_str)?;
+        let stream = deserialize_json(&input_json_str)?;
         let all_kinds = JsonStream::new(stream.clone(), None).flatten_kinds();
         let suggestions = all_kinds
             .iter()
@@ -256,7 +261,7 @@ impl promkit::Renderer for Jnv {
                     self.json_state.stream = JsonStream::new(searched.clone(), self.expand_depth);
                 }
             } else {
-                match util::deserialize_json(&flatten_ret.join("\n")) {
+                match deserialize_json(&flatten_ret.join("\n")) {
                     Ok(jsonl) => {
                         let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
 

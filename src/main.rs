@@ -11,7 +11,6 @@ use promkit::text_editor;
 
 mod jnv;
 use jnv::Jnv;
-mod util;
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
