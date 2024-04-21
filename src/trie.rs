@@ -3,9 +3,9 @@ use radix_trie::{Trie, TrieCommon};
 use promkit::serde_json;
 
 #[derive(Default, Clone)]
-pub struct QueryTrie(Trie<String, Vec<serde_json::Value>>);
+pub struct FilterTrie(Trie<String, Vec<serde_json::Value>>);
 
-impl QueryTrie {
+impl FilterTrie {
     pub fn insert(&mut self, query: &str, json_nodes: Vec<serde_json::Value>) {
         self.0.insert(query.to_string(), json_nodes);
     }
@@ -27,7 +27,7 @@ mod tests {
 
         #[test]
         fn test() {
-            let mut trie = QueryTrie::default();
+            let mut trie = FilterTrie::default();
             trie.insert("apple", vec![json!({"type": "fruit"})]);
             trie.insert("app", vec![json!({"type": "abbreviation"})]);
 

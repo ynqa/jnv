@@ -19,7 +19,7 @@ use promkit::{
     text, text_editor, PaneFactory, Prompt, PromptSignal,
 };
 
-use crate::trie::QueryTrie;
+use crate::trie::FilterTrie;
 
 mod keymap;
 
@@ -67,29 +67,37 @@ fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<
 }
 
 pub struct Jnv {
+    input_stream: Vec<serde_json::Value>,
+
+    // Keybindings
     keymap: RefCell<ActiveKeySwitcher<keymap::Keymap>>,
-    query_editor_snapshot: Snapshot<text_editor::State>,
-    hint_message_snapshot: Snapshot<text::State>,
-    suggest: Suggest,
-    suggest_state: listbox::State,
+
+    // For Rendering
+    filter_editor: Snapshot<text_editor::State>,
+    hint_message: Snapshot<text::State>,
+    suggestions: listbox::State,
     json_state: json::State,
-    trie: QueryTrie,
-    input_json_stream: Vec<serde_json::Value>,
+
+    // Store the filter history
+    trie: FilterTrie,
+    // Store the filter suggestions
+    suggest: Suggest,
+
     expand_depth: Option<usize>,
     no_hint: bool,
 }
 
 impl Jnv {
     pub fn try_new(
-        input_json_str: String,
+        input: String,
         expand_depth: Option<usize>,
         no_hint: bool,
         edit_mode: text_editor::Mode,
         indent: usize,
         suggestion_list_length: usize,
     ) -> Result<Prompt<Self>> {
-        let stream = deserialize_json(&input_json_str)?;
-        let all_kinds = JsonStream::new(stream.clone(), None).flatten_kinds();
+        let input_stream = deserialize_json(&input)?;
+        let all_kinds = JsonStream::new(input_stream.clone(), None).flatten_kinds();
         let suggestions = all_kinds
             .iter()
             .filter_map(|kind| kind.path())
@@ -126,7 +134,7 @@ impl Jnv {
                     ActiveKeySwitcher::new("default", self::keymap::default as keymap::Keymap)
                         .register("on_suggest", self::keymap::on_suggest),
                 ),
-                query_editor_snapshot: Snapshot::<text_editor::State>::new(text_editor::State {
+                filter_editor: Snapshot::<text_editor::State>::new(text_editor::State {
                     texteditor: Default::default(),
                     history: Default::default(),
                     prefix: String::from("❯❯ "),
@@ -138,15 +146,14 @@ impl Jnv {
                     word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
                     lines: Default::default(),
                 }),
-                hint_message_snapshot: Snapshot::<text::State>::new(text::State {
+                hint_message: Snapshot::<text::State>::new(text::State {
                     text: Default::default(),
                     style: StyleBuilder::new()
                         .fgc(Color::Green)
                         .attrs(Attributes::from(Attribute::Bold))
                         .build(),
                 }),
-                suggest: Suggest::from_iter(suggestions),
-                suggest_state: listbox::State {
+                suggestions: listbox::State {
                     listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
                     cursor: String::from("❯ "),
                     active_item_style: StyleBuilder::new()
@@ -157,7 +164,7 @@ impl Jnv {
                     lines: Some(suggestion_list_length),
                 },
                 json_state: json::State {
-                    stream: JsonStream::new(stream.clone(), expand_depth),
+                    stream: JsonStream::new(input_stream.clone(), expand_depth),
                     theme: json::Theme {
                         curly_brackets_style: StyleBuilder::new()
                             .attrs(Attributes::from(Attribute::Bold))
@@ -176,17 +183,18 @@ impl Jnv {
                         indent,
                     },
                 },
-                trie: QueryTrie::default(),
-                input_json_stream: stream,
+                trie: FilterTrie::default(),
+                suggest: Suggest::from_iter(suggestions),
                 expand_depth,
                 no_hint,
+                input_stream,
             },
         })
     }
 
     fn update_hint_message(&mut self, text: String, style: ContentStyle) {
         if !self.no_hint {
-            self.hint_message_snapshot
+            self.hint_message
                 .after_mut()
                 .replace(text::State { text, style })
         }
@@ -198,7 +206,7 @@ impl promkit::Finalizer for Jnv {
 
     fn finalize(&self) -> anyhow::Result<Self::Return> {
         Ok(self
-            .query_editor_snapshot
+            .filter_editor
             .after()
             .texteditor
             .text_without_cursor()
@@ -209,9 +217,9 @@ impl promkit::Finalizer for Jnv {
 impl promkit::Renderer for Jnv {
     fn create_panes(&self, width: u16, height: u16) -> Vec<Pane> {
         vec![
-            self.query_editor_snapshot.create_pane(width, height),
-            self.hint_message_snapshot.create_pane(width, height),
-            self.suggest_state.create_pane(width, height),
+            self.filter_editor.create_pane(width, height),
+            self.hint_message.create_pane(width, height),
+            self.suggestions.create_pane(width, height),
             self.json_state.create_pane(width, height),
         ]
     }
@@ -220,7 +228,7 @@ impl promkit::Renderer for Jnv {
         let keymap = *self.keymap.borrow_mut().get();
         let signal = keymap(event, self);
         let completed = self
-            .query_editor_snapshot
+            .filter_editor
             .after()
             .texteditor
             .text_without_cursor()
@@ -229,15 +237,15 @@ impl promkit::Renderer for Jnv {
         // Check if the query has changed
         if completed
             != self
-                .query_editor_snapshot
+                .filter_editor
                 .borrow_before()
                 .texteditor
                 .text_without_cursor()
                 .to_string()
         {
-            self.hint_message_snapshot.reset_after_to_init();
+            self.hint_message.reset_after_to_init();
 
-            match run_jq(&completed, &self.input_json_stream) {
+            match run_jq(&completed, &self.input_stream) {
                 Ok(ret) => {
                     if ret.is_empty() {
                         self.update_hint_message(
