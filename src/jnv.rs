@@ -223,52 +223,29 @@ impl promkit::Renderer for Jnv {
         {
             self.hint_message.reset_after_to_init();
 
-            match run_jq(&filter, &self.input_stream) {
-                Ok(ret) => {
-                    if ret.is_empty() {
-                        self.update_hint_message(
-                            format!(
-                                "JSON query ('{}') was executed, but no results were returned.",
-                                &filter
-                            ),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = self.trie.prefix_search(&filter) {
-                            self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
-                        }
-                    } else {
-                        match deserialize_json(&ret.join("\n")) {
-                            Ok(jsonl) => {
-                                let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
-
-                                let is_null = stream
-                                    .roots()
-                                    .iter()
-                                    .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
-                                if is_null {
-                                    self.update_hint_message(
-                                        format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
-                                        StyleBuilder::new()
-                                            .fgc(Color::Yellow)
-                                            .attrs(Attributes::from(Attribute::Bold))
-                                            .build(),
-                                    );
-                                    if let Some(searched) = self.trie.prefix_search(&filter) {
-                                        self.json.stream =
-                                            JsonStream::new(searched.clone(), self.expand_depth);
-                                    }
-                                } else {
-                                    // SUCCESS!
-                                    self.trie.insert(&filter, jsonl);
-                                    self.json.stream = stream;
-                                }
-                            }
-                            Err(e) => {
+            match self.trie.exact_search(&filter) {
+                Some(jsonl) => {
+                    self.json.stream = JsonStream::new(jsonl.clone(), self.expand_depth);
+                    self.update_hint_message(
+                        format!(
+                            "JSON query ('{}') was already executed. Result was retrieved from cache.",
+                            &filter
+                        ),
+                        StyleBuilder::new()
+                            .fgc(Color::DarkGrey)
+                            .attrs(Attributes::from(Attribute::Bold))
+                            .build(),
+                    );
+                }
+                None => {
+                    match run_jq(&filter, &self.input_stream) {
+                        Ok(ret) => {
+                            if ret.is_empty() {
                                 self.update_hint_message(
-                                    format!("Failed to parse query result for viewing: {}", e),
+                                    format!(
+                                        "JSON query ('{}') was executed, but no results were returned.",
+                                        &filter
+                                    ),
                                     StyleBuilder::new()
                                         .fgc(Color::Red)
                                         .attrs(Attributes::from(Attribute::Bold))
@@ -278,22 +255,72 @@ impl promkit::Renderer for Jnv {
                                     self.json.stream =
                                         JsonStream::new(searched.clone(), self.expand_depth);
                                 }
+                            } else {
+                                match deserialize_json(&ret.join("\n")) {
+                                    Ok(jsonl) => {
+                                        let stream =
+                                            JsonStream::new(jsonl.clone(), self.expand_depth);
+
+                                        let is_null = stream.roots().iter().all(|node| {
+                                            node == &JsonNode::Leaf(serde_json::Value::Null)
+                                        });
+                                        if is_null {
+                                            self.update_hint_message(
+                                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
+                                                StyleBuilder::new()
+                                                    .fgc(Color::Yellow)
+                                                    .attrs(Attributes::from(Attribute::Bold))
+                                                    .build(),
+                                            );
+                                            if let Some(searched) = self.trie.prefix_search(&filter)
+                                            {
+                                                self.json.stream = JsonStream::new(
+                                                    searched.clone(),
+                                                    self.expand_depth,
+                                                );
+                                            }
+                                        } else {
+                                            // SUCCESS!
+                                            self.trie.insert(&filter, jsonl);
+                                            self.json.stream = stream;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        self.update_hint_message(
+                                            format!(
+                                                "Failed to parse query result for viewing: {}",
+                                                e
+                                            ),
+                                            StyleBuilder::new()
+                                                .fgc(Color::Red)
+                                                .attrs(Attributes::from(Attribute::Bold))
+                                                .build(),
+                                        );
+                                        if let Some(searched) = self.trie.prefix_search(&filter) {
+                                            self.json.stream = JsonStream::new(
+                                                searched.clone(),
+                                                self.expand_depth,
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
+                        Err(_) => {
+                            self.update_hint_message(
+                                format!("Failed to execute jq query '{}'", &filter),
+                                StyleBuilder::new()
+                                    .fgc(Color::Red)
+                                    .attrs(Attributes::from(Attribute::Bold))
+                                    .build(),
+                            );
+                            if let Some(searched) = self.trie.prefix_search(&filter) {
+                                self.json.stream =
+                                    JsonStream::new(searched.clone(), self.expand_depth);
+                            }
+                            return signal;
+                        }
                     }
-                }
-                Err(_) => {
-                    self.update_hint_message(
-                        format!("Failed to execute jq query '{}'", &filter),
-                        StyleBuilder::new()
-                            .fgc(Color::Red)
-                            .attrs(Attributes::from(Attribute::Bold))
-                            .build(),
-                    );
-                    if let Some(searched) = self.trie.prefix_search(&filter) {
-                        self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
-                    }
-                    return signal;
                 }
             }
         }
