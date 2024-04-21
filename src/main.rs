@@ -3,10 +3,12 @@ use std::{
     fs::File,
     io::{self, Read},
     path::PathBuf,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
+use tokio::sync::mpsc;
 
 use promkit::{
     crossterm::style::{Attribute, Attributes, Color},
@@ -17,6 +19,7 @@ use promkit::{
 
 mod jnv;
 use jnv::Jnv;
+mod jnv_async;
 mod trie;
 
 /// JSON navigator and interactive filter leveraging jq
@@ -110,6 +113,15 @@ pub struct Args {
         "
     )]
     pub suggestion_list_length: usize,
+
+    #[arg(
+        long = "async",
+        help = "Run in async mode.",
+        long_help = "
+        When this option is enabled, it runs the application in async mode.
+        "
+    )]
+    pub async_mode: bool,
 }
 
 fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
@@ -146,7 +158,8 @@ fn parse_input(args: &Args) -> Result<String> {
     Ok(ret)
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
 
     let input = parse_input(&args)?;
@@ -201,15 +214,46 @@ fn main() -> Result<()> {
         indent: args.indent,
     };
 
-    let mut prompt = Jnv::try_new(
-        input,
-        filter_editor,
-        hint_message,
-        suggestions,
-        json_theme,
-        args.json_expand_depth,
-        args.no_hint,
-    )?;
-    let _ = prompt.run()?;
+    if args.async_mode {
+        let (fin_sender, fin_receiver) = mpsc::channel(1);
+        // Under investigation: reducing the size of the channel to a very small value
+        // results in missing panes on rendering.
+        let (versioned_each_pane_sender, versioned_each_pane_receiver) = mpsc::channel(10);
+        let (versioned_loading_indicator_sender, versioned_loading_indicator_receiver) =
+            mpsc::channel(1);
+        let mut prompt = jnv_async::Jnv::try_new(
+            input,
+            filter_editor,
+            hint_message,
+            suggestions,
+            json_theme,
+            args.json_expand_depth,
+            args.no_hint,
+            fin_sender,
+            versioned_each_pane_sender,
+            versioned_loading_indicator_sender,
+        )?;
+        let _ = prompt
+            .run(
+                Duration::from_millis(10),
+                Duration::from_millis(100),
+                Duration::from_millis(10),
+                fin_receiver,
+                versioned_each_pane_receiver,
+                versioned_loading_indicator_receiver,
+            )
+            .await?;
+    } else {
+        let mut prompt = Jnv::try_new(
+            input,
+            filter_editor,
+            hint_message,
+            suggestions,
+            json_theme,
+            args.json_expand_depth,
+            args.no_hint,
+        )?;
+        let _ = prompt.run()?;
+    }
     Ok(())
 }
