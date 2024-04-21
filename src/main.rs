@@ -97,7 +97,7 @@ pub struct Args {
         Note: Increasing this depth can significantly slow down the display for large datasets.
         "
     )]
-    pub expand_depth: Option<usize>,
+    pub json_expand_depth: Option<usize>,
 
     #[arg(
         short = 'l',
@@ -188,7 +188,7 @@ fn main() -> Result<()> {
         filter_editor,
         hint_message,
         suggestions,
-        args.expand_depth,
+        args.json_expand_depth,
         args.no_hint,
         args.indent,
     )?;

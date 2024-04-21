@@ -95,7 +95,7 @@ pub struct Jnv {
     // Store the filter suggestions
     suggest: Suggest,
 
-    expand_depth: Option<usize>,
+    json_expand_depth: Option<usize>,
     no_hint: bool,
 }
 
@@ -105,7 +105,7 @@ impl Jnv {
         filter_editor: text_editor::State,
         hint_message: text::State,
         suggestions: listbox::State,
-        expand_depth: Option<usize>,
+        json_expand_depth: Option<usize>,
         no_hint: bool,
         indent: usize,
     ) -> Result<Prompt<Self>> {
@@ -154,7 +154,7 @@ impl Jnv {
                 hint_message: Snapshot::<text::State>::new(hint_message),
                 suggestions,
                 json: json::State {
-                    stream: JsonStream::new(input_stream.clone(), expand_depth),
+                    stream: JsonStream::new(input_stream.clone(), json_expand_depth),
                     theme: json::Theme {
                         curly_brackets_style: StyleBuilder::new()
                             .attrs(Attributes::from(Attribute::Bold))
@@ -175,7 +175,7 @@ impl Jnv {
                 },
                 trie,
                 suggest,
-                expand_depth,
+                json_expand_depth,
                 no_hint,
                 input_stream,
             },
@@ -237,7 +237,7 @@ impl promkit::Renderer for Jnv {
 
             match self.trie.exact_search(&filter) {
                 Some(jsonl) => {
-                    self.json.stream = JsonStream::new(jsonl.clone(), self.expand_depth);
+                    self.json.stream = JsonStream::new(jsonl.clone(), self.json_expand_depth);
                     self.update_hint_message(
                         format!(
                             "JSON query ('{}') was already executed. Result was retrieved from cache.",
@@ -265,13 +265,13 @@ impl promkit::Renderer for Jnv {
                                 );
                                 if let Some(searched) = self.trie.prefix_search(&filter) {
                                     self.json.stream =
-                                        JsonStream::new(searched.clone(), self.expand_depth);
+                                        JsonStream::new(searched.clone(), self.json_expand_depth);
                                 }
                             } else {
                                 match deserialize_json(&ret.join("\n")) {
                                     Ok(jsonl) => {
                                         let stream =
-                                            JsonStream::new(jsonl.clone(), self.expand_depth);
+                                            JsonStream::new(jsonl.clone(), self.json_expand_depth);
 
                                         let is_null = stream.roots().iter().all(|node| {
                                             node == &JsonNode::Leaf(serde_json::Value::Null)
@@ -288,7 +288,7 @@ impl promkit::Renderer for Jnv {
                                             {
                                                 self.json.stream = JsonStream::new(
                                                     searched.clone(),
-                                                    self.expand_depth,
+                                                    self.json_expand_depth,
                                                 );
                                             }
                                         } else {
@@ -311,7 +311,7 @@ impl promkit::Renderer for Jnv {
                                         if let Some(searched) = self.trie.prefix_search(&filter) {
                                             self.json.stream = JsonStream::new(
                                                 searched.clone(),
-                                                self.expand_depth,
+                                                self.json_expand_depth,
                                             );
                                         }
                                     }
@@ -328,7 +328,7 @@ impl promkit::Renderer for Jnv {
                             );
                             if let Some(searched) = self.trie.prefix_search(&filter) {
                                 self.json.stream =
-                                    JsonStream::new(searched.clone(), self.expand_depth);
+                                    JsonStream::new(searched.clone(), self.json_expand_depth);
                             }
                             return signal;
                         }
