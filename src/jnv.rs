@@ -250,7 +250,7 @@ impl promkit::Renderer for Jnv {
                                 .attrs(Attributes::from(Attribute::Bold))
                                 .build(),
                         );
-                        if let Some(searched) = self.trie.prefix_search_value(&completed) {
+                        if let Some(searched) = self.trie.prefix_search(&completed) {
                             self.json_state.stream =
                                 JsonStream::new(searched.clone(), self.expand_depth);
                         }
@@ -271,9 +271,7 @@ impl promkit::Renderer for Jnv {
                                             .attrs(Attributes::from(Attribute::Bold))
                                             .build(),
                                     );
-                                    if let Some(searched) =
-                                        self.trie.prefix_search_value(&completed)
-                                    {
+                                    if let Some(searched) = self.trie.prefix_search(&completed) {
                                         self.json_state.stream =
                                             JsonStream::new(searched.clone(), self.expand_depth);
                                     }
@@ -291,7 +289,7 @@ impl promkit::Renderer for Jnv {
                                         .attrs(Attributes::from(Attribute::Bold))
                                         .build(),
                                 );
-                                if let Some(searched) = self.trie.prefix_search_value(&completed) {
+                                if let Some(searched) = self.trie.prefix_search(&completed) {
                                     self.json_state.stream =
                                         JsonStream::new(searched.clone(), self.expand_depth);
                                 }
@@ -307,7 +305,7 @@ impl promkit::Renderer for Jnv {
                             .attrs(Attributes::from(Attribute::Bold))
                             .build(),
                     );
-                    if let Some(searched) = self.trie.prefix_search_value(&completed) {
+                    if let Some(searched) = self.trie.prefix_search(&completed) {
                         self.json_state.stream =
                             JsonStream::new(searched.clone(), self.expand_depth);
                     }
