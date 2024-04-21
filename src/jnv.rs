@@ -54,7 +54,7 @@ fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<
     let ignore_err = Gag::stderr().unwrap();
     let mut jq_ret = Vec::<String>::new();
     for v in json_stream.iter() {
-        let inner_ret: Vec<String> = match j9::run(&query, &v.to_string()) {
+        let inner_ret: Vec<String> = match j9::run(query, &v.to_string()) {
             Ok(ret) => ret,
             Err(e) => {
                 return Err(anyhow::anyhow!(e));
