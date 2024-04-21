@@ -23,6 +23,18 @@ use crate::trie::FilterTrie;
 
 mod keymap;
 
+/// Deserializes a JSON string into a vector of `serde_json::Value`.
+///
+/// This function takes a JSON string as input and attempts to parse it into a vector
+/// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
+/// It leverages `serde_json::Deserializer` to parse the string and collect the results.
+///
+/// # Arguments
+/// * `json_str` - A string slice that holds the JSON data to be deserialized.
+///
+/// # Returns
+/// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
+/// JSON data. On failure, it contains an error detailing what went wrong during parsing.
 fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
     Deserializer::from_str(json_str)
         .into_iter::<serde_json::Value>()
