@@ -201,7 +201,7 @@ impl promkit::Renderer for Jnv {
     fn evaluate(&mut self, event: &Event) -> anyhow::Result<PromptSignal> {
         let keymap = *self.keymap.borrow_mut().get();
         let signal = keymap(event, self);
-        let completed = self
+        let filter = self
             .filter_editor
             .after()
             .texteditor
@@ -209,7 +209,7 @@ impl promkit::Renderer for Jnv {
             .to_string();
 
         // Check if the query has changed
-        if completed
+        if filter
             != self
                 .filter_editor
                 .borrow_before()
@@ -219,20 +219,20 @@ impl promkit::Renderer for Jnv {
         {
             self.hint_message.reset_after_to_init();
 
-            match run_jq(&completed, &self.input_stream) {
+            match run_jq(&filter, &self.input_stream) {
                 Ok(ret) => {
                     if ret.is_empty() {
                         self.update_hint_message(
                             format!(
                                 "JSON query ('{}') was executed, but no results were returned.",
-                                &completed
+                                &filter
                             ),
                             StyleBuilder::new()
                                 .fgc(Color::Red)
                                 .attrs(Attributes::from(Attribute::Bold))
                                 .build(),
                         );
-                        if let Some(searched) = self.trie.prefix_search(&completed) {
+                        if let Some(searched) = self.trie.prefix_search(&filter) {
                             self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
                         }
                     } else {
@@ -246,19 +246,19 @@ impl promkit::Renderer for Jnv {
                                     .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
                                 if is_null {
                                     self.update_hint_message(
-                                        format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &completed),
+                                        format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
                                         StyleBuilder::new()
                                             .fgc(Color::Yellow)
                                             .attrs(Attributes::from(Attribute::Bold))
                                             .build(),
                                     );
-                                    if let Some(searched) = self.trie.prefix_search(&completed) {
+                                    if let Some(searched) = self.trie.prefix_search(&filter) {
                                         self.json.stream =
                                             JsonStream::new(searched.clone(), self.expand_depth);
                                     }
                                 } else {
                                     // SUCCESS!
-                                    self.trie.insert(&completed, jsonl);
+                                    self.trie.insert(&filter, jsonl);
                                     self.json.stream = stream;
                                 }
                             }
@@ -270,7 +270,7 @@ impl promkit::Renderer for Jnv {
                                         .attrs(Attributes::from(Attribute::Bold))
                                         .build(),
                                 );
-                                if let Some(searched) = self.trie.prefix_search(&completed) {
+                                if let Some(searched) = self.trie.prefix_search(&filter) {
                                     self.json.stream =
                                         JsonStream::new(searched.clone(), self.expand_depth);
                                 }
@@ -280,13 +280,13 @@ impl promkit::Renderer for Jnv {
                 }
                 Err(_) => {
                     self.update_hint_message(
-                        format!("Failed to execute jq query '{}'", &completed),
+                        format!("Failed to execute jq query '{}'", &filter),
                         StyleBuilder::new()
                             .fgc(Color::Red)
                             .attrs(Attributes::from(Attribute::Bold))
                             .build(),
                     );
-                    if let Some(searched) = self.trie.prefix_search(&completed) {
+                    if let Some(searched) = self.trie.prefix_search(&filter) {
                         self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
                     }
                     return signal;
