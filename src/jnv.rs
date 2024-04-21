@@ -105,9 +105,9 @@ impl Jnv {
         filter_editor: text_editor::State,
         hint_message: text::State,
         suggestions: listbox::State,
+        json_theme: json::Theme,
         json_expand_depth: Option<usize>,
         no_hint: bool,
-        indent: usize,
     ) -> Result<Prompt<Self>> {
         let input_stream = deserialize_json(&input)?;
 
@@ -155,23 +155,7 @@ impl Jnv {
                 suggestions,
                 json: json::State {
                     stream: JsonStream::new(input_stream.clone(), json_expand_depth),
-                    theme: json::Theme {
-                        curly_brackets_style: StyleBuilder::new()
-                            .attrs(Attributes::from(Attribute::Bold))
-                            .build(),
-                        square_brackets_style: StyleBuilder::new()
-                            .attrs(Attributes::from(Attribute::Bold))
-                            .build(),
-                        key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                        string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                        number_value_style: StyleBuilder::new().build(),
-                        boolean_value_style: StyleBuilder::new().build(),
-                        null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                        active_item_attribute: Attribute::Bold,
-                        inactive_item_attribute: Attribute::Dim,
-                        lines: Default::default(),
-                        indent,
-                    },
+                    theme: json_theme,
                 },
                 trie,
                 suggest,

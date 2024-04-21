@@ -10,7 +10,7 @@ use clap::Parser;
 
 use promkit::{
     crossterm::style::{Attribute, Attributes, Color},
-    listbox,
+    json, listbox,
     style::StyleBuilder,
     text, text_editor,
 };
@@ -183,14 +183,32 @@ fn main() -> Result<()> {
         lines: Some(args.suggestion_list_length),
     };
 
+    let json_theme = json::Theme {
+        curly_brackets_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Bold))
+            .build(),
+        square_brackets_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Bold))
+            .build(),
+        key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+        string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+        number_value_style: StyleBuilder::new().build(),
+        boolean_value_style: StyleBuilder::new().build(),
+        null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        active_item_attribute: Attribute::Bold,
+        inactive_item_attribute: Attribute::Dim,
+        lines: Default::default(),
+        indent: args.indent,
+    };
+
     let mut prompt = Jnv::try_new(
         input,
         filter_editor,
         hint_message,
         suggestions,
+        json_theme,
         args.json_expand_depth,
         args.no_hint,
-        args.indent,
     )?;
     let _ = prompt.run()?;
     Ok(())
