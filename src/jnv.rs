@@ -98,6 +98,10 @@ impl Jnv {
         indent: usize,
     ) -> Result<Prompt<Self>> {
         let input_stream = deserialize_json(&input)?;
+
+        let mut trie = FilterTrie::default();
+        trie.insert(".", input_stream.clone());
+
         let all_kinds = JsonStream::new(input_stream.clone(), None).flatten_kinds();
         let suggest = Suggest::from_iter(all_kinds.iter().filter_map(|kind| kind.path()).map(
             |segments| {
@@ -157,7 +161,7 @@ impl Jnv {
                         indent,
                     },
                 },
-                trie: FilterTrie::default(),
+                trie,
                 suggest,
                 expand_depth,
                 no_hint,
