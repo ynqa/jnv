@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet};
+use std::cell::RefCell;
 
 use anyhow::Result;
 use gag::Gag;
@@ -76,7 +76,7 @@ pub struct Jnv {
     filter_editor: Snapshot<text_editor::State>,
     hint_message: Snapshot<text::State>,
     suggestions: listbox::State,
-    json_state: json::State,
+    json: json::State,
 
     // Store the filter history
     trie: FilterTrie,
@@ -90,18 +90,17 @@ pub struct Jnv {
 impl Jnv {
     pub fn try_new(
         input: String,
+        filter_editor: text_editor::State,
+        hint_message: text::State,
+        suggestions: listbox::State,
         expand_depth: Option<usize>,
         no_hint: bool,
-        edit_mode: text_editor::Mode,
         indent: usize,
-        suggestion_list_length: usize,
     ) -> Result<Prompt<Self>> {
         let input_stream = deserialize_json(&input)?;
         let all_kinds = JsonStream::new(input_stream.clone(), None).flatten_kinds();
-        let suggestions = all_kinds
-            .iter()
-            .filter_map(|kind| kind.path())
-            .map(|segments| {
+        let suggest = Suggest::from_iter(all_kinds.iter().filter_map(|kind| kind.path()).map(
+            |segments| {
                 if segments.is_empty() {
                     ".".to_string()
                 } else {
@@ -126,7 +125,8 @@ impl Jnv {
                         })
                         .collect::<String>()
                 }
-            });
+            },
+        ));
 
         Ok(Prompt {
             renderer: Self {
@@ -134,36 +134,10 @@ impl Jnv {
                     ActiveKeySwitcher::new("default", self::keymap::default as keymap::Keymap)
                         .register("on_suggest", self::keymap::on_suggest),
                 ),
-                filter_editor: Snapshot::<text_editor::State>::new(text_editor::State {
-                    texteditor: Default::default(),
-                    history: Default::default(),
-                    prefix: String::from("❯❯ "),
-                    mask: Default::default(),
-                    prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-                    active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-                    inactive_char_style: StyleBuilder::new().build(),
-                    edit_mode,
-                    word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-                    lines: Default::default(),
-                }),
-                hint_message: Snapshot::<text::State>::new(text::State {
-                    text: Default::default(),
-                    style: StyleBuilder::new()
-                        .fgc(Color::Green)
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                }),
-                suggestions: listbox::State {
-                    listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
-                    cursor: String::from("❯ "),
-                    active_item_style: StyleBuilder::new()
-                        .fgc(Color::Grey)
-                        .bgc(Color::Yellow)
-                        .build(),
-                    inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                    lines: Some(suggestion_list_length),
-                },
-                json_state: json::State {
+                filter_editor: Snapshot::<text_editor::State>::new(filter_editor),
+                hint_message: Snapshot::<text::State>::new(hint_message),
+                suggestions,
+                json: json::State {
                     stream: JsonStream::new(input_stream.clone(), expand_depth),
                     theme: json::Theme {
                         curly_brackets_style: StyleBuilder::new()
@@ -184,7 +158,7 @@ impl Jnv {
                     },
                 },
                 trie: FilterTrie::default(),
-                suggest: Suggest::from_iter(suggestions),
+                suggest,
                 expand_depth,
                 no_hint,
                 input_stream,
@@ -220,7 +194,7 @@ impl promkit::Renderer for Jnv {
             self.filter_editor.create_pane(width, height),
             self.hint_message.create_pane(width, height),
             self.suggestions.create_pane(width, height),
-            self.json_state.create_pane(width, height),
+            self.json.create_pane(width, height),
         ]
     }
 
@@ -259,8 +233,7 @@ impl promkit::Renderer for Jnv {
                                 .build(),
                         );
                         if let Some(searched) = self.trie.prefix_search(&completed) {
-                            self.json_state.stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
+                            self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
                         }
                     } else {
                         match deserialize_json(&ret.join("\n")) {
@@ -280,13 +253,13 @@ impl promkit::Renderer for Jnv {
                                             .build(),
                                     );
                                     if let Some(searched) = self.trie.prefix_search(&completed) {
-                                        self.json_state.stream =
+                                        self.json.stream =
                                             JsonStream::new(searched.clone(), self.expand_depth);
                                     }
                                 } else {
                                     // SUCCESS!
                                     self.trie.insert(&completed, jsonl);
-                                    self.json_state.stream = stream;
+                                    self.json.stream = stream;
                                 }
                             }
                             Err(e) => {
@@ -298,7 +271,7 @@ impl promkit::Renderer for Jnv {
                                         .build(),
                                 );
                                 if let Some(searched) = self.trie.prefix_search(&completed) {
-                                    self.json_state.stream =
+                                    self.json.stream =
                                         JsonStream::new(searched.clone(), self.expand_depth);
                                 }
                             }
@@ -314,8 +287,7 @@ impl promkit::Renderer for Jnv {
                             .build(),
                     );
                     if let Some(searched) = self.trie.prefix_search(&completed) {
-                        self.json_state.stream =
-                            JsonStream::new(searched.clone(), self.expand_depth);
+                        self.json.stream = JsonStream::new(searched.clone(), self.expand_depth);
                     }
                     return signal;
                 }

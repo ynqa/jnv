@@ -130,7 +130,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.backward();
+            jnv.json.stream.backward();
         }
 
         // Move down.
@@ -146,7 +146,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.forward();
+            jnv.json.stream.forward();
         }
 
         // Move to tail
@@ -156,7 +156,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.move_to_tail();
+            jnv.json.stream.move_to_tail();
         }
 
         // Move to head
@@ -166,7 +166,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.move_to_head();
+            jnv.json.stream.move_to_head();
         }
 
         // Toggle collapse/expand
@@ -176,7 +176,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.toggle();
+            jnv.json.stream.toggle();
         }
 
         Event::Key(KeyEvent {
@@ -185,7 +185,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.expand_all();
+            jnv.json.stream.expand_all();
         }
 
         Event::Key(KeyEvent {
@@ -194,7 +194,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json_state.stream.collapse_all();
+            jnv.json.stream.collapse_all();
         }
 
         // Input char.
