@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::HashSet};
 
 use anyhow::Result;
-
 use gag::Gag;
+
 use promkit::{
     crossterm::{
         event::Event,
@@ -19,9 +19,9 @@ use promkit::{
     text, text_editor, PaneFactory, Prompt, PromptSignal,
 };
 
+use crate::trie::QueryTrie;
+
 mod keymap;
-mod trie;
-use trie::QueryTrie;
 
 fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
     Deserializer::from_str(json_str)
