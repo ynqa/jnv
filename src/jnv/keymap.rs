@@ -1,13 +1,13 @@
 use promkit::{
     crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     listbox::Listbox,
-    text_editor, PromptSignal, Result,
+    text_editor, PromptSignal,
 };
 
-pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Result<PromptSignal> {
-    let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
-    let suggest_after_mut = renderer.suggest_snapshot.after_mut();
-    let json_after_mut = renderer.json_snapshot.after_mut();
+pub type Keymap = fn(&Event, &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal>;
+
+pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal> {
+    let filter_editor = jnv.filter_editor.after_mut();
 
     match event {
         Event::Key(KeyEvent {
@@ -16,19 +16,16 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            let query = query_editor_after_mut
-                .texteditor
-                .text_without_cursor()
-                .to_string();
-            if let Some(mut candidates) = renderer.suggest.prefix_search(query) {
+            let query = filter_editor.texteditor.text_without_cursor().to_string();
+            if let Some(mut candidates) = jnv.suggest.prefix_search(query) {
                 candidates.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
 
-                suggest_after_mut.listbox = Listbox::from_iter(candidates);
-                query_editor_after_mut
+                jnv.suggestions.listbox = Listbox::from_iter(candidates);
+                filter_editor
                     .texteditor
-                    .replace(&suggest_after_mut.listbox.get());
+                    .replace(&jnv.suggestions.listbox.get());
 
-                renderer.keymap.switch("on_suggest");
+                jnv.keymap.borrow_mut().switch("on_suggest");
             }
         }
 
@@ -46,7 +43,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            query_editor_after_mut.texteditor.backward();
+            filter_editor.texteditor.backward();
         }
         Event::Key(KeyEvent {
             code: KeyCode::Right,
@@ -54,38 +51,38 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            query_editor_after_mut.texteditor.forward();
+            filter_editor.texteditor.forward();
         }
         Event::Key(KeyEvent {
             code: KeyCode::Char('a'),
             modifiers: KeyModifiers::CONTROL,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut.texteditor.move_to_head(),
+        }) => filter_editor.texteditor.move_to_head(),
         Event::Key(KeyEvent {
             code: KeyCode::Char('e'),
             modifiers: KeyModifiers::CONTROL,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut.texteditor.move_to_tail(),
+        }) => filter_editor.texteditor.move_to_tail(),
 
         Event::Key(KeyEvent {
             code: KeyCode::Char('b'),
             modifiers: KeyModifiers::ALT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut
+        }) => filter_editor
             .texteditor
-            .move_to_previous_nearest(&query_editor_after_mut.word_break_chars),
+            .move_to_previous_nearest(&filter_editor.word_break_chars),
 
         Event::Key(KeyEvent {
             code: KeyCode::Char('f'),
             modifiers: KeyModifiers::ALT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut
+        }) => filter_editor
             .texteditor
-            .move_to_next_nearest(&query_editor_after_mut.word_break_chars),
+            .move_to_next_nearest(&filter_editor.word_break_chars),
 
         // Erase char(s).
         Event::Key(KeyEvent {
@@ -93,13 +90,13 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             modifiers: KeyModifiers::NONE,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut.texteditor.erase(),
+        }) => filter_editor.texteditor.erase(),
         Event::Key(KeyEvent {
             code: KeyCode::Char('u'),
             modifiers: KeyModifiers::CONTROL,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut.texteditor.erase_all(),
+        }) => filter_editor.texteditor.erase_all(),
 
         // Erase to the nearest character.
         Event::Key(KeyEvent {
@@ -107,18 +104,18 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             modifiers: KeyModifiers::CONTROL,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut
+        }) => filter_editor
             .texteditor
-            .erase_to_previous_nearest(&query_editor_after_mut.word_break_chars),
+            .erase_to_previous_nearest(&filter_editor.word_break_chars),
 
         Event::Key(KeyEvent {
             code: KeyCode::Char('d'),
             modifiers: KeyModifiers::ALT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => query_editor_after_mut
+        }) => filter_editor
             .texteditor
-            .erase_to_next_nearest(&query_editor_after_mut.word_break_chars),
+            .erase_to_next_nearest(&filter_editor.word_break_chars),
 
         // Move up.
         Event::Key(KeyEvent {
@@ -133,7 +130,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.backward();
+            jnv.json.stream.backward();
         }
 
         // Move down.
@@ -149,7 +146,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.forward();
+            jnv.json.stream.forward();
         }
 
         // Move to tail
@@ -159,7 +156,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.move_to_tail();
+            jnv.json.stream.move_to_tail();
         }
 
         // Move to head
@@ -169,7 +166,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.move_to_head();
+            jnv.json.stream.move_to_head();
         }
 
         // Toggle collapse/expand
@@ -179,7 +176,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.toggle();
+            jnv.json.stream.toggle();
         }
 
         Event::Key(KeyEvent {
@@ -188,7 +185,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.expand_all();
+            jnv.json.stream.expand_all();
         }
 
         Event::Key(KeyEvent {
@@ -197,7 +194,7 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            json_after_mut.stream.collapse_all();
+            jnv.json.stream.collapse_all();
         }
 
         // Input char.
@@ -212,9 +209,9 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
             modifiers: KeyModifiers::SHIFT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => match query_editor_after_mut.edit_mode {
-            text_editor::Mode::Insert => query_editor_after_mut.texteditor.insert(*ch),
-            text_editor::Mode::Overwrite => query_editor_after_mut.texteditor.overwrite(*ch),
+        }) => match filter_editor.edit_mode {
+            text_editor::Mode::Insert => filter_editor.texteditor.insert(*ch),
+            text_editor::Mode::Overwrite => filter_editor.texteditor.overwrite(*ch),
         },
 
         _ => (),
@@ -222,12 +219,8 @@ pub fn default(event: &Event, renderer: &mut crate::jnv::render::Renderer) -> Re
     Ok(PromptSignal::Continue)
 }
 
-pub fn on_suggest(
-    event: &Event,
-    renderer: &mut crate::jnv::render::Renderer,
-) -> Result<PromptSignal> {
-    let query_editor_after_mut = renderer.query_editor_snapshot.after_mut();
-    let suggest_after_mut = renderer.suggest_snapshot.after_mut();
+pub fn on_suggest(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal> {
+    let query_editor_after_mut = jnv.filter_editor.after_mut();
 
     match event {
         Event::Key(KeyEvent {
@@ -249,10 +242,10 @@ pub fn on_suggest(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            suggest_after_mut.listbox.forward();
+            jnv.suggestions.listbox.forward();
             query_editor_after_mut
                 .texteditor
-                .replace(&suggest_after_mut.listbox.get());
+                .replace(&jnv.suggestions.listbox.get());
         }
 
         Event::Key(KeyEvent {
@@ -261,15 +254,15 @@ pub fn on_suggest(
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            suggest_after_mut.listbox.backward();
+            jnv.suggestions.listbox.backward();
             query_editor_after_mut
                 .texteditor
-                .replace(&suggest_after_mut.listbox.get());
+                .replace(&jnv.suggestions.listbox.get());
         }
 
         _ => {
-            suggest_after_mut.listbox = Listbox::from_iter(Vec::<String>::new());
-            renderer.keymap.switch("default");
+            jnv.suggestions.listbox = Listbox::from_iter(Vec::<String>::new());
+            jnv.keymap.borrow_mut().switch("default");
 
             // This block is specifically designed to prevent the default action of toggling collapse/expand
             // from being executed when the Enter key is pressed. This is done from the perspective of user
@@ -283,7 +276,7 @@ pub fn on_suggest(
             }) = event
             {
             } else {
-                return default(event, renderer);
+                return default(event, jnv);
             }
         }
     }

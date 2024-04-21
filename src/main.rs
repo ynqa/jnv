@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::File,
     io::{self, Read},
     path::PathBuf,
@@ -7,10 +8,16 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 
-use promkit::text_editor;
+use promkit::{
+    crossterm::style::{Attribute, Attributes, Color},
+    json, listbox,
+    style::StyleBuilder,
+    text, text_editor,
+};
 
 mod jnv;
 use jnv::Jnv;
+mod trie;
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -90,7 +97,7 @@ pub struct Args {
         Note: Increasing this depth can significantly slow down the display for large datasets.
         "
     )]
-    pub expand_depth: Option<usize>,
+    pub json_expand_depth: Option<usize>,
 
     #[arg(
         short = 'l',
@@ -141,15 +148,68 @@ fn parse_input(args: &Args) -> Result<String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+
+    let input = parse_input(&args)?;
+
+    let filter_editor = text_editor::State {
+        texteditor: Default::default(),
+        history: Default::default(),
+        prefix: String::from("❯❯ "),
+        mask: Default::default(),
+        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+        inactive_char_style: StyleBuilder::new().build(),
+        edit_mode: args.edit_mode,
+        word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+        lines: Default::default(),
+    };
+
+    let hint_message = text::State {
+        text: Default::default(),
+        style: StyleBuilder::new()
+            .fgc(Color::Green)
+            .attrs(Attributes::from(Attribute::Bold))
+            .build(),
+    };
+
+    let suggestions = listbox::State {
+        listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
+        cursor: String::from("❯ "),
+        active_item_style: StyleBuilder::new()
+            .fgc(Color::Grey)
+            .bgc(Color::Yellow)
+            .build(),
+        inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        lines: Some(args.suggestion_list_length),
+    };
+
+    let json_theme = json::Theme {
+        curly_brackets_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Bold))
+            .build(),
+        square_brackets_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Bold))
+            .build(),
+        key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+        string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+        number_value_style: StyleBuilder::new().build(),
+        boolean_value_style: StyleBuilder::new().build(),
+        null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        active_item_attribute: Attribute::Bold,
+        inactive_item_attribute: Attribute::Dim,
+        lines: Default::default(),
+        indent: args.indent,
+    };
+
     let mut prompt = Jnv::try_new(
-        parse_input(&args)?,
-        args.expand_depth,
+        input,
+        filter_editor,
+        hint_message,
+        suggestions,
+        json_theme,
+        args.json_expand_depth,
         args.no_hint,
-        args.edit_mode,
-        args.indent,
-        args.suggestion_list_length,
-    )?
-    .prompt()?;
+    )?;
     let _ = prompt.run()?;
     Ok(())
 }

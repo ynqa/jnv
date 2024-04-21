@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::cell::RefCell;
 
 use anyhow::Result;
 use gag::Gag;
@@ -9,48 +9,114 @@ use promkit::{
         style::{Attribute, Attributes, Color, ContentStyle},
     },
     json::{self, JsonNode, JsonPathSegment, JsonStream},
-    keymap::KeymapManager,
     listbox,
+    pane::Pane,
     serde_json::{self, Deserializer},
     snapshot::Snapshot,
     style::StyleBuilder,
     suggest::Suggest,
-    text, text_editor, Prompt, PromptSignal, Renderer,
+    switch::ActiveKeySwitcher,
+    text, text_editor, PaneFactory, Prompt, PromptSignal,
 };
 
+use crate::trie::FilterTrie;
+
 mod keymap;
-mod render;
-mod trie;
-use trie::QueryTrie;
+
+/// Deserializes a JSON string into a vector of `serde_json::Value`.
+///
+/// This function takes a JSON string as input and attempts to parse it into a vector
+/// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
+/// It leverages `serde_json::Deserializer` to parse the string and collect the results.
+///
+/// # Arguments
+/// * `json_str` - A string slice that holds the JSON data to be deserialized.
+///
+/// # Returns
+/// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
+/// JSON data. On failure, it contains an error detailing what went wrong during parsing.
+fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    Deserializer::from_str(json_str)
+        .into_iter::<serde_json::Value>()
+        .map(|res| res.map_err(anyhow::Error::from))
+        .collect::<anyhow::Result<Vec<serde_json::Value>>>()
+}
+
+fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
+    // libjq writes to the console when an internal error occurs.
+    //
+    // e.g.
+    // ```
+    // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
+    // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
+    //     . | select(.number == invalid_no_quote)
+    // ```
+    //
+    // While errors themselves are not an issue,
+    // they interfere with the console output handling mechanism
+    // in promkit and qjq (e.g., causing line numbers to shift).
+    // Therefore, we'll ignore console output produced inside j9::run.
+    //
+    // It's possible that this could be handled
+    // within github.com/ynqa/j9, but for now,
+    // we'll proceed with this workaround.
+    //
+    // For reference, the functionality of a quiet mode in libjq is
+    // also being discussed at https://github.com/jqlang/jq/issues/1225.
+    let ignore_err = Gag::stderr().unwrap();
+    let mut jq_ret = Vec::<String>::new();
+    for v in json_stream.iter() {
+        let inner_ret: Vec<String> = match j9::run(query, &v.to_string()) {
+            Ok(ret) => ret,
+            Err(e) => {
+                return Err(anyhow::anyhow!(e));
+            }
+        };
+        jq_ret.extend(inner_ret);
+    }
+    drop(ignore_err);
+    Ok(jq_ret)
+}
 
 pub struct Jnv {
-    input_json_stream: Vec<serde_json::Value>,
-    expand_depth: Option<usize>,
-    no_hint: bool,
+    input_stream: Vec<serde_json::Value>,
 
-    query_editor_renderer: text_editor::Renderer,
-    hint_message_renderer: text::Renderer,
+    // Keybindings
+    keymap: RefCell<ActiveKeySwitcher<keymap::Keymap>>,
+
+    // For Rendering
+    filter_editor: Snapshot<text_editor::State>,
+    hint_message: Snapshot<text::State>,
+    suggestions: listbox::State,
+    json: json::State,
+
+    // Store the filter history
+    trie: FilterTrie,
+    // Store the filter suggestions
     suggest: Suggest,
-    suggest_renderer: listbox::Renderer,
-    json_renderer: json::Renderer,
-    keymap: KeymapManager<self::render::Renderer>,
+
+    json_expand_depth: Option<usize>,
+    no_hint: bool,
 }
 
 impl Jnv {
     pub fn try_new(
-        input_json_str: String,
-        expand_depth: Option<usize>,
+        input: String,
+        filter_editor: text_editor::State,
+        hint_message: text::State,
+        suggestions: listbox::State,
+        json_theme: json::Theme,
+        json_expand_depth: Option<usize>,
         no_hint: bool,
-        edit_mode: text_editor::Mode,
-        indent: usize,
-        suggestion_list_length: usize,
-    ) -> Result<Self> {
-        let stream = deserialize_json(&input_json_str)?;
-        let all_kinds = JsonStream::new(stream.clone(), None).flatten_kinds();
-        let suggestions = all_kinds
-            .iter()
-            .filter_map(|kind| kind.path())
-            .map(|segments| {
+    ) -> Result<Prompt<Self>> {
+        let input_stream = deserialize_json(&input)?;
+
+        let mut trie = FilterTrie::default();
+        trie.insert(".", input_stream.clone());
+
+        let all_kinds = JsonStream::new(input_stream.clone(), None).flatten_kinds();
+        let suggest = Suggest::from_iter(all_kinds.iter().filter_map(|kind| kind.path()).map(
+            |segments| {
                 if segments.is_empty() {
                     ".".to_string()
                 } else {
@@ -75,265 +141,185 @@ impl Jnv {
                         })
                         .collect::<String>()
                 }
-            });
+            },
+        ));
 
-        Ok(Self {
-            input_json_stream: stream.clone(),
-            expand_depth,
-            no_hint,
-            query_editor_renderer: text_editor::Renderer {
-                texteditor: Default::default(),
-                history: Default::default(),
-                prefix: String::from("❯❯ "),
-                mask: Default::default(),
-                prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-                active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-                inactive_char_style: StyleBuilder::new().build(),
-                edit_mode,
-                word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-                lines: Default::default(),
-            },
-            hint_message_renderer: text::Renderer {
-                text: Default::default(),
-                style: StyleBuilder::new()
-                    .fgc(Color::Green)
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-            },
-            suggest: Suggest::from_iter(suggestions),
-            suggest_renderer: listbox::Renderer {
-                listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
-                cursor: String::from("❯ "),
-                active_item_style: StyleBuilder::new()
-                    .fgc(Color::Grey)
-                    .bgc(Color::Yellow)
-                    .build(),
-                inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                lines: Some(suggestion_list_length),
-            },
-            keymap: KeymapManager::new("default", self::keymap::default)
-                .register("on_suggest", self::keymap::on_suggest),
-            json_renderer: json::Renderer {
-                stream: JsonStream::new(stream, expand_depth),
-                theme: json::Theme {
-                    curly_brackets_style: StyleBuilder::new()
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                    square_brackets_style: StyleBuilder::new()
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                    key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                    string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                    number_value_style: StyleBuilder::new().build(),
-                    boolean_value_style: StyleBuilder::new().build(),
-                    null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                    active_item_attribute: Attribute::Bold,
-                    inactive_item_attribute: Attribute::Dim,
-                    lines: Default::default(),
-                    indent,
+        Ok(Prompt {
+            renderer: Self {
+                keymap: RefCell::new(
+                    ActiveKeySwitcher::new("default", self::keymap::default as keymap::Keymap)
+                        .register("on_suggest", self::keymap::on_suggest),
+                ),
+                filter_editor: Snapshot::<text_editor::State>::new(filter_editor),
+                hint_message: Snapshot::<text::State>::new(hint_message),
+                suggestions,
+                json: json::State {
+                    stream: JsonStream::new(input_stream.clone(), json_expand_depth),
+                    theme: json_theme,
                 },
+                trie,
+                suggest,
+                json_expand_depth,
+                no_hint,
+                input_stream,
             },
         })
     }
 
-    fn update_hint_message(
-        &self,
-        renderer: &mut self::render::Renderer,
-        text: String,
-        style: ContentStyle,
-    ) {
+    fn update_hint_message(&mut self, text: String, style: ContentStyle) {
         if !self.no_hint {
-            renderer
-                .hint_message_snapshot
+            self.hint_message
                 .after_mut()
-                .replace(text::Renderer { text, style })
+                .replace(text::State { text, style })
         }
     }
+}
 
-    fn evaluate(
-        &self,
-        event: &Event,
-        renderer: &mut Box<dyn Renderer + 'static>,
-        trie: RefCell<QueryTrie>,
-    ) -> promkit::Result<PromptSignal> {
-        let renderer = self::render::Renderer::cast_mut(renderer.as_mut())?;
-        let signal = match renderer.keymap.get() {
-            Some(f) => f(event, renderer),
-            None => Ok(PromptSignal::Quit),
-        }?;
-        let completed = renderer
-            .query_editor_snapshot
+impl promkit::Finalizer for Jnv {
+    type Return = String;
+
+    fn finalize(&self) -> anyhow::Result<Self::Return> {
+        Ok(self
+            .filter_editor
+            .after()
+            .texteditor
+            .text_without_cursor()
+            .to_string())
+    }
+}
+
+impl promkit::Renderer for Jnv {
+    fn create_panes(&self, width: u16, height: u16) -> Vec<Pane> {
+        vec![
+            self.filter_editor.create_pane(width, height),
+            self.hint_message.create_pane(width, height),
+            self.suggestions.create_pane(width, height),
+            self.json.create_pane(width, height),
+        ]
+    }
+
+    fn evaluate(&mut self, event: &Event) -> anyhow::Result<PromptSignal> {
+        let keymap = *self.keymap.borrow_mut().get();
+        let signal = keymap(event, self);
+        let filter = self
+            .filter_editor
             .after()
             .texteditor
             .text_without_cursor()
             .to_string();
 
-        if completed
-            != renderer
-                .query_editor_snapshot
+        // Check if the query has changed
+        if filter
+            != self
+                .filter_editor
                 .borrow_before()
                 .texteditor
                 .text_without_cursor()
                 .to_string()
         {
-            renderer.hint_message_snapshot.reset_after_to_init();
+            self.hint_message.reset_after_to_init();
 
-            // libjq writes to the console when an internal error occurs.
-            //
-            // e.g.
-            // ```
-            // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
-            // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
-            //     . | select(.number == invalid_no_quote)
-            // ```
-            //
-            // While errors themselves are not an issue,
-            // they interfere with the console output handling mechanism
-            // in promkit and qjq (e.g., causing line numbers to shift).
-            // Therefore, we'll ignore console output produced inside j9::run.
-            //
-            // It's possible that this could be handled
-            // within github.com/ynqa/j9, but for now,
-            // we'll proceed with this workaround.
-            //
-            // For reference, the functionality of a quiet mode in libjq is
-            // also being discussed at https://github.com/jqlang/jq/issues/1225.
-            let ignore_err = Gag::stderr().unwrap();
-
-            let mut flatten_ret = Vec::<String>::new();
-            for v in &self.input_json_stream {
-                let inner_ret: Vec<String> = match j9::run(&completed, &v.to_string()) {
-                    Ok(ret) => ret,
-                    Err(_e) => {
-                        self.update_hint_message(
-                            renderer,
-                            format!("Failed to execute jq query '{}'", &completed),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                            renderer.json_snapshot.after_mut().stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
-                        }
-                        return Ok(signal);
-                    }
-                };
-                flatten_ret.extend(inner_ret);
-            }
-            drop(ignore_err);
-
-            if flatten_ret.is_empty() {
-                self.update_hint_message(
-                    renderer,
-                    format!(
-                        "JSON query ('{}') was executed, but no results were returned.",
-                        &completed
-                    ),
-                    StyleBuilder::new()
-                        .fgc(Color::Red)
-                        .attrs(Attributes::from(Attribute::Bold))
-                        .build(),
-                );
-                if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                    renderer.json_snapshot.after_mut().stream =
-                        JsonStream::new(searched.clone(), self.expand_depth);
+            match self.trie.exact_search(&filter) {
+                Some(jsonl) => {
+                    self.json.stream = JsonStream::new(jsonl.clone(), self.json_expand_depth);
+                    self.update_hint_message(
+                        format!(
+                            "JSON query ('{}') was already executed. Result was retrieved from cache.",
+                            &filter
+                        ),
+                        StyleBuilder::new()
+                            .fgc(Color::DarkGrey)
+                            .attrs(Attributes::from(Attribute::Bold))
+                            .build(),
+                    );
                 }
-            } else {
-                match deserialize_json(&flatten_ret.join("\n")) {
-                    Ok(jsonl) => {
-                        let stream = JsonStream::new(jsonl.clone(), self.expand_depth);
+                None => {
+                    match run_jq(&filter, &self.input_stream) {
+                        Ok(ret) => {
+                            if ret.is_empty() {
+                                self.update_hint_message(
+                                    format!(
+                                        "JSON query ('{}') was executed, but no results were returned.",
+                                        &filter
+                                    ),
+                                    StyleBuilder::new()
+                                        .fgc(Color::Red)
+                                        .attrs(Attributes::from(Attribute::Bold))
+                                        .build(),
+                                );
+                                if let Some(searched) = self.trie.prefix_search(&filter) {
+                                    self.json.stream =
+                                        JsonStream::new(searched.clone(), self.json_expand_depth);
+                                }
+                            } else {
+                                match deserialize_json(&ret.join("\n")) {
+                                    Ok(jsonl) => {
+                                        let stream =
+                                            JsonStream::new(jsonl.clone(), self.json_expand_depth);
 
-                        let is_null = stream
-                            .roots()
-                            .iter()
-                            .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
-                        if is_null {
+                                        let is_null = stream.roots().iter().all(|node| {
+                                            node == &JsonNode::Leaf(serde_json::Value::Null)
+                                        });
+                                        if is_null {
+                                            self.update_hint_message(
+                                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
+                                                StyleBuilder::new()
+                                                    .fgc(Color::Yellow)
+                                                    .attrs(Attributes::from(Attribute::Bold))
+                                                    .build(),
+                                            );
+                                            if let Some(searched) = self.trie.prefix_search(&filter)
+                                            {
+                                                self.json.stream = JsonStream::new(
+                                                    searched.clone(),
+                                                    self.json_expand_depth,
+                                                );
+                                            }
+                                        } else {
+                                            // SUCCESS!
+                                            self.trie.insert(&filter, jsonl);
+                                            self.json.stream = stream;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        self.update_hint_message(
+                                            format!(
+                                                "Failed to parse query result for viewing: {}",
+                                                e
+                                            ),
+                                            StyleBuilder::new()
+                                                .fgc(Color::Red)
+                                                .attrs(Attributes::from(Attribute::Bold))
+                                                .build(),
+                                        );
+                                        if let Some(searched) = self.trie.prefix_search(&filter) {
+                                            self.json.stream = JsonStream::new(
+                                                searched.clone(),
+                                                self.json_expand_depth,
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(_) => {
                             self.update_hint_message(
-                                renderer,
-                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &completed),
+                                format!("Failed to execute jq query '{}'", &filter),
                                 StyleBuilder::new()
-                                    .fgc(Color::Yellow)
+                                    .fgc(Color::Red)
                                     .attrs(Attributes::from(Attribute::Bold))
                                     .build(),
                             );
-                            if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                                renderer.json_snapshot.after_mut().stream =
-                                    JsonStream::new(searched.clone(), self.expand_depth);
+                            if let Some(searched) = self.trie.prefix_search(&filter) {
+                                self.json.stream =
+                                    JsonStream::new(searched.clone(), self.json_expand_depth);
                             }
-                        } else {
-                            // SUCCESS!
-                            trie.borrow_mut().insert(&completed, jsonl);
-                            renderer.json_snapshot.after_mut().stream = stream;
-                        }
-                    }
-                    Err(e) => {
-                        self.update_hint_message(
-                            renderer,
-                            format!("Failed to parse query result for viewing: {}", e),
-                            StyleBuilder::new()
-                                .fgc(Color::Red)
-                                .attrs(Attributes::from(Attribute::Bold))
-                                .build(),
-                        );
-                        if let Some(searched) = trie.borrow().prefix_search_value(&completed) {
-                            renderer.json_snapshot.after_mut().stream =
-                                JsonStream::new(searched.clone(), self.expand_depth);
+                            return signal;
                         }
                     }
                 }
-                // flatten_ret.is_empty()
             }
-            // before != completed
         }
-        Ok(signal)
+        signal
     }
-
-    pub fn prompt(self) -> Result<Prompt<String>> {
-        let rc_self = Rc::new(RefCell::new(self));
-        let rc_self_clone = rc_self.clone();
-
-        let keymap_clone = rc_self_clone.borrow().keymap.clone();
-        let query_editor_renderer_clone = rc_self_clone.borrow().query_editor_renderer.clone();
-        let hint_message_renderer_clone = rc_self_clone.borrow().hint_message_renderer.clone();
-        let suggest_clone = rc_self_clone.borrow().suggest.clone();
-        let suggest_renderer_clone = rc_self_clone.borrow().suggest_renderer.clone();
-        let json_renderer_clone = rc_self_clone.borrow().json_renderer.clone();
-        Ok(Prompt::try_new(
-            Box::new(self::render::Renderer {
-                keymap: keymap_clone,
-                query_editor_snapshot: Snapshot::<text_editor::Renderer>::new(
-                    query_editor_renderer_clone,
-                ),
-                hint_message_snapshot: Snapshot::<text::Renderer>::new(hint_message_renderer_clone),
-                suggest: suggest_clone,
-                suggest_snapshot: Snapshot::<listbox::Renderer>::new(suggest_renderer_clone),
-                json_snapshot: Snapshot::<json::Renderer>::new(json_renderer_clone),
-            }),
-            Box::new(
-                move |event: &Event,
-                      renderer: &mut Box<dyn Renderer + 'static>|
-                      -> promkit::Result<PromptSignal> {
-                    let trie = RefCell::new(QueryTrie::default());
-                    rc_self_clone.borrow().evaluate(event, renderer, trie)
-                },
-            ),
-            |renderer: &(dyn Renderer + '_)| -> promkit::Result<String> {
-                Ok(self::render::Renderer::cast(renderer)?
-                    .query_editor_snapshot
-                    .after()
-                    .texteditor
-                    .text_without_cursor()
-                    .to_string())
-            },
-        )?)
-    }
-}
-
-fn deserialize_json(json_str: &str) -> Result<Vec<serde_json::Value>> {
-    Deserializer::from_str(json_str)
-        .into_iter::<serde_json::Value>()
-        .map(|res| res.map_err(anyhow::Error::new))
-        .collect::<Result<Vec<serde_json::Value>>>()
 }
