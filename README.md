@@ -65,6 +65,8 @@ nix-shell -p jnv
 
 - [autoconf](https://www.gnu.org/software/autoconf/)
 - [automake](https://www.gnu.org/software/automake/)
+- [libtool](https://www.gnu.org/software/libtool/)
+- [clang](https://clang.llvm.org/)
 
 ```bash
 cargo install jnv
