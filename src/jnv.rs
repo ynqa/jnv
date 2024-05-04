@@ -36,17 +36,12 @@ mod keymap;
 /// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
 /// JSON data. On failure, it contains an error detailing what went wrong during parsing.
 fn deserialize_json(json_str: &str, limit_length: Option<usize>) -> anyhow::Result<Vec<serde_json::Value>> {
-    match limit_length {
-        Some(l) => Deserializer::from_str(json_str)
-            .into_iter::<serde_json::Value>()
-            .take(l)
-            .map(|res| res.map_err(anyhow::Error::from))
-            .collect::<anyhow::Result<Vec<serde_json::Value>>>(),
-        None => Deserializer::from_str(json_str)
-            .into_iter::<serde_json::Value>()
-            .map(|res| res.map_err(anyhow::Error::from))
-            .collect::<anyhow::Result<Vec<serde_json::Value>>>(),
-    }
+    let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+    let results = match limit_length {
+        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
+        None => deserializer.collect::<Result<Vec<_>, _>>(),
+    };
+    results.map_err(anyhow::Error::from)
 }
 
 fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
