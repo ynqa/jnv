@@ -35,11 +35,13 @@ mod keymap;
 /// # Returns
 /// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
 /// JSON data. On failure, it contains an error detailing what went wrong during parsing.
-fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
-    Deserializer::from_str(json_str)
-        .into_iter::<serde_json::Value>()
-        .map(|res| res.map_err(anyhow::Error::from))
-        .collect::<anyhow::Result<Vec<serde_json::Value>>>()
+fn deserialize_json(json_str: &str, limit_length: Option<usize>) -> anyhow::Result<Vec<serde_json::Value>> {
+    let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+    let results = match limit_length {
+        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
+        None => deserializer.collect::<Result<Vec<_>, _>>(),
+    };
+    results.map_err(anyhow::Error::from)
 }
 
 fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
@@ -96,6 +98,7 @@ pub struct Jnv {
     suggest: Suggest,
 
     json_expand_depth: Option<usize>,
+    json_limit_length: Option<usize>,
     no_hint: bool,
 }
 
@@ -107,9 +110,10 @@ impl Jnv {
         suggestions: listbox::State,
         json_theme: json::Theme,
         json_expand_depth: Option<usize>,
+        json_limit_length: Option<usize>,
         no_hint: bool,
     ) -> Result<Prompt<Self>> {
-        let input_stream = deserialize_json(&input)?;
+        let input_stream = deserialize_json(&input, json_limit_length)?;
 
         let mut trie = FilterTrie::default();
         trie.insert(".", input_stream.clone());
@@ -160,6 +164,7 @@ impl Jnv {
                 trie,
                 suggest,
                 json_expand_depth,
+                json_limit_length,
                 no_hint,
                 input_stream,
             },
@@ -252,7 +257,7 @@ impl promkit::Renderer for Jnv {
                                         JsonStream::new(searched.clone(), self.json_expand_depth);
                                 }
                             } else {
-                                match deserialize_json(&ret.join("\n")) {
+                                match deserialize_json(&ret.join("\n"), self.json_limit_length) {
                                     Ok(jsonl) => {
                                         let stream =
                                             JsonStream::new(jsonl.clone(), self.json_expand_depth);

@@ -100,6 +100,18 @@ pub struct Args {
     pub json_expand_depth: Option<usize>,
 
     #[arg(
+        short = 's',
+        long = "limit-length",
+        default_value = "50",
+        help = "Limit length of JSON array in the visualization.",
+        long_help = "
+        Specifies the limit length to load JSON array in the visualization.
+        Note: Increasing this length can significantly slow down the display for large datasets.
+        "
+    )]
+    pub json_limit_length: Option<usize>,
+
+    #[arg(
         short = 'l',
         long = "suggestion-list-length",
         default_value = "3",
@@ -208,6 +220,7 @@ fn main() -> Result<()> {
         suggestions,
         json_theme,
         args.json_expand_depth,
+        args.json_limit_length,
         args.no_hint,
     )?;
     let _ = prompt.run()?;
