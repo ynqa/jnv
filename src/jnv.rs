@@ -35,7 +35,10 @@ mod keymap;
 /// # Returns
 /// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
 /// JSON data. On failure, it contains an error detailing what went wrong during parsing.
-fn deserialize_json(json_str: &str, limit_length: Option<usize>) -> anyhow::Result<Vec<serde_json::Value>> {
+fn deserialize_json(
+    json_str: &str,
+    limit_length: Option<usize>,
+) -> anyhow::Result<Vec<serde_json::Value>> {
     let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
     let results = match limit_length {
         Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
