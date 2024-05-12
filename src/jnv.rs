@@ -106,6 +106,7 @@ pub struct Jnv {
 }
 
 impl Jnv {
+    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         input: String,
         filter_editor: text_editor::State,
