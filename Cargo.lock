@@ -503,9 +503,9 @@ dependencies = [
 
 [[package]]
 name = "promkit"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25c21f295a5492afa96e0635c1c8d9f0bcb1d485c5494f40a150a3e11cd026a4"
+checksum = "e6c4a2530ec0f5ee0fa02bfd7519a86f3e4336f632065c250b666c6cdb0f4a7b"
 dependencies = [
  "anyhow",
  "crossterm",
