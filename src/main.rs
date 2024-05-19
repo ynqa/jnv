@@ -10,13 +10,13 @@ use clap::Parser;
 
 use promkit::{
     crossterm::style::{Attribute, Attributes, Color},
-    json, listbox,
+    listbox,
     style::StyleBuilder,
     text, text_editor,
 };
 
 mod jnv;
-use jnv::Jnv;
+use jnv::{Jnv, JsonTheme};
 mod trie;
 
 /// JSON navigator and interactive filter leveraging jq
@@ -187,15 +187,17 @@ fn main() -> Result<()> {
     let suggestions = listbox::State {
         listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
         cursor: String::from("❯ "),
-        active_item_style: StyleBuilder::new()
-            .fgc(Color::Grey)
-            .bgc(Color::Yellow)
-            .build(),
-        inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        active_item_style: Some(
+            StyleBuilder::new()
+                .fgc(Color::Grey)
+                .bgc(Color::Yellow)
+                .build(),
+        ),
+        inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
         lines: Some(args.suggestion_list_length),
     };
 
-    let json_theme = json::Theme {
+    let json_theme = JsonTheme {
         curly_brackets_style: StyleBuilder::new()
             .attrs(Attributes::from(Attribute::Bold))
             .build(),

@@ -83,6 +83,37 @@ fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<
     Ok(jq_ret)
 }
 
+pub struct JsonTheme {
+    /// Style for {}.
+    pub curly_brackets_style: ContentStyle,
+    /// Style for [].
+    pub square_brackets_style: ContentStyle,
+    /// Style for "key".
+    pub key_style: ContentStyle,
+    /// Style for string values.
+    pub string_value_style: ContentStyle,
+    /// Style for number values.
+    pub number_value_style: ContentStyle,
+    /// Style for boolean values.
+    pub boolean_value_style: ContentStyle,
+    /// Style for null values.
+    pub null_value_style: ContentStyle,
+
+    /// Attribute for the selected line.
+    pub active_item_attribute: Attribute,
+    /// Attribute for unselected lines.
+    pub inactive_item_attribute: Attribute,
+
+    /// Number of lines available for rendering.
+    pub lines: Option<usize>,
+
+    /// The number of spaces used for indentation in the rendered JSON structure.
+    /// This value multiplies with the indentation level of a JSON element to determine
+    /// the total indentation space. For example, an `indent` value of 4 means each
+    /// indentation level will be 4 spaces wide.
+    pub indent: usize,
+}
+
 pub struct Jnv {
     input_stream: Vec<serde_json::Value>,
 
@@ -112,7 +143,7 @@ impl Jnv {
         filter_editor: text_editor::State,
         hint_message: text::State,
         suggestions: listbox::State,
-        json_theme: json::Theme,
+        json_theme: JsonTheme,
         json_expand_depth: Option<usize>,
         json_limit_length: Option<usize>,
         no_hint: bool,
@@ -163,7 +194,17 @@ impl Jnv {
                 suggestions,
                 json: json::State {
                     stream: JsonStream::new(input_stream.clone(), json_expand_depth),
-                    theme: json_theme,
+                    curly_brackets_style: json_theme.curly_brackets_style,
+                    square_brackets_style: json_theme.square_brackets_style,
+                    key_style: json_theme.key_style,
+                    string_value_style: json_theme.string_value_style,
+                    number_value_style: json_theme.number_value_style,
+                    boolean_value_style: json_theme.boolean_value_style,
+                    null_value_style: json_theme.null_value_style,
+                    active_item_attribute: json_theme.active_item_attribute,
+                    inactive_item_attribute: json_theme.inactive_item_attribute,
+                    lines: json_theme.lines,
+                    indent: json_theme.indent,
                 },
                 trie,
                 suggest,
