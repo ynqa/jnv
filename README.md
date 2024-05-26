@@ -61,20 +61,9 @@ nix-shell -p jnv
 
 ### Cargo
 
-#### Requirements
-
-- [autoconf](https://www.gnu.org/software/autoconf/)
-- [automake](https://www.gnu.org/software/automake/)
-- [libtool](https://www.gnu.org/software/libtool/)
-- [clang](https://clang.llvm.org/)
-
 ```bash
 cargo install jnv
 ```
-
-> [!NOTE]
-> *jnv* does not require users to install `jq` on their system,
-> because it utilizes [j9](https://github.com/ynqa/j9) Rust bindings.
 
 ## Examples
 
