@@ -1,6 +1,6 @@
 [package]
 name = "jnv"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["ynqa <un.pensiero.vano@gmail.com>"]
 edition = "2021"
 description = "JSON navigator and interactive filter leveraging jq"
