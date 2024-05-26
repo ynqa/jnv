@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "jnv"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -503,9 +503,9 @@ dependencies = [
 
 [[package]]
 name = "promkit"
-version = "0.4.0"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25c21f295a5492afa96e0635c1c8d9f0bcb1d485c5494f40a150a3e11cd026a4"
+checksum = "e56210f382d72931a48f2e14013b7543cb4a2e524a70cf8924cf81ef8fa4f338"
 dependencies = [
  "anyhow",
  "crossterm",

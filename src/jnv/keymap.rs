@@ -23,7 +23,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
                 jnv.suggestions.listbox = Listbox::from_iter(candidates);
                 filter_editor
                     .texteditor
-                    .replace(&jnv.suggestions.listbox.get());
+                    .replace(&jnv.suggestions.listbox.get().to_string());
 
                 jnv.keymap.borrow_mut().switch("on_suggest");
             }
@@ -245,7 +245,7 @@ pub fn on_suggest(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Pr
             jnv.suggestions.listbox.forward();
             query_editor_after_mut
                 .texteditor
-                .replace(&jnv.suggestions.listbox.get());
+                .replace(&jnv.suggestions.listbox.get().to_string());
         }
 
         Event::Key(KeyEvent {
@@ -257,7 +257,7 @@ pub fn on_suggest(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Pr
             jnv.suggestions.listbox.backward();
             query_editor_after_mut
                 .texteditor
-                .replace(&jnv.suggestions.listbox.get());
+                .replace(&jnv.suggestions.listbox.get().to_string());
         }
 
         _ => {
