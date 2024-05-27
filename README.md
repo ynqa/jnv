@@ -14,6 +14,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
+  - Use [jaq]((https://github.com/01mf02/jaq)) parser for `jq` filters
+    - This eliminates the need for users to prepare `jq` on their own.
 - Capable of accommodating various format
   - Input: File, Stdin
   - Data: A JSON or multiple JSON structures
