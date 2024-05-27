@@ -11,8 +11,10 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.82"
 clap = { version = "4.5.4", features = ["derive"] }
-gag = "1.0.0"
-j9 = "0.1.3"
+jaq-core = "1.2.1"
+jaq-interpret = "1.2.1"
+jaq-parse = "1.0.2"
+jaq-std = "1.2.1"
 promkit = "0.4.3"
 radix_trie = "0.2.1"
 
@@ -32,11 +34,8 @@ installers = ["homebrew"]
 # A GitHub repo to push Homebrew formulas to
 tap = "ynqa/homebrew-tap"
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Publish jobs to run in CI
 publish-jobs = ["homebrew"]
 # Publish jobs to run in CI
 pr-run-mode = "plan"
-
-[workspace.metadata.dist.dependencies.homebrew]
-automake = '*'

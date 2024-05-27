@@ -14,6 +14,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
+  - Use [jaq]((https://github.com/01mf02/jaq)) parser for `jq` filters
+    - This eliminates the need for users to prepare `jq` on their own.
 - Capable of accommodating various format
   - Input: File, Stdin
   - Data: A JSON or multiple JSON structures
@@ -61,20 +63,9 @@ nix-shell -p jnv
 
 ### Cargo
 
-#### Requirements
-
-- [autoconf](https://www.gnu.org/software/autoconf/)
-- [automake](https://www.gnu.org/software/automake/)
-- [libtool](https://www.gnu.org/software/libtool/)
-- [clang](https://clang.llvm.org/)
-
 ```bash
 cargo install jnv
 ```
-
-> [!NOTE]
-> *jnv* does not require users to install `jq` on their system,
-> because it utilizes [j9](https://github.com/ynqa/j9) Rust bindings.
 
 ## Examples
 

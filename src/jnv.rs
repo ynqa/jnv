@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 
 use anyhow::Result;
-use gag::Gag;
+
+use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 
 use promkit::{
     crossterm::{
@@ -11,7 +12,7 @@ use promkit::{
     json::{self, JsonNode, JsonPathSegment, JsonStream},
     listbox,
     pane::Pane,
-    serde_json::{self, Deserializer},
+    serde_json,
     snapshot::Snapshot,
     style::StyleBuilder,
     suggest::Suggest,
@@ -23,64 +24,37 @@ use crate::trie::FilterTrie;
 
 mod keymap;
 
-/// Deserializes a JSON string into a vector of `serde_json::Value`.
-///
-/// This function takes a JSON string as input and attempts to parse it into a vector
-/// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
-/// It leverages `serde_json::Deserializer` to parse the string and collect the results.
-///
-/// # Arguments
-/// * `json_str` - A string slice that holds the JSON data to be deserialized.
-///
-/// # Returns
-/// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
-/// JSON data. On failure, it contains an error detailing what went wrong during parsing.
-fn deserialize_json(
-    json_str: &str,
-    limit_length: Option<usize>,
+fn run_jaq(
+    query: &str,
+    json_stream: Vec<serde_json::Value>,
 ) -> anyhow::Result<Vec<serde_json::Value>> {
-    let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
-    let results = match limit_length {
-        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
-        None => deserializer.collect::<Result<Vec<_>, _>>(),
-    };
-    results.map_err(anyhow::Error::from)
-}
+    let mut ret = Vec::<serde_json::Value>::new();
 
-fn run_jq(query: &str, json_stream: &[serde_json::Value]) -> anyhow::Result<Vec<String>> {
-    // libjq writes to the console when an internal error occurs.
-    //
-    // e.g.
-    // ```
-    // let _ = j9::run(". | select(.number == invalid_no_quote)", "{}");
-    // jq: error: invalid_no_quote/0 is not defined at <top-level>, line 1:
-    //     . | select(.number == invalid_no_quote)
-    // ```
-    //
-    // While errors themselves are not an issue,
-    // they interfere with the console output handling mechanism
-    // in promkit and qjq (e.g., causing line numbers to shift).
-    // Therefore, we'll ignore console output produced inside j9::run.
-    //
-    // It's possible that this could be handled
-    // within github.com/ynqa/j9, but for now,
-    // we'll proceed with this workaround.
-    //
-    // For reference, the functionality of a quiet mode in libjq is
-    // also being discussed at https://github.com/jqlang/jq/issues/1225.
-    let ignore_err = Gag::stderr().unwrap();
-    let mut jq_ret = Vec::<String>::new();
-    for v in json_stream.iter() {
-        let inner_ret: Vec<String> = match j9::run(query, &v.to_string()) {
-            Ok(ret) => ret,
-            Err(e) => {
-                return Err(anyhow::anyhow!(e));
-            }
-        };
-        jq_ret.extend(inner_ret);
+    for input in json_stream {
+        let mut ctx = ParseCtx::new(Vec::new());
+        ctx.insert_natives(jaq_core::core());
+        ctx.insert_defs(jaq_std::std());
+
+        let (f, errs) = jaq_parse::parse(query, jaq_parse::main());
+        if !errs.is_empty() {
+            let error_message = errs
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(anyhow::anyhow!(error_message));
+        }
+
+        let f = ctx.compile(f.unwrap());
+        let inputs = RcIter::new(core::iter::empty());
+        let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+
+        while let Some(Ok(val)) = out.next() {
+            ret.push(val.into());
+        }
     }
-    drop(ignore_err);
-    Ok(jq_ret)
+
+    Ok(ret)
 }
 
 pub struct JsonTheme {
@@ -132,24 +106,20 @@ pub struct Jnv {
     suggest: Suggest,
 
     json_expand_depth: Option<usize>,
-    json_limit_length: Option<usize>,
     no_hint: bool,
 }
 
 impl Jnv {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
-        input: String,
+        input_stream: Vec<serde_json::Value>,
         filter_editor: text_editor::State,
         hint_message: text::State,
         suggestions: listbox::State,
         json_theme: JsonTheme,
         json_expand_depth: Option<usize>,
-        json_limit_length: Option<usize>,
         no_hint: bool,
     ) -> Result<Prompt<Self>> {
-        let input_stream = deserialize_json(&input, json_limit_length)?;
-
         let mut trie = FilterTrie::default();
         trie.insert(".", input_stream.clone());
 
@@ -209,7 +179,6 @@ impl Jnv {
                 trie,
                 suggest,
                 json_expand_depth,
-                json_limit_length,
                 no_hint,
                 input_stream,
             },
@@ -284,7 +253,7 @@ impl promkit::Renderer for Jnv {
                     );
                 }
                 None => {
-                    match run_jq(&filter, &self.input_stream) {
+                    match run_jaq(&filter, self.input_stream.clone()) {
                         Ok(ret) => {
                             if ret.is_empty() {
                                 self.update_hint_message(
@@ -302,53 +271,30 @@ impl promkit::Renderer for Jnv {
                                         JsonStream::new(searched.clone(), self.json_expand_depth);
                                 }
                             } else {
-                                match deserialize_json(&ret.join("\n"), self.json_limit_length) {
-                                    Ok(jsonl) => {
-                                        let stream =
-                                            JsonStream::new(jsonl.clone(), self.json_expand_depth);
+                                let stream = JsonStream::new(ret.clone(), self.json_expand_depth);
 
-                                        let is_null = stream.roots().iter().all(|node| {
-                                            node == &JsonNode::Leaf(serde_json::Value::Null)
-                                        });
-                                        if is_null {
-                                            self.update_hint_message(
-                                                format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
-                                                StyleBuilder::new()
-                                                    .fgc(Color::Yellow)
-                                                    .attrs(Attributes::from(Attribute::Bold))
-                                                    .build(),
-                                            );
-                                            if let Some(searched) = self.trie.prefix_search(&filter)
-                                            {
-                                                self.json.stream = JsonStream::new(
-                                                    searched.clone(),
-                                                    self.json_expand_depth,
-                                                );
-                                            }
-                                        } else {
-                                            // SUCCESS!
-                                            self.trie.insert(&filter, jsonl);
-                                            self.json.stream = stream;
-                                        }
-                                    }
-                                    Err(e) => {
-                                        self.update_hint_message(
-                                            format!(
-                                                "Failed to parse query result for viewing: {}",
-                                                e
-                                            ),
-                                            StyleBuilder::new()
-                                                .fgc(Color::Red)
-                                                .attrs(Attributes::from(Attribute::Bold))
-                                                .build(),
+                                let is_null = stream
+                                    .roots()
+                                    .iter()
+                                    .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
+                                if is_null {
+                                    self.update_hint_message(
+                                        format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
+                                        StyleBuilder::new()
+                                            .fgc(Color::Yellow)
+                                            .attrs(Attributes::from(Attribute::Bold))
+                                            .build(),
+                                    );
+                                    if let Some(searched) = self.trie.prefix_search(&filter) {
+                                        self.json.stream = JsonStream::new(
+                                            searched.clone(),
+                                            self.json_expand_depth,
                                         );
-                                        if let Some(searched) = self.trie.prefix_search(&filter) {
-                                            self.json.stream = JsonStream::new(
-                                                searched.clone(),
-                                                self.json_expand_depth,
-                                            );
-                                        }
                                     }
+                                } else {
+                                    // SUCCESS!
+                                    self.trie.insert(&filter, ret);
+                                    self.json.stream = stream;
                                 }
                             }
                         }

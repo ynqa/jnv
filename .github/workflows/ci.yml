@@ -15,27 +15,6 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install clang package
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            autoconf \
-            libtool \
-            git \
-            wget \
-            software-properties-common
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo apt-add-repository "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main"
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang-15 \
-            lldb-15 \
-            lld-15
-      - name: Set default compiler to clang
-        run: |
-          echo "CC=clang-15" >> $GITHUB_ENV
-          echo "CXX=clang++-15" >> $GITHUB_ENV
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
