@@ -14,6 +14,22 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
+  - Use [jaq](https://github.com/01mf02/jaq) to apply `jq` filter
+    - This eliminates the need for users to prepare `jq` on their own.
+
+> [!IMPORTANT]
+> Starting from v0.3.0, the transition from libjq Rust binding
+> [j9](https://github.com/ynqa/j9) to jq clone
+> [jaq](https://github.com/01mf02/jaq) was made.
+>
+> This change eliminated the need to manage C-related dependencies
+> that include external tools like autoconf, thus simplifying the build process.
+> However, please note that some filters are not yet supported by jaq.
+> For more details, refer to GitHub issue
+> [#24](https://github.com/ynqa/jnv/issues/24).
+>
+> Please continue to provide feedback regarding this transition.
+
 - Capable of accommodating various format
   - Input: File, Stdin
   - Data: A JSON or multiple JSON structures
@@ -61,20 +77,9 @@ nix-shell -p jnv
 
 ### Cargo
 
-#### Requirements
-
-- [autoconf](https://www.gnu.org/software/autoconf/)
-- [automake](https://www.gnu.org/software/automake/)
-- [libtool](https://www.gnu.org/software/libtool/)
-- [clang](https://clang.llvm.org/)
-
 ```bash
 cargo install jnv
 ```
-
-> [!NOTE]
-> *jnv* does not require users to install `jq` on their system,
-> because it utilizes [j9](https://github.com/ynqa/j9) Rust bindings.
 
 ## Examples
 
@@ -127,39 +132,23 @@ Examples:
         cat data.json | jnv
 
 Arguments:
-  [INPUT]
-          Optional path to a JSON file. If not provided or if "-" is specified, reads from standard input
+  [INPUT]  Optional path to a JSON file. If not provided or if "-" is specified, reads from standard input
 
 Options:
   -e, --edit-mode <EDIT_MODE>
-                  Specifies the edit mode for the interface.
-                  Acceptable values are "insert" or "overwrite".
-                  - "insert" inserts a new input at the cursor's position.
-                  - "overwrite" mode replaces existing characters with new input at the cursor's position.
-          [default: insert]
-
+          Edit mode for the interface ('insert' or 'overwrite'). [default: insert]
   -i, --indent <INDENT>
-                  Affect the formatting of the displayed JSON,
-                  making it more readable by adjusting the indentation level.
-          [default: 2]
-
+          Number of spaces used for indentation in the visualized data. [default: 2]
   -n, --no-hint
-                  When this option is enabled, it prevents the display of
-                  hints that typically guide or offer suggestions to the user.
-
-  -d, --expand-depth <EXPAND_DEPTH>
-                  Specifies the initial depth to which JSON nodes are expanded in the visualization.
-                  Note: Increasing this depth can significantly slow down the display for large datasets.
-          [default: 3]
-
+          Disables the display of hints.
+  -d, --expand-depth <JSON_EXPAND_DEPTH>
+          Initial depth to which JSON nodes are expanded in the visualization. [default: 3]
+  -s, --limit-length <JSON_LIMIT_LENGTH>
+          Limit length of JSON array in the visualization. [default: 50]
   -l, --suggestion-list-length <SUGGESTION_LIST_LENGTH>
-                  Controls the number of suggestions displayed in the list,
-                  aiding users in making selections more efficiently.
-          [default: 3]
-
+          Number of suggestions visible in the list. [default: 3]
   -h, --help
-          Print help (see a summary with '-h')
-
+          Print help (see more with '--help')
   -V, --version
           Print version
 ```
