@@ -16,6 +16,20 @@ and [jiq](https://github.com/fiatjaf/jiq).
   - Syntax highlighting for JSON
   - Use [jaq](https://github.com/01mf02/jaq) to apply `jq` filter
     - This eliminates the need for users to prepare `jq` on their own.
+
+> [!IMPORTANT]
+> Starting from v0.3.0, the transition from libjq Rust binding
+> [j9](https://github.com/ynqa/j9) to jq clone
+> [jaq](https://github.com/01mf02/jaq) was made.
+>
+> This change eliminated the need to manage C-related dependencies
+> that include external tools like autoconf, thus simplifying the build process.
+> However, please note that some filters are not yet supported by jaq.
+> For more details, refer to GitHub issue
+> [#24](https://github.com/ynqa/jnv/issues/24).
+>
+> Please continue to provide feedback regarding this transition.
+
 - Capable of accommodating various format
   - Input: File, Stdin
   - Data: A JSON or multiple JSON structures
