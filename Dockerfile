@@ -13,7 +13,7 @@ RUN cargo build --target=x86_64-unknown-linux-musl --release
 
 ## Final image
 
-FROM builder
+FROM scratch
 
 COPY --from=builder /jnv/target/x86_64-unknown-linux-musl/release/jnv /bin/jnv
 
