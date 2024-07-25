@@ -1,7 +1,5 @@
 use promkit::{
-    crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-    listbox::Listbox,
-    text_editor, PromptSignal,
+    crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers}, listbox::Listbox, text_editor, PromptSignal
 };
 
 pub type Keymap = fn(&Event, &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal>;
@@ -186,6 +184,24 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             state: KeyEventState::NONE,
         }) => {
             jnv.json.stream.expand_all();
+        }
+
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('o'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => {
+            jnv.content_to_clipboard();
+        }
+
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('q'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        }) => {
+            jnv.query_to_clipboard();
         }
 
         Event::Key(KeyEvent {
