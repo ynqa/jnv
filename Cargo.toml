@@ -16,7 +16,7 @@ jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
-promkit = { path = "/Users/antonsuprun/Projects/promkit/promkit" }
+promkit = "0.4.5"
 radix_trie = "0.2.1"
 
 # The profile that 'cargo dist' will build with
