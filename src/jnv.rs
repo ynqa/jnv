@@ -228,14 +228,14 @@ impl Jnv {
         }
     }
 
-    fn content_to_clipboard(&mut self) {
+    fn store_content_to_clipboard(&mut self) {
         self.store_to_clipboard(
             &self.json.json_str(),
             "Copied selected content to clipboard!",
         );
     }
 
-    fn query_to_clipboard(&mut self) {
+    fn store_query_to_clipboard(&mut self) {
         self.store_to_clipboard(
             &self
                 .filter_editor

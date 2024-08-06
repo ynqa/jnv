@@ -194,7 +194,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.content_to_clipboard();
+            jnv.store_content_to_clipboard();
         }
 
         Event::Key(KeyEvent {
@@ -203,7 +203,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.query_to_clipboard();
+            jnv.store_query_to_clipboard();
         }
 
         Event::Key(KeyEvent {
