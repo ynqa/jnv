@@ -2,6 +2,7 @@ use std::cell::RefCell;
 
 use anyhow::Result;
 
+use clipboard::{ClipboardContext, ClipboardProvider};
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
 
 use promkit::{
@@ -107,6 +108,7 @@ pub struct Jnv {
 
     json_expand_depth: Option<usize>,
     no_hint: bool,
+    clipboard: ClipboardContext
 }
 
 impl Jnv {
@@ -181,6 +183,7 @@ impl Jnv {
                 json_expand_depth,
                 no_hint,
                 input_stream,
+                clipboard: ClipboardProvider::new().unwrap()
             },
         })
     }
@@ -192,6 +195,33 @@ impl Jnv {
                 .replace(text::State { text, style })
         }
     }
+
+    fn content_to_clipboard(&mut self) {
+        let content = self.json.json_str();
+        let _ = self.clipboard.set_contents(content);
+
+        let clipboard_hint = String::from("Copied selected content to clipboard!");
+        let style = StyleBuilder::new()
+            .fgc(Color::Grey)
+            .attrs(Attributes::from(Attribute::Italic))
+            .build();
+
+        self.update_hint_message(clipboard_hint, style);
+    }
+
+    fn query_to_clipboard(&mut self) {
+        let query = self.filter_editor.after().texteditor.text_without_cursor().to_string();
+        let _ = self.clipboard.set_contents(query);
+
+        let clipboard_hint = String::from("Copied jq query to clipboard!");
+        let style = StyleBuilder::new()
+            .fgc(Color::Grey)
+            .attrs(Attributes::from(Attribute::Italic))
+            .build();
+
+        self.update_hint_message(clipboard_hint, style);
+    }
+
 }
 
 impl promkit::Finalizer for Jnv {
