@@ -1,5 +1,7 @@
 use promkit::{
-    crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers}, listbox::Listbox, text_editor, PromptSignal
+    crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+    listbox::Listbox,
+    text_editor, PromptSignal,
 };
 
 pub type Keymap = fn(&Event, &mut crate::jnv::Jnv) -> anyhow::Result<PromptSignal>;

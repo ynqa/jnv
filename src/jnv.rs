@@ -108,7 +108,7 @@ pub struct Jnv {
 
     json_expand_depth: Option<usize>,
     no_hint: bool,
-    clipboard: ClipboardContext
+    clipboard: ClipboardContext,
 }
 
 impl Jnv {
@@ -183,7 +183,7 @@ impl Jnv {
                 json_expand_depth,
                 no_hint,
                 input_stream,
-                clipboard: ClipboardProvider::new().unwrap()
+                clipboard: ClipboardProvider::new().unwrap(),
             },
         })
     }
@@ -210,7 +210,12 @@ impl Jnv {
     }
 
     fn query_to_clipboard(&mut self) {
-        let query = self.filter_editor.after().texteditor.text_without_cursor().to_string();
+        let query = self
+            .filter_editor
+            .after()
+            .texteditor
+            .text_without_cursor()
+            .to_string();
         let _ = self.clipboard.set_contents(query);
 
         let clipboard_hint = String::from("Copied jq query to clipboard!");
@@ -221,7 +226,6 @@ impl Jnv {
 
         self.update_hint_message(clipboard_hint, style);
     }
-
 }
 
 impl promkit::Finalizer for Jnv {
