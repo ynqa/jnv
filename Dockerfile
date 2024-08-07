@@ -1,20 +1,13 @@
-## Build stage
-FROM rust:1.79-alpine3.20 as builder
-
-RUN rustup target add x86_64-unknown-linux-musl
-
-RUN apk add musl-dev
+# Build stage
+FROM rust:1.80.0-slim-bookworm as builder
 
 WORKDIR /jnv
-
 COPY . /jnv
+RUN cargo build --release
 
-RUN cargo build --target=x86_64-unknown-linux-musl --release
+# Final stage
+FROM debian:bookworm-slim
 
-## Final image
-
-FROM scratch
-
-COPY --from=builder /jnv/target/x86_64-unknown-linux-musl/release/jnv /bin/jnv
+COPY --from=builder /jnv/target/release/jnv /bin/jnv
 
 ENTRYPOINT ["/bin/jnv"]

@@ -75,6 +75,22 @@ See [package entry on search.nixos.org](https://search.nixos.org/packages?channe
 nix-shell -p jnv
 ```
 
+### Docker
+
+Build
+(In the near future, the image will be available on something of registries)
+
+```bash
+docker build -t jnv .
+```
+
+And Run
+(The following commad is just an example. Please modify the path to the file you want to mount)
+
+```bash
+docker run -it --rm -v $(pwd)/debug.json:/jnv/debug.json jnv /jnv/debug.json
+```
+
 ### Cargo
 
 ```bash
@@ -85,11 +101,7 @@ cargo install jnv
 
 ```bash
 cat data.json | jnv
-```
-
-Or
-
-```bash
+# or
 jnv data.json
 ```
 
