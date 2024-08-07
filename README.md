@@ -128,6 +128,8 @@ jnv data.json
 | <kbd>Alt + F</kbd>   | Move the cursor to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
 | <kbd>Ctrl + W</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
 | <kbd>Alt + D</kbd>   | Erase to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
+| <kbd>Ctrl + O</kbd>  | Copy current JSON content to clipboard
+| <kbd>Ctrl + Q</kbd>  | Copy current query to clipboard
 
 ## Usage
 
