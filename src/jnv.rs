@@ -108,7 +108,6 @@ pub struct Jnv {
 
     json_expand_depth: Option<usize>,
     no_hint: bool,
-    clipboard: Clipboard,
 }
 
 impl Jnv {
@@ -183,7 +182,6 @@ impl Jnv {
                 json_expand_depth,
                 no_hint,
                 input_stream,
-                clipboard: Clipboard::new()?,
             },
         })
     }
@@ -196,35 +194,57 @@ impl Jnv {
         }
     }
 
-    fn content_to_clipboard(&mut self) {
-        let content = self.json.json_str();
-        let _ = self.clipboard.set_text(content);
-
-        let clipboard_hint = String::from("Copied selected content to clipboard!");
-        let style = StyleBuilder::new()
-            .fgc(Color::Grey)
-            .attrs(Attributes::from(Attribute::Italic))
-            .build();
-
-        self.update_hint_message(clipboard_hint, style);
+    fn store_to_clipboard(&mut self, content: &str, hint: &str) {
+        match Clipboard::new() {
+            Ok(mut clipboard) => match clipboard.set_text(content) {
+                Ok(_) => {
+                    self.update_hint_message(
+                        hint.to_string(),
+                        StyleBuilder::new().fgc(Color::Grey).build(),
+                    );
+                }
+                Err(e) => {
+                    self.update_hint_message(
+                        format!("Failed to copy to clipboard: {}", e),
+                        StyleBuilder::new()
+                            .fgc(Color::Red)
+                            .attrs(Attributes::from(Attribute::Bold))
+                            .build(),
+                    );
+                }
+            },
+            // arboard fails (in the specific environment like linux?) on Clipboard::new()
+            // suppress the errors (but still show them) not to break the prompt
+            // https://github.com/1Password/arboard/issues/153
+            Err(e) => {
+                self.update_hint_message(
+                    format!("Failed to setup clipboard: {}", e),
+                    StyleBuilder::new()
+                        .fgc(Color::Red)
+                        .attrs(Attributes::from(Attribute::Bold))
+                        .build(),
+                );
+            }
+        }
     }
 
-    fn query_to_clipboard(&mut self) {
-        let query = self
-            .filter_editor
-            .after()
-            .texteditor
-            .text_without_cursor()
-            .to_string();
-        let _ = self.clipboard.set_text(query);
+    fn store_content_to_clipboard(&mut self) {
+        self.store_to_clipboard(
+            &self.json.json_str(),
+            "Copied selected content to clipboard!",
+        );
+    }
 
-        let clipboard_hint = String::from("Copied jq query to clipboard!");
-        let style = StyleBuilder::new()
-            .fgc(Color::Grey)
-            .attrs(Attributes::from(Attribute::Italic))
-            .build();
-
-        self.update_hint_message(clipboard_hint, style);
+    fn store_query_to_clipboard(&mut self) {
+        self.store_to_clipboard(
+            &self
+                .filter_editor
+                .after()
+                .texteditor
+                .text_without_cursor()
+                .to_string(),
+            "Copied jq query to clipboard!",
+        );
     }
 }
 
