@@ -75,6 +75,18 @@ See [package entry on search.nixos.org](https://search.nixos.org/packages?channe
 nix-shell -p jnv
 ```
 
+### conda-forge
+
+See [here](https://prefix.dev/channels/conda-forge/packages/jnv) for more info.
+
+```bash
+pixi global install jnv
+# or
+cat data.json | pixi exec jnv
+# or
+conda install jnv
+```
+
 ### Docker
 
 Build
