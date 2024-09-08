@@ -11,6 +11,7 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.82"
 clap = { version = "4.5.4", features = ["derive"] }
+confy = "0.6.1"
 arboard = "3.4.0"
 jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
@@ -18,6 +19,8 @@ jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
 promkit = "0.4.6"
 radix_trie = "0.2.1"
+serde = "1.0.210"
+serde_derive = "1.0.210"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
