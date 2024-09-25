@@ -1,6 +1,6 @@
 [package]
 name = "jnv"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["ynqa <un.pensiero.vano@gmail.com>"]
 edition = "2021"
 description = "JSON navigator and interactive filter leveraging jq"
@@ -16,7 +16,7 @@ jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
-promkit = "0.4.5"
+promkit = "0.4.6"
 radix_trie = "0.2.1"
 
 # The profile that 'cargo dist' will build with
