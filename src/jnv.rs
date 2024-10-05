@@ -21,7 +21,7 @@ use promkit::{
     text, text_editor, PaneFactory, Prompt, PromptSignal,
 };
 
-use crate::trie::FilterTrie;
+use crate::{config::JsonTheme, trie::FilterTrie};
 
 mod keymap;
 
@@ -56,37 +56,6 @@ fn run_jaq(
     }
 
     Ok(ret)
-}
-
-pub struct JsonTheme {
-    /// Style for {}.
-    pub curly_brackets_style: ContentStyle,
-    /// Style for [].
-    pub square_brackets_style: ContentStyle,
-    /// Style for "key".
-    pub key_style: ContentStyle,
-    /// Style for string values.
-    pub string_value_style: ContentStyle,
-    /// Style for number values.
-    pub number_value_style: ContentStyle,
-    /// Style for boolean values.
-    pub boolean_value_style: ContentStyle,
-    /// Style for null values.
-    pub null_value_style: ContentStyle,
-
-    /// Attribute for the selected line.
-    pub active_item_attribute: Attribute,
-    /// Attribute for unselected lines.
-    pub inactive_item_attribute: Attribute,
-
-    /// Number of lines available for rendering.
-    pub lines: Option<usize>,
-
-    /// The number of spaces used for indentation in the rendered JSON structure.
-    /// This value multiplies with the indentation level of a JSON element to determine
-    /// the total indentation space. For example, an `indent` value of 4 means each
-    /// indentation level will be 4 spaces wide.
-    pub indent: usize,
 }
 
 pub struct Jnv {

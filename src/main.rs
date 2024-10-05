@@ -16,8 +16,10 @@ use promkit::{
     text, text_editor,
 };
 
+mod config;
+use config::Config;
 mod jnv;
-use jnv::{Jnv, JsonTheme};
+use jnv::Jnv;
 mod trie;
 
 /// JSON navigator and interactive filter leveraging jq
@@ -185,6 +187,8 @@ fn deserialize_json(
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let config_path = confy::get_configuration_file_path("jnv", None)?;
+    let config = Config::load(config_path)?;
 
     let input = parse_input(&args)?;
     let input_stream = deserialize_json(&input, args.json_limit_length)?;
@@ -223,30 +227,30 @@ fn main() -> Result<()> {
         lines: Some(args.suggestion_list_length),
     };
 
-    let json_theme = JsonTheme {
-        curly_brackets_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Bold))
-            .build(),
-        square_brackets_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Bold))
-            .build(),
-        key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-        string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-        number_value_style: StyleBuilder::new().build(),
-        boolean_value_style: StyleBuilder::new().build(),
-        null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-        active_item_attribute: Attribute::Bold,
-        inactive_item_attribute: Attribute::Dim,
-        lines: Default::default(),
-        indent: args.indent,
-    };
+    // let json_theme = JsonTheme {
+    //     curly_brackets_style: StyleBuilder::new()
+    //         .attrs(Attributes::from(Attribute::Bold))
+    //         .build(),
+    //     square_brackets_style: StyleBuilder::new()
+    //         .attrs(Attributes::from(Attribute::Bold))
+    //         .build(),
+    //     key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+    //     string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+    //     number_value_style: StyleBuilder::new().build(),
+    //     boolean_value_style: StyleBuilder::new().build(),
+    //     null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+    //     active_item_attribute: Attribute::Bold,
+    //     inactive_item_attribute: Attribute::Dim,
+    //     lines: Default::default(),
+    //     indent: args.indent,
+    // };
 
     let mut prompt = Jnv::try_new(
         input_stream,
         filter_editor,
         hint_message,
         suggestions,
-        json_theme,
+        config.json_theme,
         args.json_expand_depth,
         args.no_hint,
     )?;
