@@ -89,18 +89,6 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
-        short = 'd',
-        long = "expand-depth",
-        default_value = "3",
-        help = "Initial depth to which JSON nodes are expanded in the visualization.",
-        long_help = "
-        Specifies the initial depth to which JSON nodes are expanded in the visualization.
-        Note: Increasing this depth can significantly slow down the display for large datasets.
-        "
-    )]
-    pub json_expand_depth: Option<usize>,
-
-    #[arg(
         short = 's',
         long = "limit-length",
         default_value = "50",
@@ -211,7 +199,7 @@ fn main() -> Result<()> {
     };
 
     let suggestions = listbox::State {
-        listbox: listbox::Listbox::from_iter(Vec::<String>::new()),
+        listbox: listbox::Listbox::from_displayable(Vec::<String>::new()),
         cursor: String::from("❯ "),
         active_item_style: Some(
             StyleBuilder::new()
@@ -247,7 +235,6 @@ fn main() -> Result<()> {
         hint_message,
         suggestions,
         json_theme,
-        args.json_expand_depth,
         args.no_hint,
     )?;
     let _ = prompt.run()?;

@@ -10,7 +10,8 @@ use promkit::{
         event::Event,
         style::{Attribute, Attributes, Color, ContentStyle},
     },
-    json::{self, JsonNode, JsonPathSegment, JsonStream},
+    jsonstream::{self, JsonStream},
+    jsonz::{self, format::RowFormatter, Value},
     listbox,
     pane::Pane,
     serde_json,
@@ -27,7 +28,7 @@ mod keymap;
 
 fn run_jaq(
     query: &str,
-    json_stream: Vec<serde_json::Value>,
+    json_stream: &[serde_json::Value],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let mut ret = Vec::<serde_json::Value>::new();
 
@@ -48,7 +49,7 @@ fn run_jaq(
 
         let f = ctx.compile(f.unwrap());
         let inputs = RcIter::new(core::iter::empty());
-        let mut out = f.run((Ctx::new([], &inputs), Val::from(input)));
+        let mut out = f.run((Ctx::new([], &inputs), Val::from(input.clone())));
 
         while let Some(Ok(val)) = out.next() {
             ret.push(val.into());
@@ -99,14 +100,13 @@ pub struct Jnv {
     filter_editor: Snapshot<text_editor::State>,
     hint_message: Snapshot<text::State>,
     suggestions: listbox::State,
-    json: json::State,
+    json: jsonstream::State,
 
     // Store the filter history
     trie: FilterTrie,
     // Store the filter suggestions
     suggest: Suggest,
 
-    json_expand_depth: Option<usize>,
     no_hint: bool,
 }
 
@@ -118,41 +118,12 @@ impl Jnv {
         hint_message: text::State,
         suggestions: listbox::State,
         json_theme: JsonTheme,
-        json_expand_depth: Option<usize>,
         no_hint: bool,
     ) -> Result<Prompt<Self>> {
         let mut trie = FilterTrie::default();
         trie.insert(".", input_stream.clone());
-
-        let all_kinds = JsonStream::new(input_stream.clone(), None).flatten_kinds();
-        let suggest = Suggest::from_iter(all_kinds.iter().filter_map(|kind| kind.path()).map(
-            |segments| {
-                if segments.is_empty() {
-                    ".".to_string()
-                } else {
-                    segments
-                        .iter()
-                        .enumerate()
-                        .map(|(i, segment)| match segment {
-                            JsonPathSegment::Key(key) => {
-                                if key.contains('.') || key.contains('-') || key.contains('@') {
-                                    format!(".\"{}\"", key)
-                                } else {
-                                    format!(".{}", key)
-                                }
-                            }
-                            JsonPathSegment::Index(index) => {
-                                if i == 0 {
-                                    format!(".[{}]", index)
-                                } else {
-                                    format!("[{}]", index)
-                                }
-                            }
-                        })
-                        .collect::<String>()
-                }
-            },
-        ));
+        let stream = JsonStream::new(&input_stream);
+        let suggest = Suggest::from_iter(jsonz::get_all_paths(&input_stream));
 
         Ok(Prompt {
             renderer: Self {
@@ -163,23 +134,24 @@ impl Jnv {
                 filter_editor: Snapshot::<text_editor::State>::new(filter_editor),
                 hint_message: Snapshot::<text::State>::new(hint_message),
                 suggestions,
-                json: json::State {
-                    stream: JsonStream::new(input_stream.clone(), json_expand_depth),
-                    curly_brackets_style: json_theme.curly_brackets_style,
-                    square_brackets_style: json_theme.square_brackets_style,
-                    key_style: json_theme.key_style,
-                    string_value_style: json_theme.string_value_style,
-                    number_value_style: json_theme.number_value_style,
-                    boolean_value_style: json_theme.boolean_value_style,
-                    null_value_style: json_theme.null_value_style,
-                    active_item_attribute: json_theme.active_item_attribute,
-                    inactive_item_attribute: json_theme.inactive_item_attribute,
+                json: jsonstream::State {
+                    stream,
+                    formatter: RowFormatter {
+                        curly_brackets_style: json_theme.curly_brackets_style,
+                        square_brackets_style: json_theme.square_brackets_style,
+                        key_style: json_theme.key_style,
+                        string_value_style: json_theme.string_value_style,
+                        number_value_style: json_theme.number_value_style,
+                        boolean_value_style: json_theme.boolean_value_style,
+                        null_value_style: json_theme.null_value_style,
+                        active_item_attribute: json_theme.active_item_attribute,
+                        inactive_item_attribute: json_theme.inactive_item_attribute,
+                        indent: json_theme.indent,
+                    },
                     lines: json_theme.lines,
-                    indent: json_theme.indent,
                 },
                 trie,
                 suggest,
-                json_expand_depth,
                 no_hint,
                 input_stream,
             },
@@ -230,7 +202,7 @@ impl Jnv {
 
     fn store_content_to_clipboard(&mut self) {
         self.store_to_clipboard(
-            &self.json.json_str(),
+            &self.json.formatter.format_raw_json(self.json.stream.rows()),
             "Copied selected content to clipboard!",
         );
     }
@@ -251,7 +223,7 @@ impl Jnv {
 impl promkit::Finalizer for Jnv {
     type Return = String;
 
-    fn finalize(&self) -> anyhow::Result<Self::Return> {
+    fn finalize(&mut self) -> anyhow::Result<Self::Return> {
         Ok(self
             .filter_editor
             .after()
@@ -294,7 +266,7 @@ impl promkit::Renderer for Jnv {
 
             match self.trie.exact_search(&filter) {
                 Some(jsonl) => {
-                    self.json.stream = JsonStream::new(jsonl.clone(), self.json_expand_depth);
+                    self.json.stream = JsonStream::new(jsonl);
                     self.update_hint_message(
                         format!(
                             "JSON query ('{}') was already executed. Result was retrieved from cache.",
@@ -307,7 +279,7 @@ impl promkit::Renderer for Jnv {
                     );
                 }
                 None => {
-                    match run_jaq(&filter, self.input_stream.clone()) {
+                    match run_jaq(&filter, &self.input_stream) {
                         Ok(ret) => {
                             if ret.is_empty() {
                                 self.update_hint_message(
@@ -321,16 +293,13 @@ impl promkit::Renderer for Jnv {
                                         .build(),
                                 );
                                 if let Some(searched) = self.trie.prefix_search(&filter) {
-                                    self.json.stream =
-                                        JsonStream::new(searched.clone(), self.json_expand_depth);
+                                    self.json.stream = JsonStream::new(searched);
                                 }
                             } else {
-                                let stream = JsonStream::new(ret.clone(), self.json_expand_depth);
+                                let stream = JsonStream::new(ret.iter());
 
-                                let is_null = stream
-                                    .roots()
-                                    .iter()
-                                    .all(|node| node == &JsonNode::Leaf(serde_json::Value::Null));
+                                let is_null =
+                                    stream.rows().iter().all(|node| node.v == Value::Null);
                                 if is_null {
                                     self.update_hint_message(
                                         format!("JSON query resulted in 'null', which may indicate a typo or incorrect query: '{}'", &filter),
@@ -340,10 +309,7 @@ impl promkit::Renderer for Jnv {
                                             .build(),
                                     );
                                     if let Some(searched) = self.trie.prefix_search(&filter) {
-                                        self.json.stream = JsonStream::new(
-                                            searched.clone(),
-                                            self.json_expand_depth,
-                                        );
+                                        self.json.stream = JsonStream::new(searched);
                                     }
                                 } else {
                                     // SUCCESS!
@@ -361,8 +327,7 @@ impl promkit::Renderer for Jnv {
                                     .build(),
                             );
                             if let Some(searched) = self.trie.prefix_search(&filter) {
-                                self.json.stream =
-                                    JsonStream::new(searched.clone(), self.json_expand_depth);
+                                self.json.stream = JsonStream::new(searched);
                             }
                             return signal;
                         }

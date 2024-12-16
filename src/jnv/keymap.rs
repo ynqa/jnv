@@ -20,7 +20,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             if let Some(mut candidates) = jnv.suggest.prefix_search(query) {
                 candidates.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
 
-                jnv.suggestions.listbox = Listbox::from_iter(candidates);
+                jnv.suggestions.listbox = Listbox::from_displayable(candidates);
                 filter_editor
                     .texteditor
                     .replace(&jnv.suggestions.listbox.get().to_string());
@@ -130,7 +130,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.backward();
+            jnv.json.stream.up();
         }
 
         // Move down.
@@ -146,7 +146,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.forward();
+            jnv.json.stream.down();
         }
 
         // Move to tail
@@ -156,7 +156,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.move_to_tail();
+            jnv.json.stream.tail();
         }
 
         // Move to head
@@ -166,7 +166,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.move_to_head();
+            jnv.json.stream.head();
         }
 
         // Toggle collapse/expand
@@ -185,7 +185,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.expand_all();
+            jnv.json.stream.set_nodes_visibility(false);
         }
 
         Event::Key(KeyEvent {
@@ -212,7 +212,7 @@ pub fn default(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Promp
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
         }) => {
-            jnv.json.stream.collapse_all();
+            jnv.json.stream.set_nodes_visibility(true);
         }
 
         // Input char.
@@ -279,7 +279,7 @@ pub fn on_suggest(event: &Event, jnv: &mut crate::jnv::Jnv) -> anyhow::Result<Pr
         }
 
         _ => {
-            jnv.suggestions.listbox = Listbox::from_iter(Vec::<String>::new());
+            jnv.suggestions.listbox = Listbox::from_displayable(Vec::<String>::new());
             jnv.keymap.borrow_mut().switch("default");
 
             // This block is specifically designed to prevent the default action of toggling collapse/expand
