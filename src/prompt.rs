@@ -217,7 +217,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                 {
                                     let mut panes = shared_panes.lock().await;
                                     let mut terminal = shared_terminal.lock().await;
-                                    panes[PaneIndex::ProcessorGuide as usize] = pane;
+                                    panes[PaneIndex::Guide as usize] = pane;
                                     terminal.draw(&*panes)?;
                                 }
                             },
@@ -353,7 +353,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         {
                             let mut panes = shared_panes.lock().await;
                             let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::ProcessorGuide as usize] = pane;
+                            panes[PaneIndex::Guide as usize] = pane;
                             terminal.draw(&*panes)?;
                         }
                     }
