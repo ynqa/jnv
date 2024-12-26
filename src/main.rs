@@ -8,7 +8,12 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossterm::style::{Attribute, Attributes, Color};
-use promkit::{jsonz::format::RowFormatter, listbox, style::StyleBuilder, text_editor};
+use promkit::{
+    jsonz::format::RowFormatter,
+    listbox::{self, Listbox},
+    style::StyleBuilder,
+    text_editor,
+};
 
 mod editor;
 use editor::Editor;
@@ -190,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
             lines: Default::default(),
         },
         listbox::State {
-            listbox: Default::default(),
+            listbox: Listbox::from_displayable(Vec::<String>::new()),
             cursor: String::from("❯ "),
             active_item_style: Some(
                 StyleBuilder::new()
