@@ -12,7 +12,7 @@ readme = "README.md"
 anyhow = "1.0.95"
 arboard = "3.4.1"
 async-trait = "0.1.83"
-clap = { version = "4.5.4", features = ["derive"] }
+clap = { version = "4.5.23", features = ["derive"] }
 # See https://github.com/crossterm-rs/crossterm/issues/935
 crossterm = { version = "0.28.1", features = ["use-dev-tty", "event-stream", "libc"] }
 futures = "0.3.30"
