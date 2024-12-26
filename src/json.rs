@@ -215,21 +215,46 @@ fn run_jaq(
     Ok(ret)
 }
 
+#[derive(Clone)]
 pub struct JsonProvider {
     formatter: RowFormatter,
+    stream_load_limit: Option<usize>,
 }
 
 impl JsonProvider {
-    pub fn new(formatter: RowFormatter) -> Self {
-        Self { formatter }
+    pub fn new(formatter: RowFormatter, stream_load_limit: Option<usize>) -> Self {
+        Self {
+            formatter,
+            stream_load_limit,
+        }
+    }
+
+    /// Deserializes a JSON string into a vector of `serde_json::Value`.
+    ///
+    /// This function takes a JSON string as input and attempts to parse it into a vector
+    /// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
+    /// It leverages `serde_json::Deserializer` to parse the string and collect the results.
+    ///
+    /// # Arguments
+    /// * `json_str` - A string slice that holds the JSON data to be deserialized.
+    ///
+    /// # Returns
+    /// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
+    /// JSON data. On failure, it contains an error detailing what went wrong during parsing.
+    fn deserialize_json(&self, json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+        let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+        let results = match self.stream_load_limit {
+            Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
+            None => deserializer.collect::<Result<Vec<_>, _>>(),
+        };
+        results.map_err(anyhow::Error::from)
     }
 }
 
 #[async_trait::async_trait]
 impl ViewProvider for JsonProvider {
     async fn provide(&mut self, item: &'static str) -> anyhow::Result<Json> {
-        let deserializer = Deserializer::from_str(item).into_iter::<serde_json::Value>();
-        let stream = deserializer.collect::<Result<Vec<_>, _>>()?;
+        let stream = self.deserialize_json(item)?;
         let static_stream = Box::leak(stream.into_boxed_slice());
         Json::new(std::mem::take(&mut self.formatter), static_stream)
     }
@@ -237,9 +262,11 @@ impl ViewProvider for JsonProvider {
 
 #[async_trait::async_trait]
 impl SearchProvider for JsonProvider {
-    async fn provide(item: &str) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>> {
-        let deserializer = Deserializer::from_str(item).into_iter::<serde_json::Value>();
-        let stream = deserializer.collect::<Result<Vec<_>, _>>()?;
+    async fn provide(
+        &mut self,
+        item: &str,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>> {
+        let stream = self.deserialize_json(item)?;
         let static_stream = Box::leak(stream.into_boxed_slice());
         Ok(Box::new(jsonz::get_all_paths(static_stream.iter())))
     }

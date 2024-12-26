@@ -166,22 +166,25 @@ async fn main() -> anyhow::Result<()> {
         Duration::from_millis(300),
         Duration::from_millis(600),
         Duration::from_millis(200),
-        &mut JsonProvider::new(RowFormatter {
-            curly_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            square_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-            number_value_style: StyleBuilder::new().build(),
-            boolean_value_style: StyleBuilder::new().build(),
-            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-            active_item_attribute: Attribute::Bold,
-            inactive_item_attribute: Attribute::Dim,
-            indent: args.indent,
-        }),
+        &mut JsonProvider::new(
+            RowFormatter {
+                curly_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                square_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+                number_value_style: StyleBuilder::new().build(),
+                boolean_value_style: StyleBuilder::new().build(),
+                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+                active_item_attribute: Attribute::Bold,
+                inactive_item_attribute: Attribute::Dim,
+                indent: args.indent,
+            },
+            args.limit,
+        ),
         text_editor::State {
             texteditor: Default::default(),
             history: Default::default(),

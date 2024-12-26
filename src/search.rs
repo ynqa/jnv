@@ -13,8 +13,11 @@ use tokio::{
 };
 
 #[async_trait]
-pub trait SearchProvider: Send + 'static {
-    async fn provide(item: &str) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>>;
+pub trait SearchProvider: Clone + Send + 'static {
+    async fn provide(
+        &mut self,
+        item: &str,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>>;
 }
 
 #[derive(Clone, Default)]
@@ -49,14 +52,16 @@ impl IncrementalSearcher {
 
     pub fn spawn_load_task<T: SearchProvider>(
         &self,
+        provider: &mut T,
         item: &'static str,
         chunk_size: usize,
     ) -> JoinHandle<anyhow::Result<()>> {
         let shared_set = self.shared_set.clone();
         let shared_load_state = self.shared_load_state.clone();
+        let mut provider = provider.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(chunk_size);
-            let iter = T::provide(item).await?;
+            let iter = provider.provide(item).await?;
 
             for v in iter {
                 batch.push(v);

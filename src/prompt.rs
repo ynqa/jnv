@@ -96,7 +96,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let size = terminal::size()?;
 
     let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
-    let loading_suggestions_task = searcher.spawn_load_task::<T>(item, search_load_chunk_size);
+    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
     let editor = Editor::new(text_editor_state, searcher);
 
     let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
