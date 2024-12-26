@@ -17,7 +17,7 @@ use promkit::{
 };
 
 mod editor;
-use editor::Editor;
+use editor::{Editor, EditorTheme};
 mod json;
 use json::JsonStreamProvider;
 mod processor;
@@ -197,6 +197,25 @@ async fn main() -> anyhow::Result<()> {
             edit_mode: args.edit_mode,
             word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
             lines: Default::default(),
+        },
+        EditorTheme {
+            prefix: String::from("❯❯ "),
+            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+            inactive_char_style: StyleBuilder::new().build(),
+        },
+        EditorTheme {
+            prefix: String::from("▼"),
+            prefix_style: StyleBuilder::new()
+                .fgc(Color::Blue)
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
+            active_char_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
+            inactive_char_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
         },
         listbox::State {
             listbox: Listbox::from_displayable(Vec::<String>::new()),

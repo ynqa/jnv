@@ -17,8 +17,9 @@ use tokio::{
 };
 
 use crate::{
-    Context, ContextMonitor, Editor, IncrementalSearcher, PaneIndex, Processor, Renderer,
-    SearchProvider, SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
+    Context, ContextMonitor, Editor, EditorTheme, IncrementalSearcher, PaneIndex, Processor,
+    Renderer, SearchProvider, SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer,
+    EMPTY_PANE,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -85,6 +86,8 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     resize_debounce_duration: Duration,
     provider: &mut T,
     text_editor_state: text_editor::State,
+    editor_focus_theme: EditorTheme,
+    editor_defocus_theme: EditorTheme,
     listbox_state: listbox::State,
     search_result_chunk_size: usize,
     search_load_chunk_size: usize,
@@ -97,7 +100,12 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
     let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
-    let editor = Editor::new(text_editor_state, searcher);
+    let editor = Editor::new(
+        text_editor_state,
+        searcher,
+        editor_focus_theme,
+        editor_defocus_theme,
+    );
 
     let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
         [
@@ -131,6 +139,8 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     let (editor_copy_tx, mut editor_copy_rx) = mpsc::channel::<()>(1);
     let (processor_copy_tx, mut processor_copy_rx) = mpsc::channel::<()>(1);
+
+    let (editor_focus_tx, mut editor_focus_rx) = mpsc::channel::<bool>(1);
 
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
@@ -204,6 +214,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                         let mut pane = EMPTY_PANE.to_owned();
                                         if context_monitor.is_idle().await {
                                             focus = Focus::Processor;
+                                            editor_focus_tx.send(false).await?;
                                         } else {
                                             let size = terminal::size()?;
                                             pane = text::State {
@@ -219,6 +230,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     },
                                     Focus::Processor => {
                                         focus = Focus::Editor;
+                                        editor_focus_tx.send(true).await?;
                                     },
                                 }
                             },
@@ -249,6 +261,26 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         tokio::spawn(async move {
             loop {
                 tokio::select! {
+                    Some(focus) = editor_focus_rx.recv() => {
+                        let (editor_pane, guide_pane) = {
+                            let mut editor = shared_editor.write().await;
+                            if focus {
+                                editor.focus();
+                            } else {
+                                editor.defocus();
+                            }
+                            (
+                                editor.create_editor_pane(size.0, size.1),
+                                editor.create_guide_pane(size.0, size.1),
+                            )
+                        };
+                        {
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Editor, editor_pane),
+                                (PaneIndex::Guide, guide_pane),
+                            ])?;
+                        }
+                    }
                     Some(()) = editor_copy_rx.recv() => {
                         let text = {
                             let editor = shared_editor.write().await;

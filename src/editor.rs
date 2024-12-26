@@ -1,6 +1,6 @@
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-    style::Color,
+    style::{Color, ContentStyle},
 };
 use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
 use std::future::Future;
@@ -11,21 +11,60 @@ use crate::search::IncrementalSearcher;
 pub struct Editor {
     keybind: Keybind,
     state: text_editor::State,
+    focus_theme: EditorTheme,
+    defocus_theme: EditorTheme,
     guide: text::State,
     searcher: IncrementalSearcher,
 }
 
+pub struct EditorTheme {
+    pub prefix: String,
+
+    /// Style applied to the prompt string.
+    pub prefix_style: ContentStyle,
+    /// Style applied to the currently selected character.
+    pub active_char_style: ContentStyle,
+    /// Style applied to characters that are not currently selected.
+    pub inactive_char_style: ContentStyle,
+}
+
 impl Editor {
-    pub fn new(state: text_editor::State, searcher: IncrementalSearcher) -> Self {
+    pub fn new(
+        state: text_editor::State,
+        searcher: IncrementalSearcher,
+        focus_theme: EditorTheme,
+        defocus_theme: EditorTheme,
+    ) -> Self {
         Self {
             keybind: BOXED_EDITOR_KEYBIND,
             state,
+            focus_theme,
+            defocus_theme,
             guide: text::State {
                 text: Default::default(),
                 style: Default::default(),
             },
             searcher,
         }
+    }
+
+    pub fn focus(&mut self) {
+        self.state.prefix = self.focus_theme.prefix.clone();
+        self.state.prefix_style = self.focus_theme.prefix_style;
+        self.state.inactive_char_style = self.focus_theme.inactive_char_style;
+        self.state.active_char_style = self.focus_theme.active_char_style;
+    }
+
+    pub fn defocus(&mut self) {
+        self.state.prefix = self.defocus_theme.prefix.clone();
+        self.state.prefix_style = self.defocus_theme.prefix_style;
+        self.state.inactive_char_style = self.defocus_theme.inactive_char_style;
+        self.state.active_char_style = self.defocus_theme.active_char_style;
+
+        self.searcher.leave_search();
+        self.keybind = BOXED_EDITOR_KEYBIND;
+
+        self.guide.text = Default::default();
     }
 
     pub fn text(&self) -> String {
