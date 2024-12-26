@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::File,
     io::{self, Read},
     path::PathBuf,
@@ -99,20 +100,18 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
-        short = 's',
-        long = "limit-length",
-        default_value = "50",
-        help = "Limit length of JSON array in the visualization.",
+        long = "limit",
+        help = "Limit length of JSON Lines in the visualization.",
         long_help = "
-        Specifies the limit length to load JSON array in the visualization.
+        Specifies the limit length to load JSON Lines in the visualization.
         Note: Increasing this length can significantly slow down the display for large datasets.
         "
     )]
-    pub json_limit_length: Option<usize>,
+    pub limit: Option<usize>,
 
     #[arg(
         short = 'l',
-        long = "suggestion-list-length",
+        long = "suggestions",
         default_value = "3",
         help = "Number of suggestions visible in the list.",
         long_help = "
@@ -120,7 +119,7 @@ pub struct Args {
         aiding users in making selections more efficiently.
         "
     )]
-    pub suggestion_list_length: usize,
+    pub suggestions: usize,
 }
 
 fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
@@ -181,18 +180,18 @@ async fn main() -> anyhow::Result<()> {
             null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
             active_item_attribute: Attribute::Bold,
             inactive_item_attribute: Attribute::Dim,
-            indent: 2,
+            indent: args.indent,
         }),
         text_editor::State {
             texteditor: Default::default(),
             history: Default::default(),
             prefix: String::from("❯❯ "),
             mask: Default::default(),
-            prefix_style: StyleBuilder::new().fgc(Color::DarkGreen).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::DarkCyan).build(),
+            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
             inactive_char_style: StyleBuilder::new().build(),
-            edit_mode: Default::default(),
-            word_break_chars: Default::default(),
+            edit_mode: args.edit_mode,
+            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
             lines: Default::default(),
         },
         listbox::State {
@@ -205,7 +204,7 @@ async fn main() -> anyhow::Result<()> {
                     .build(),
             ),
             inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-            lines: Some(5),
+            lines: Some(args.suggestions),
         },
         100,
         50000,
