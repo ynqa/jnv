@@ -19,15 +19,16 @@ mod editor;
 use editor::Editor;
 mod json;
 use json::JsonProvider;
-mod search;
-use search::{IncrementalSearcher, SearchProvider};
 mod processor;
 use processor::{
     init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
     ViewProvider, Visualizer,
 };
 mod prompt;
-use prompt::{PaneIndex, EMPTY_PANE, PANE_SIZE};
+mod render;
+use render::{PaneIndex, Renderer, EMPTY_PANE};
+mod search;
+use search::{IncrementalSearcher, SearchProvider};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -208,6 +209,7 @@ async fn main() -> anyhow::Result<()> {
         },
         100,
         50000,
+        args.no_hint,
     )
     .await?;
 

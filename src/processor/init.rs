@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use promkit::{pane::Pane, terminal::Terminal};
 use tokio::sync::Mutex;
 
 use super::{Context, State, ViewProvider, Visualizer};
-use crate::{PaneIndex, PANE_SIZE};
+use crate::{PaneIndex, Renderer};
 
 pub struct ViewInitializer {
     shared: Arc<Mutex<Context>>,
@@ -20,8 +19,7 @@ impl ViewInitializer {
         provider: &'a mut T,
         item: &'static str,
         area: (u16, u16),
-        shared_terminal: Arc<Mutex<Terminal>>,
-        shared_panes: Arc<Mutex<[Pane; PANE_SIZE]>>,
+        shared_renderer: Arc<Mutex<Renderer>>,
     ) -> anyhow::Result<impl Visualizer + 'a> {
         {
             let mut shared_state = self.shared.lock().await;
@@ -35,13 +33,15 @@ impl ViewInitializer {
         let pane = visualizer.create_init_pane(area).await;
 
         {
-            let mut panes = shared_panes.lock().await;
-            let mut shared_state = self.shared.lock().await;
-            let mut terminal = shared_terminal.lock().await;
-            panes[PaneIndex::Processor as usize] = pane;
-            shared_state.state = State::Idle;
             // TODO: error handling
-            let _ = terminal.draw(&*panes);
+            let _ = shared_renderer
+                .lock()
+                .await
+                .update_and_draw([(PaneIndex::Processor, pane)]);
+        }
+        {
+            let mut shared_state = self.shared.lock().await;
+            shared_state.state = State::Idle;
         }
 
         Ok(visualizer)

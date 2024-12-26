@@ -1,8 +1,4 @@
-use std::{
-    io,
-    sync::{Arc, LazyLock},
-    time::Duration,
-};
+use std::{io, sync::Arc, time::Duration};
 
 use arboard::Clipboard;
 use crossterm::{
@@ -14,17 +10,15 @@ use crossterm::{
 };
 use futures::StreamExt;
 use futures_timer::Delay;
-use promkit::{
-    listbox, pane::Pane, style::StyleBuilder, terminal::Terminal, text, text_editor, PaneFactory,
-};
+use promkit::{listbox, style::StyleBuilder, text, text_editor, PaneFactory};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
 };
 
 use crate::{
-    Context, ContextMonitor, Editor, IncrementalSearcher, Processor, SearchProvider,
-    SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer,
+    Context, ContextMonitor, Editor, IncrementalSearcher, PaneIndex, Processor, Renderer,
+    SearchProvider, SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -78,18 +72,6 @@ fn copy_to_clipboard(content: &str) -> text::State {
     }
 }
 
-#[derive(Debug)]
-pub enum PaneIndex {
-    Editor = 0,
-    Guide = 1,
-    ProcessorGuide = 2,
-    Search = 3,
-    Processor = 4,
-}
-
-pub const PANE_SIZE: usize = PaneIndex::Processor as usize + 1;
-pub static EMPTY_PANE: LazyLock<Pane> = LazyLock::new(|| Pane::new(vec![], 0));
-
 pub enum Focus {
     Editor,
     Processor,
@@ -106,6 +88,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     listbox_state: listbox::State,
     search_result_chunk_size: usize,
     search_load_chunk_size: usize,
+    no_hint: bool,
 ) -> anyhow::Result<()> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
@@ -116,22 +99,18 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let loading_suggestions_task = searcher.spawn_load_task::<T>(item, search_load_chunk_size);
     let editor = Editor::new(text_editor_state, searcher);
 
-    let mut init_terminal = Terminal {
-        position: cursor::position()?,
-    };
-    let init_panes = [
-        editor.create_editor_pane(size.0, size.1),
-        EMPTY_PANE.to_owned(),
-        EMPTY_PANE.to_owned(),
-        EMPTY_PANE.to_owned(),
-        EMPTY_PANE.to_owned(),
-    ];
-    init_terminal.draw(&init_panes)?;
+    let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
+        [
+            editor.create_editor_pane(size.0, size.1),
+            EMPTY_PANE.to_owned(),
+            EMPTY_PANE.to_owned(),
+            EMPTY_PANE.to_owned(),
+            EMPTY_PANE.to_owned(),
+        ],
+        no_hint,
+    )?));
 
     let ctx = Arc::new(Mutex::new(Context::new(size)));
-
-    let shared_terminal = Arc::new(Mutex::new(init_terminal));
-    let shared_panes: Arc<Mutex<[Pane; PANE_SIZE]>> = Arc::new(Mutex::new(init_panes));
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
@@ -144,11 +123,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         spawn_debouncer(debounce_resize_rx, last_resize_tx, resize_debounce_duration);
 
     let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning = spinner_spawner.spawn_spin_task(
-        shared_panes.clone(),
-        shared_terminal.clone(),
-        spin_duration,
-    );
+    let spinning = spinner_spawner.spawn_spin_task(shared_renderer.clone(), spin_duration);
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
@@ -162,18 +137,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
     let initializer = ViewInitializer::new(ctx.clone());
-    let initializing = initializer.initialize(
-        provider,
-        item,
-        size,
-        shared_terminal.clone(),
-        shared_panes.clone(),
-    );
+    let initializing = initializer.initialize(provider, item, size, shared_renderer.clone());
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
-        let shared_terminal = shared_terminal.clone();
-        let shared_panes = shared_panes.clone();
+        let shared_renderer = shared_renderer.clone();
         tokio::spawn(async move {
             'main: loop {
                 tokio::select! {
@@ -215,10 +183,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     }.create_pane(size.0, size.1);
                                 }
                                 {
-                                    let mut panes = shared_panes.lock().await;
-                                    let mut terminal = shared_terminal.lock().await;
-                                    panes[PaneIndex::Guide as usize] = pane;
-                                    terminal.draw(&*panes)?;
+                                    shared_renderer.lock().await.update_and_draw([
+                                        (PaneIndex::Guide, pane),
+                                    ])?;
                                 }
                             },
                             Event::Key(KeyEvent {
@@ -245,10 +212,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             }.create_pane(size.0, size.1);
                                         }
                                         {
-                                            let mut panes = shared_panes.lock().await;
-                                            let mut terminal = shared_terminal.lock().await;
-                                            panes[PaneIndex::Guide as usize] = pane;
-                                            terminal.draw(&*panes)?;
+                                            shared_renderer.lock().await.update_and_draw([
+                                                (PaneIndex::Guide, pane),
+                                            ])?;
                                         }
                                     },
                                     Focus::Processor => {
@@ -278,8 +244,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     };
 
     let editor_task: JoinHandle<anyhow::Result<()>> = {
-        let shared_terminal = shared_terminal.clone();
-        let shared_panes = shared_panes.clone();
+        let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
         tokio::spawn(async move {
             loop {
@@ -293,10 +258,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let size = terminal::size()?;
                         let pane = guide.create_pane(size.0, size.1);
                         {
-                            let mut panes = shared_panes.lock().await;
-                            let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::Guide as usize] = pane;
-                            terminal.draw(&*panes)?;
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Guide, pane),
+                            ])?;
                         }
                     }
                     Some(event) = editor_event_rx.recv() => {
@@ -319,12 +283,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             )
                         };
                         {
-                            let mut panes = shared_panes.lock().await;
-                            let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::Editor as usize] = editor_pane;
-                            panes[PaneIndex::Guide as usize] = guide_pane;
-                            panes[PaneIndex::Search as usize] = searcher_pane;
-                            terminal.draw(&*panes)?;
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Editor, editor_pane),
+                                (PaneIndex::Guide, guide_pane),
+                                (PaneIndex::Search, searcher_pane),
+                            ])?;
                         }
                     }
                     else => {
@@ -337,8 +300,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     };
 
     let processor_task: JoinHandle<anyhow::Result<()>> = {
-        let shared_terminal = shared_terminal.clone();
-        let shared_panes = shared_panes.clone();
+        let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
         let visualizer = initializing.await?;
         let shared_visualizer = Arc::new(Mutex::new(visualizer));
@@ -351,10 +313,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let size = terminal::size()?;
                         let pane = guide.create_pane(size.0, size.1);
                         {
-                            let mut panes = shared_panes.lock().await;
-                            let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::Guide as usize] = pane;
-                            terminal.draw(&*panes)?;
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Guide, pane),
+                            ])?;
                         }
                     }
                     Some(event) = processor_event_rx.recv() => {
@@ -363,31 +324,33 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             visualizer.create_pane_from_event((size.0, size.1), &event).await
                         };
                         {
-                            let mut panes = shared_panes.lock().await;
-                            let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::Processor as usize] = pane;
-                            terminal.draw(&*panes)?;
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Processor, pane),
+                            ])?;
                         }
                     }
                     Some(query) = last_query_rx.recv() => {
                         processor.render_result(
                             shared_visualizer.clone(),
                             query,
-                            shared_terminal.clone(),
-                            shared_panes.clone(),
+                            shared_renderer.clone(),
                         ).await;
                     }
                     Some(area) = last_resize_rx.recv() => {
-                        let pane = {
+                        let (editor_pane, guide_pane, searcher_pane) = {
                             let editor = shared_editor.read().await;
-                            editor.create_editor_pane(area.0, area.1)
+                            (
+                                editor.create_editor_pane(size.0, size.1),
+                                editor.create_guide_pane(size.0, size.1),
+                                editor.create_searcher_pane(size.0, size.1),
+                            )
                         };
                         {
-                            let mut panes = shared_panes.lock().await;
-                            let mut terminal = shared_terminal.lock().await;
-                            panes[PaneIndex::Editor as usize] = pane;
-                            panes[PaneIndex::Search as usize] = Pane::new(vec![], 0);
-                            terminal.draw(&*panes)?;
+                            shared_renderer.lock().await.update_and_draw([
+                                (PaneIndex::Editor, editor_pane),
+                                (PaneIndex::Guide, guide_pane),
+                                (PaneIndex::Search, searcher_pane),
+                            ])?;
                         }
                         let text = {
                             let editor = shared_editor.read().await;
@@ -397,8 +360,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             shared_visualizer.clone(),
                             area,
                             text,
-                            shared_terminal.clone(),
-                            shared_panes.clone(),
+                            shared_renderer.clone(),
                         ).await;
                     }
                     else => {

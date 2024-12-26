@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use promkit::{pane::Pane, terminal::Terminal};
+use promkit::pane::Pane;
 use tokio::{sync::Mutex, task::JoinHandle, time::Duration};
 
 use super::{Context, State};
-use crate::PaneIndex;
+use crate::{PaneIndex, Renderer};
 
 const LOADING_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -19,8 +19,7 @@ impl SpinnerSpawner {
 
     pub fn spawn_spin_task(
         &self,
-        spin_panes: Arc<Mutex<[Pane]>>,
-        spin_terminal: Arc<Mutex<Terminal>>,
+        shared_renderer: Arc<Mutex<Renderer>>,
         spin_duration: Duration,
     ) -> JoinHandle<()> {
         let shared = self.shared.clone();
@@ -39,18 +38,18 @@ impl SpinnerSpawner {
 
                 frame_index = (frame_index + 1) % LOADING_FRAMES.len();
 
-                let loading_pane = Pane::new(
+                let pane = Pane::new(
                     vec![promkit::grapheme::StyledGraphemes::from(
                         LOADING_FRAMES[frame_index],
                     )],
                     0,
                 );
                 {
-                    let mut panes = spin_panes.lock().await;
-                    let mut terminal = spin_terminal.lock().await;
-                    panes[PaneIndex::Processor as usize] = loading_pane;
                     // TODO: error handling
-                    let _ = terminal.draw(&panes);
+                    let _ = shared_renderer
+                        .lock()
+                        .await
+                        .update_and_draw([(PaneIndex::Processor, pane)]);
                 }
             }
         })
