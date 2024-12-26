@@ -153,15 +153,11 @@ fn parse_input(args: &Args) -> Result<String> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut content = String::new();
-    File::open(format!(
-        "{}/examples/large.json",
-        std::env::current_dir()?.display()
-    ))?
-    .read_to_string(&mut content)?;
+    let args = Args::parse();
+    let input = parse_input(&args)?;
 
     prompt::run(
-        Box::leak(content.into_boxed_str()),
+        Box::leak(input.into_boxed_str()),
         Duration::from_millis(300),
         Duration::from_millis(600),
         Duration::from_millis(200),
