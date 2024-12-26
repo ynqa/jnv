@@ -19,7 +19,7 @@ use promkit::{
 mod editor;
 use editor::Editor;
 mod json;
-use json::JsonProvider;
+use json::JsonStreamProvider;
 mod processor;
 use processor::{
     init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
@@ -100,23 +100,24 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
-        long = "limit",
-        help = "Limit length of JSON Lines in the visualization.",
+        long = "max-streams",
+        help = "Maximum number of JSON streams to display",
         long_help = "
-        Specifies the limit length to load JSON Lines in the visualization.
-        Note: Increasing this length can significantly slow down the display for large datasets.
+        Sets the maximum number of JSON streams to load and display.
+        Limiting this value improves performance for large datasets.
+        If not set, all streams will be displayed.
         "
     )]
-    pub limit: Option<usize>,
+    pub max_streams: Option<usize>,
 
     #[arg(
-        short = 'l',
         long = "suggestions",
         default_value = "3",
-        help = "Number of suggestions visible in the list.",
+        help = "Number of autocomplete suggestions to show",
         long_help = "
-        Controls the number of suggestions displayed in the list,
-        aiding users in making selections more efficiently.
+        Sets the number of autocomplete suggestions displayed during incremental search.
+        Higher values show more suggestions but may occupy more screen space.
+        Adjust this value based on your screen size and preference.
         "
     )]
     pub suggestions: usize,
@@ -166,7 +167,7 @@ async fn main() -> anyhow::Result<()> {
         Duration::from_millis(300),
         Duration::from_millis(600),
         Duration::from_millis(200),
-        &mut JsonProvider::new(
+        &mut JsonStreamProvider::new(
             RowFormatter {
                 curly_brackets_style: StyleBuilder::new()
                     .attrs(Attributes::from(Attribute::Bold))
@@ -183,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
                 inactive_item_attribute: Attribute::Dim,
                 indent: args.indent,
             },
-            args.limit,
+            args.max_streams,
         ),
         text_editor::State {
             texteditor: Default::default(),

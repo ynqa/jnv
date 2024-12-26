@@ -216,34 +216,23 @@ fn run_jaq(
 }
 
 #[derive(Clone)]
-pub struct JsonProvider {
+pub struct JsonStreamProvider {
     formatter: RowFormatter,
-    stream_load_limit: Option<usize>,
+    max_streams: Option<usize>,
 }
 
-impl JsonProvider {
-    pub fn new(formatter: RowFormatter, stream_load_limit: Option<usize>) -> Self {
+impl JsonStreamProvider {
+    pub fn new(formatter: RowFormatter, max_streams: Option<usize>) -> Self {
         Self {
             formatter,
-            stream_load_limit,
+            max_streams,
         }
     }
 
-    /// Deserializes a JSON string into a vector of `serde_json::Value`.
-    ///
-    /// This function takes a JSON string as input and attempts to parse it into a vector
-    /// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
-    /// It leverages `serde_json::Deserializer` to parse the string and collect the results.
-    ///
-    /// # Arguments
-    /// * `json_str` - A string slice that holds the JSON data to be deserialized.
-    ///
-    /// # Returns
-    /// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
-    /// JSON data. On failure, it contains an error detailing what went wrong during parsing.
     fn deserialize_json(&self, json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
-        let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
-        let results = match self.stream_load_limit {
+        let deserializer: serde_json::StreamDeserializer<'_, serde_json::de::StrRead<'_>, Value> =
+            Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+        let results = match self.max_streams {
             Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
             None => deserializer.collect::<Result<Vec<_>, _>>(),
         };
@@ -252,7 +241,7 @@ impl JsonProvider {
 }
 
 #[async_trait::async_trait]
-impl ViewProvider for JsonProvider {
+impl ViewProvider for JsonStreamProvider {
     async fn provide(&mut self, item: &'static str) -> anyhow::Result<Json> {
         let stream = self.deserialize_json(item)?;
         let static_stream = Box::leak(stream.into_boxed_slice());
@@ -261,7 +250,7 @@ impl ViewProvider for JsonProvider {
 }
 
 #[async_trait::async_trait]
-impl SearchProvider for JsonProvider {
+impl SearchProvider for JsonStreamProvider {
     async fn provide(
         &mut self,
         item: &str,
