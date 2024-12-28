@@ -150,7 +150,7 @@ jnv data.json
 ## Usage
 
 ```bash
-JSON navigator and interactive filter leveraging jq
+SON navigator and interactive filter leveraging jq
 
 Usage: jnv [OPTIONS] [INPUT]
 
@@ -165,22 +165,13 @@ Arguments:
   [INPUT]  Optional path to a JSON file. If not provided or if "-" is specified, reads from standard input
 
 Options:
-  -e, --edit-mode <EDIT_MODE>
-          Edit mode for the interface ('insert' or 'overwrite'). [default: insert]
-  -i, --indent <INDENT>
-          Number of spaces used for indentation in the visualized data. [default: 2]
-  -n, --no-hint
-          Disables the display of hints.
-  -d, --expand-depth <JSON_EXPAND_DEPTH>
-          Initial depth to which JSON nodes are expanded in the visualization. [default: 3]
-  -s, --limit-length <JSON_LIMIT_LENGTH>
-          Limit length of JSON array in the visualization. [default: 50]
-  -l, --suggestion-list-length <SUGGESTION_LIST_LENGTH>
-          Number of suggestions visible in the list. [default: 3]
-  -h, --help
-          Print help (see more with '--help')
-  -V, --version
-          Print version
+  -e, --edit-mode <EDIT_MODE>      Edit mode for the interface ('insert' or 'overwrite'). [default: insert]
+  -i, --indent <INDENT>            Number of spaces used for indentation in the visualized data. [default: 2]
+  -n, --no-hint                    Disables the display of hints.
+      --max-streams <MAX_STREAMS>  Maximum number of JSON streams to display
+      --suggestions <SUGGESTIONS>  Number of autocomplete suggestions to show [default: 3]
+  -h, --help                       Print help (see more with '--help')
+  -V, --version                    Print version
 ```
 
 ## Stargazers over time
