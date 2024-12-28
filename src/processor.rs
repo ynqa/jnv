@@ -6,10 +6,10 @@ use promkit::pane::Pane;
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{PaneIndex, Renderer, EMPTY_PANE};
-pub(crate) mod init;
+pub mod init;
 pub use init::ViewProvider;
-pub(crate) mod monitor;
-pub(crate) mod spinner;
+pub mod monitor;
+pub mod spinner;
 
 #[derive(PartialEq)]
 enum State {

@@ -1,10 +1,10 @@
+use std::{future::Future, pin::Pin};
+
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     style::{Color, ContentStyle},
 };
 use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
-use std::future::Future;
-use std::pin::Pin;
 
 use crate::search::IncrementalSearcher;
 

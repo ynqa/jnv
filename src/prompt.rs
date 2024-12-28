@@ -73,7 +73,7 @@ fn copy_to_clipboard(content: &str) -> text::State {
     }
 }
 
-pub enum Focus {
+enum Focus {
     Editor,
     Processor,
 }

@@ -12,8 +12,8 @@ pub enum PaneIndex {
     Processor = 4,
 }
 
-pub const PANE_SIZE: usize = PaneIndex::Processor as usize + 1;
 pub static EMPTY_PANE: LazyLock<Pane> = LazyLock::new(|| Pane::new(vec![], 0));
+const PANE_SIZE: usize = PaneIndex::Processor as usize + 1;
 
 pub struct Renderer {
     no_hint: bool,
