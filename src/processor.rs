@@ -7,6 +7,7 @@ use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{PaneIndex, Renderer, EMPTY_PANE};
 pub(crate) mod init;
+pub use init::ViewProvider;
 pub(crate) mod monitor;
 pub(crate) mod spinner;
 
@@ -15,11 +16,6 @@ enum State {
     Idle,
     Loading,
     Processing,
-}
-
-#[async_trait]
-pub trait ViewProvider: Send + 'static {
-    async fn provide(&mut self, item: &'static str) -> anyhow::Result<impl Visualizer>;
 }
 
 #[async_trait]

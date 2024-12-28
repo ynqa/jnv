@@ -1,9 +1,15 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-use super::{Context, State, ViewProvider, Visualizer};
+use super::{Context, State, Visualizer};
 use crate::{PaneIndex, Renderer};
+
+#[async_trait]
+pub trait ViewProvider {
+    async fn provide(&mut self, item: &'static str) -> anyhow::Result<impl Visualizer>;
+}
 
 pub struct ViewInitializer {
     shared: Arc<Mutex<Context>>,
