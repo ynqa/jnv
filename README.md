@@ -123,29 +123,48 @@ jnv data.json
 
 ## Keymap
 
-| Key                  | Action
-| :-                   | :-
-| <kbd>Ctrl + C</kbd>  | Exit `jnv`
-| <kbd>Tab</kbd>       | jq filter auto-completion
-| <kbd>←</kbd>         | Move the cursor one character to the left
-| <kbd>→</kbd>         | Move the cursor one character to the right
-| <kbd>Ctrl + A</kbd>  | Move the cursor to the start of the filter
-| <kbd>Ctrl + E</kbd>  | Move the cursor to the end of the filter
-| <kbd>Backspace</kbd> | Delete a character of filter at the cursor position
-| <kbd>Ctrl + U</kbd>  | Delete all characters of filter
-| <kbd>↑</kbd>, <kbd>Ctrl + K</kbd> | Move the cursor one entry up in JSON viewer
-| <kbd>↓</kbd>, <kbd>Ctrl + J</kbd> | Move the cursor one entry down in JSON viewer
-| <kbd>Ctrl + H</kbd>  | Move to the last entry in JSON viewer
-| <kbd>Ctrl + L</kbd>  | Move to the first entry in JSON viewer
-| <kbd>Enter</kbd>     | Toggle expand/collapse in JSON viewer
-| <kbd>Ctrl + P</kbd>  | Expand all folds in JSON viewer
-| <kbd>Ctrl + N</kbd>  | Collapse all folds in JSON viewer
-| <kbd>Alt + B</kbd>   | Move the cursor to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
-| <kbd>Alt + F</kbd>   | Move the cursor to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
-| <kbd>Ctrl + W</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
-| <kbd>Alt + D</kbd>   | Erase to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`)
-| <kbd>Ctrl + O</kbd>  | Copy current JSON content to clipboard
-| <kbd>Ctrl + Q</kbd>  | Copy current query to clipboard
+| Key | Action |
+| :- | :- |
+| <kbd>Ctrl + C</kbd> | Exit |
+| <kbd>Ctrl + Q</kbd> | Copy jq filter to clipboard |
+| <kbd>Ctrl + O</kbd> | Copy JSON to clipboard |
+| <kbd>Shift + ↑</kbd>, <kbd>Shift + ↓</kbd> | Switch to another mode |
+
+### Editor mode (default)
+
+| Key | Action |
+| :- | :- |
+| <kbd>Tab</kbd> | Enter suggestion |
+| <kbd>←</kbd> | Move cursor left |
+| <kbd>→</kbd> | Move cursor right |
+| <kbd>Ctrl + A</kbd> | Move cursor to line start |
+| <kbd>Ctrl + E</kbd> | Move cursor to line end |
+| <kbd>Backspace</kbd> | Delete character before cursor |
+| <kbd>Ctrl + U</kbd> | Clear entire line |
+| <kbd>Alt + B</kbd>   | Move the cursor to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
+| <kbd>Alt + F</kbd>   | Move the cursor to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
+| <kbd>Ctrl + W</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
+| <kbd>Alt + D</kbd>   | Erase to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
+
+#### Suggestion in Editor (after <kbd>Tab</kbd>)
+
+| Key | Action |
+| :- | :- |
+| <kbd>Tab</kbd>, <kbd>↓</kbd> | Select next suggestion |
+| <kbd>↑</kbd> | Select previous suggestion |
+| Others | Return to editor |
+
+### JSON viewer mode
+
+| Key | Action |
+| :- | :- |
+| <kbd>↑</kbd>, <kbd>Ctrl + K</kbd> | Move up |
+| <kbd>↓</kbd>, <kbd>Ctrl + J</kbd> | Move down |
+| <kbd>Ctrl + H</kbd> | Move to last entry |
+| <kbd>Ctrl + L</kbd> | Move to first entry |
+| <kbd>Enter</kbd> | Toggle fold |
+| <kbd>Ctrl + P</kbd> | Expand all |
+| <kbd>Ctrl + N</kbd> | Collapse all |
 
 ## Usage
 
