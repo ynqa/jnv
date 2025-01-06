@@ -77,6 +77,11 @@ impl Processor {
                 visualizer.create_panes_from_query(area, query).await
             };
 
+            // Set state to Idle to prevent overwriting by spinner frames in terminal.
+            {
+                let mut shared_state = shared.lock().await;
+                shared_state.state = State::Idle;
+            }
             {
                 // TODO: error handling
                 let _ = shared_renderer.lock().await.update_and_draw([
@@ -89,11 +94,6 @@ impl Processor {
                         maybe_resp.unwrap_or(EMPTY_PANE.to_owned()),
                     ),
                 ]);
-            }
-
-            {
-                let mut shared_state = shared.lock().await;
-                shared_state.state = State::Idle;
             }
         })
     }

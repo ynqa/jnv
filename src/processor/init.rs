@@ -38,16 +38,17 @@ impl ViewInitializer {
         let mut visualizer = provider.provide(item).await?;
         let pane = visualizer.create_init_pane(area).await;
 
+        // Set state to Idle to prevent overwriting by spinner frames in terminal.
+        {
+            let mut shared_state = self.shared.lock().await;
+            shared_state.state = State::Idle;
+        }
         {
             // TODO: error handling
             let _ = shared_renderer
                 .lock()
                 .await
                 .update_and_draw([(PaneIndex::Processor, pane)]);
-        }
-        {
-            let mut shared_state = self.shared.lock().await;
-            shared_state.state = State::Idle;
         }
 
         Ok(visualizer)
