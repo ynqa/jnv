@@ -149,7 +149,7 @@ impl IncrementalSearcher {
                 })
             }
             (Err(_), _) | (_, Err(_)) => Err(anyhow!(
-                "Failed to acquire lock for ions. Please try again."
+                "Failed to acquire lock for suggestions. Please try again."
             )),
         }
     }
