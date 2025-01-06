@@ -3,22 +3,33 @@ use std::{
     fs::File,
     io::{self, Read},
     path::PathBuf,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-
+use crossterm::style::{Attribute, Attributes, Color};
 use promkit::{
-    crossterm::style::{Attribute, Attributes, Color},
-    listbox,
-    serde_json::{self, Deserializer},
+    jsonz::format::RowFormatter,
+    listbox::{self, Listbox},
     style::StyleBuilder,
-    text, text_editor,
+    text_editor,
 };
 
-mod jnv;
-use jnv::{Jnv, JsonTheme};
-mod trie;
+mod editor;
+use editor::{Editor, EditorTheme};
+mod json;
+use json::JsonStreamProvider;
+mod processor;
+use processor::{
+    init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
+    ViewProvider, Visualizer,
+};
+mod prompt;
+mod render;
+use render::{PaneIndex, Renderer, EMPTY_PANE};
+mod search;
+use search::{IncrementalSearcher, SearchProvider};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -89,28 +100,27 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
-        short = 's',
-        long = "limit-length",
-        default_value = "50",
-        help = "Limit length of JSON array in the visualization.",
+        long = "max-streams",
+        help = "Maximum number of JSON streams to display",
         long_help = "
-        Specifies the limit length to load JSON array in the visualization.
-        Note: Increasing this length can significantly slow down the display for large datasets.
+        Sets the maximum number of JSON streams to load and display.
+        Limiting this value improves performance for large datasets.
+        If not set, all streams will be displayed.
         "
     )]
-    pub json_limit_length: Option<usize>,
+    pub max_streams: Option<usize>,
 
     #[arg(
-        short = 'l',
-        long = "suggestion-list-length",
+        long = "suggestions",
         default_value = "3",
-        help = "Number of suggestions visible in the list.",
+        help = "Number of autocomplete suggestions to show",
         long_help = "
-        Controls the number of suggestions displayed in the list,
-        aiding users in making selections more efficiently.
+        Sets the number of autocomplete suggestions displayed during incremental search.
+        Higher values show more suggestions but may occupy more screen space.
+        Adjust this value based on your screen size and preference.
         "
     )]
-    pub suggestion_list_length: usize,
+    pub suggestions: usize,
 }
 
 fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
@@ -147,96 +157,83 @@ fn parse_input(args: &Args) -> Result<String> {
     Ok(ret)
 }
 
-/// Deserializes a JSON string into a vector of `serde_json::Value`.
-///
-/// This function takes a JSON string as input and attempts to parse it into a vector
-/// of `serde_json::Value`, which represents any valid JSON value (e.g., object, array, string, number).
-/// It leverages `serde_json::Deserializer` to parse the string and collect the results.
-///
-/// # Arguments
-/// * `json_str` - A string slice that holds the JSON data to be deserialized.
-///
-/// # Returns
-/// An `anyhow::Result` wrapping a vector of `serde_json::Value`. On success, it contains the parsed
-/// JSON data. On failure, it contains an error detailing what went wrong during parsing.
-fn deserialize_json(
-    json_str: &str,
-    limit_length: Option<usize>,
-) -> anyhow::Result<Vec<serde_json::Value>> {
-    let deserializer = Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
-    let results = match limit_length {
-        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
-        None => deserializer.collect::<Result<Vec<_>, _>>(),
-    };
-    results.map_err(anyhow::Error::from)
-}
-
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
     let input = parse_input(&args)?;
-    let input_stream = deserialize_json(&input, args.json_limit_length)?;
 
-    let filter_editor = text_editor::State {
-        texteditor: Default::default(),
-        history: Default::default(),
-        prefix: String::from("❯❯ "),
-        mask: Default::default(),
-        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-        inactive_char_style: StyleBuilder::new().build(),
-        edit_mode: args.edit_mode,
-        word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-        lines: Default::default(),
-    };
-
-    let hint_message = text::State {
-        text: Default::default(),
-        style: StyleBuilder::new()
-            .fgc(Color::Green)
-            .attrs(Attributes::from(Attribute::Bold))
-            .build(),
-    };
-
-    let suggestions = listbox::State {
-        listbox: listbox::Listbox::from_displayable(Vec::<String>::new()),
-        cursor: String::from("❯ "),
-        active_item_style: Some(
-            StyleBuilder::new()
-                .fgc(Color::Grey)
-                .bgc(Color::Yellow)
-                .build(),
+    prompt::run(
+        Box::leak(input.into_boxed_str()),
+        Duration::from_millis(300),
+        Duration::from_millis(600),
+        Duration::from_millis(200),
+        &mut JsonStreamProvider::new(
+            RowFormatter {
+                curly_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                square_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+                number_value_style: StyleBuilder::new().build(),
+                boolean_value_style: StyleBuilder::new().build(),
+                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+                active_item_attribute: Attribute::Bold,
+                inactive_item_attribute: Attribute::Dim,
+                indent: args.indent,
+            },
+            args.max_streams,
         ),
-        inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-        lines: Some(args.suggestion_list_length),
-    };
-
-    let json_theme = JsonTheme {
-        curly_brackets_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Bold))
-            .build(),
-        square_brackets_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Bold))
-            .build(),
-        key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-        string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-        number_value_style: StyleBuilder::new().build(),
-        boolean_value_style: StyleBuilder::new().build(),
-        null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-        active_item_attribute: Attribute::Bold,
-        inactive_item_attribute: Attribute::Dim,
-        lines: Default::default(),
-        indent: args.indent,
-    };
-
-    let mut prompt = Jnv::try_new(
-        input_stream,
-        filter_editor,
-        hint_message,
-        suggestions,
-        json_theme,
+        text_editor::State {
+            texteditor: Default::default(),
+            history: Default::default(),
+            prefix: String::from("❯❯ "),
+            mask: Default::default(),
+            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+            inactive_char_style: StyleBuilder::new().build(),
+            edit_mode: args.edit_mode,
+            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+            lines: Default::default(),
+        },
+        EditorTheme {
+            prefix: String::from("❯❯ "),
+            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+            inactive_char_style: StyleBuilder::new().build(),
+        },
+        EditorTheme {
+            prefix: String::from("▼"),
+            prefix_style: StyleBuilder::new()
+                .fgc(Color::Blue)
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
+            active_char_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
+            inactive_char_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Dim))
+                .build(),
+        },
+        listbox::State {
+            listbox: Listbox::from_displayable(Vec::<String>::new()),
+            cursor: String::from("❯ "),
+            active_item_style: Some(
+                StyleBuilder::new()
+                    .fgc(Color::Grey)
+                    .bgc(Color::Yellow)
+                    .build(),
+            ),
+            inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
+            lines: Some(args.suggestions),
+        },
+        100,
+        50000,
         args.no_hint,
-    )?;
-    let _ = prompt.run()?;
+    )
+    .await?;
+
     Ok(())
 }
