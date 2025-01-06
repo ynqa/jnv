@@ -21,7 +21,7 @@ jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
-promkit = "0.6.1"
+promkit = "0.6.2"
 tokio = { version = "1.42.0", features = ["full"] }
 tokio-stream = "0.1.16"
 
