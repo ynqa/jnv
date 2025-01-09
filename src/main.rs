@@ -180,6 +180,13 @@ async fn main() -> anyhow::Result<()> {
         config::Config::default()
     };
 
+    let config::Config {
+        search_result_chunk_size,
+        query_debounce_duration,
+        resize_debounce_duration,
+        search_load_chunk_size,
+    } = config;
+
     let listbox_state = listbox::State {
         listbox: Listbox::from_displayable(Vec::<String>::new()),
         cursor: String::from("❯ "),
@@ -192,7 +199,9 @@ async fn main() -> anyhow::Result<()> {
         inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
         lines: Some(args.suggestions),
     };
-    let searcher = IncrementalSearcher::new(listbox_state, config.search_result_chunk_size);
+
+    let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
+
     let text_editor_state = text_editor::State {
         texteditor: Default::default(),
         history: Default::default(),
@@ -247,8 +256,6 @@ async fn main() -> anyhow::Result<()> {
         args.max_streams,
     );
 
-    let search_load_chunk_size = 50000;
-
     let item = Box::leak(input.into_boxed_str());
 
     let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
@@ -261,9 +268,6 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let spin_duration = Duration::from_millis(300);
-
-    let query_debounce_duration = Duration::from_millis(600);
-    let resize_debounce_duration = Duration::from_millis(200);
 
     prompt::run(
         item,
