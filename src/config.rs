@@ -112,7 +112,6 @@ impl TryFrom<ConfigContentStyle> for ContentStyle {
 }
 
 pub fn load(filename: &str) -> anyhow::Result<Config> {
-    // TODO: load defaults and then merge configuration file values
     let mut config = Config::default();
     let config_file: ConfigFile = toml::from_str(&std::fs::read_to_string(filename)?)?;
 
