@@ -109,7 +109,6 @@ pub struct Args {
         Specifies the path to the configuration file.
         ",
         default_value = "~/.config/jnv/config.toml",
-        // create an FnOnce to parse the value
         value_parser = |x: &str| Ok::<String, std::convert::Infallible>(shellexpand::tilde(x).into_owned()),
     )]
     pub config_file: String,
