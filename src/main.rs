@@ -195,6 +195,8 @@ async fn main() -> anyhow::Result<()> {
         resize_debounce_duration,
         search_load_chunk_size,
         active_item_style,
+        focus_prefix,
+        move_to_tail,
     } = config;
 
     let listbox_state = listbox::State {
@@ -210,7 +212,7 @@ async fn main() -> anyhow::Result<()> {
     let text_editor_state = text_editor::State {
         texteditor: Default::default(),
         history: Default::default(),
-        prefix: String::from("❯❯ "),
+        prefix: focus_prefix.clone(),
         mask: Default::default(),
         prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
         active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
@@ -221,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let editor_focus_theme = EditorTheme {
-        prefix: String::from("❯❯ "),
+        prefix: focus_prefix.clone(),
         prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
         active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
         inactive_char_style: StyleBuilder::new().build(),
@@ -265,11 +267,14 @@ async fn main() -> anyhow::Result<()> {
 
     let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
 
+    let editor_keybinds = editor::Keybinds { move_to_tail };
+
     let editor = Editor::new(
         text_editor_state,
         searcher,
         editor_focus_theme,
         editor_defocus_theme,
+        editor_keybinds,
     );
 
     let spin_duration = Duration::from_millis(300);

@@ -1,8 +1,9 @@
 use std::time::Duration;
 
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crossterm::style::{Color, ContentStyle};
 use promkit::style::StyleBuilder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::DurationMilliSeconds;
 
@@ -23,8 +24,11 @@ struct ConfigFile {
     #[serde(default)]
     pub active_item_style: Option<ConfigContentStyle>,
 
+    pub move_to_tail: Option<KeyPress>,
+
     pub search_result_chunk_size: Option<usize>,
     pub search_load_chunk_size: Option<usize>,
+    pub focus_prefix: Option<String>,
 }
 
 pub struct Config {
@@ -33,9 +37,10 @@ pub struct Config {
     pub active_item_style: Option<ContentStyle>,
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
+    pub move_to_tail: KeyEvent,
+    pub focus_prefix: String,
 }
 
-#[serde_as]
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigContentStyle {
@@ -49,9 +54,17 @@ pub struct ConfigContentStyle {
     // pub attributes: Attributes,
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyPress {
+    pub key: KeyCode,
+    pub modifiers: KeyModifiers,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
+            focus_prefix: String::from("❯❯ "),
             active_item_style: Some(
                 StyleBuilder::new()
                     .fgc(Color::Grey)
@@ -62,7 +75,16 @@ impl Default for Config {
             query_debounce_duration: Duration::from_millis(600),
             resize_debounce_duration: Duration::from_millis(200),
             search_load_chunk_size: 50000,
+            move_to_tail: KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
         }
+    }
+}
+
+impl TryFrom<KeyPress> for KeyEvent {
+    type Error = anyhow::Error;
+
+    fn try_from(keybind: KeyPress) -> Result<Self, Self::Error> {
+        Ok(KeyEvent::new(keybind.key, keybind.modifiers))
     }
 }
 
@@ -119,6 +141,14 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
         config.search_load_chunk_size = search_load_chunk_size;
     }
 
+    if let Some(move_to_tail) = config_file.move_to_tail {
+        config.move_to_tail = move_to_tail.try_into()?;
+    }
+
+    if let Some(focus_prefix) = config_file.focus_prefix {
+        config.focus_prefix = focus_prefix;
+    }
+
     Ok(())
 }
 
@@ -134,9 +164,14 @@ mod tests {
             query_debounce_duration_ms = 1000
             resize_debounce_duration_ms = 2000
             search_load_chunk_size = 5
+            focus_prefix = "❯ "
 
             [active_item_style]
             foreground = "green"
+
+            [move_to_tail]
+            key = { Char = "e" }
+            modifiers = "CONTROL"
         "#;
 
         let config = toml::from_str::<ConfigFile>(toml).unwrap();
@@ -159,5 +194,15 @@ mod tests {
                 underline: None,
             })
         );
+
+        assert_eq!(
+            config.move_to_tail,
+            Some(KeyPress {
+                key: KeyCode::Char('e'),
+                modifiers: KeyModifiers::CONTROL
+            })
+        );
+
+        assert_eq!(config.focus_prefix, Some("❯ ".to_string()));
     }
 }

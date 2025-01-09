@@ -15,6 +15,7 @@ pub struct Editor {
     defocus_theme: EditorTheme,
     guide: text::State,
     searcher: IncrementalSearcher,
+    keybinds: Keybinds,
 }
 
 pub struct EditorTheme {
@@ -28,12 +29,17 @@ pub struct EditorTheme {
     pub inactive_char_style: ContentStyle,
 }
 
+pub struct Keybinds {
+    pub move_to_tail: KeyEvent,
+}
+
 impl Editor {
     pub fn new(
         state: text_editor::State,
         searcher: IncrementalSearcher,
         focus_theme: EditorTheme,
         defocus_theme: EditorTheme,
+        keybinds: Keybinds,
     ) -> Self {
         Self {
             keybind: BOXED_EDITOR_KEYBIND,
@@ -45,6 +51,7 @@ impl Editor {
                 style: Default::default(),
             },
             searcher,
+            keybinds,
         }
     }
 
@@ -169,12 +176,8 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         }) => {
             editor.state.texteditor.move_to_head();
         }
-        Event::Key(KeyEvent {
-            code: KeyCode::Char('e'),
-            modifiers: KeyModifiers::CONTROL,
-            kind: KeyEventKind::Press,
-            state: KeyEventState::NONE,
-        }) => {
+
+        key if key == &Event::Key(editor.keybinds.move_to_tail) => {
             editor.state.texteditor.move_to_tail();
         }
 
