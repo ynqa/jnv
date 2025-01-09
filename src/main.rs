@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{self, Read},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -18,6 +18,7 @@ use promkit::{
 
 mod editor;
 use editor::{Editor, EditorTheme};
+mod config;
 mod json;
 use json::JsonStreamProvider;
 mod processor;
@@ -100,6 +101,17 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
+        short = 'c',
+        long = "config-file",
+        help = "Path to the configuration file.",
+        long_help = "
+        Specifies the path to the configuration file.
+        ",
+        default_value = "~/.config/jnv/config.toml"
+    )]
+    pub config_file: PathBuf,
+
+    #[arg(
         long = "max-streams",
         help = "Maximum number of JSON streams to display",
         long_help = "
@@ -162,75 +174,105 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    prompt::run(
-        Box::leak(input.into_boxed_str()),
-        Duration::from_millis(300),
-        Duration::from_millis(600),
-        Duration::from_millis(200),
-        &mut JsonStreamProvider::new(
-            RowFormatter {
-                curly_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                square_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                number_value_style: StyleBuilder::new().build(),
-                boolean_value_style: StyleBuilder::new().build(),
-                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                active_item_attribute: Attribute::Bold,
-                inactive_item_attribute: Attribute::Dim,
-                indent: args.indent,
-            },
-            args.max_streams,
+    let config = if Path::new(&args.config_file).exists() {
+        config::load(&args.config_file.to_string_lossy())?
+    } else {
+        config::Config::default()
+    };
+
+    let listbox_state = listbox::State {
+        listbox: Listbox::from_displayable(Vec::<String>::new()),
+        cursor: String::from("❯ "),
+        active_item_style: Some(
+            StyleBuilder::new()
+                .fgc(Color::Grey)
+                .bgc(Color::Yellow)
+                .build(),
         ),
-        text_editor::State {
-            texteditor: Default::default(),
-            history: Default::default(),
-            prefix: String::from("❯❯ "),
-            mask: Default::default(),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-            edit_mode: args.edit_mode,
-            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-            lines: Default::default(),
-        },
-        EditorTheme {
-            prefix: String::from("❯❯ "),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-        },
-        EditorTheme {
-            prefix: String::from("▼"),
-            prefix_style: StyleBuilder::new()
-                .fgc(Color::Blue)
-                .attrs(Attributes::from(Attribute::Dim))
+        inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
+        lines: Some(args.suggestions),
+    };
+    let searcher = IncrementalSearcher::new(listbox_state, config.search_result_chunk_size);
+    let text_editor_state = text_editor::State {
+        texteditor: Default::default(),
+        history: Default::default(),
+        prefix: String::from("❯❯ "),
+        mask: Default::default(),
+        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+        inactive_char_style: StyleBuilder::new().build(),
+        edit_mode: args.edit_mode,
+        word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+        lines: Default::default(),
+    };
+
+    let editor_focus_theme = EditorTheme {
+        prefix: String::from("❯❯ "),
+        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+        inactive_char_style: StyleBuilder::new().build(),
+    };
+
+    let editor_defocus_theme = EditorTheme {
+        prefix: String::from("▼"),
+        prefix_style: StyleBuilder::new()
+            .fgc(Color::Blue)
+            .attrs(Attributes::from(Attribute::Dim))
+            .build(),
+        active_char_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Dim))
+            .build(),
+        inactive_char_style: StyleBuilder::new()
+            .attrs(Attributes::from(Attribute::Dim))
+            .build(),
+    };
+
+    let provider = &mut JsonStreamProvider::new(
+        RowFormatter {
+            curly_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
                 .build(),
-            active_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
+            square_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
                 .build(),
-            inactive_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
+            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+            number_value_style: StyleBuilder::new().build(),
+            boolean_value_style: StyleBuilder::new().build(),
+            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            active_item_attribute: Attribute::Bold,
+            inactive_item_attribute: Attribute::Dim,
+            indent: args.indent,
         },
-        listbox::State {
-            listbox: Listbox::from_displayable(Vec::<String>::new()),
-            cursor: String::from("❯ "),
-            active_item_style: Some(
-                StyleBuilder::new()
-                    .fgc(Color::Grey)
-                    .bgc(Color::Yellow)
-                    .build(),
-            ),
-            inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-            lines: Some(args.suggestions),
-        },
-        100,
-        50000,
+        args.max_streams,
+    );
+
+    let search_load_chunk_size = 50000;
+
+    let item = Box::leak(input.into_boxed_str());
+
+    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
+
+    let editor = Editor::new(
+        text_editor_state,
+        searcher,
+        editor_focus_theme,
+        editor_defocus_theme,
+    );
+
+    let spin_duration = Duration::from_millis(300);
+
+    let query_debounce_duration = Duration::from_millis(600);
+    let resize_debounce_duration = Duration::from_millis(200);
+
+    prompt::run(
+        item,
+        spin_duration,
+        query_debounce_duration,
+        resize_debounce_duration,
+        provider,
+        editor,
+        loading_suggestions_task,
         args.no_hint,
     )
     .await?;

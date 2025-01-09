@@ -22,8 +22,10 @@ jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
 promkit = "0.6.2"
+serde = "1.0.217"
 tokio = { version = "1.42.0", features = ["full"] }
 tokio-stream = "0.1.16"
+toml = "0.8.19"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
