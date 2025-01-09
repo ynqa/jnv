@@ -23,7 +23,6 @@ impl Default for Config {
     }
 }
 
-//. config_fil is a TOML file that contains the configuration for the application.
 pub fn load(config_file: &str) -> anyhow::Result<Config> {
     let config = std::fs::read_to_string(config_file)?;
     let config: Config = toml::from_str(&config)?;
