@@ -8,6 +8,7 @@ use serde_with::DurationMilliSeconds;
 
 #[serde_as]
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ConfigFile {
     /// Duration to debounce query events, in milliseconds.
     #[serde(default, alias = "query_debounce_duration_ms")]
@@ -36,13 +37,14 @@ pub struct Config {
 
 #[serde_as]
 #[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConfigContentStyle {
     /// The foreground color.
-    foreground_color: Option<Color>,
+    foreground: Option<Color>,
     /// The background color.
-    background_color: Option<Color>,
+    background: Option<Color>,
     /// The underline color.
-    underline_color: Option<Color>,
+    underline: Option<Color>,
     // TODO: List of attributes.
     // pub attributes: Attributes,
 }
@@ -71,15 +73,15 @@ impl TryFrom<ConfigContentStyle> for ContentStyle {
     fn try_from(config_content_style: ConfigContentStyle) -> Result<Self, Self::Error> {
         let mut style_builder = StyleBuilder::new();
 
-        if let Some(foreground_color) = config_content_style.foreground_color {
+        if let Some(foreground_color) = config_content_style.foreground {
             style_builder = style_builder.fgc(foreground_color);
         }
 
-        if let Some(background_color) = config_content_style.background_color {
+        if let Some(background_color) = config_content_style.background {
             style_builder = style_builder.bgc(background_color);
         }
 
-        if let Some(underline_color) = config_content_style.underline_color {
+        if let Some(underline_color) = config_content_style.underline {
             style_builder = style_builder.ulc(underline_color);
         }
 
@@ -90,7 +92,7 @@ impl TryFrom<ConfigContentStyle> for ContentStyle {
 pub fn load(filename: &str) -> anyhow::Result<Config> {
     // TODO: load defaults and then merge configuration file values
     let mut config = Config::default();
-    let config_file: ConfigFile = toml::from_str(filename)?;
+    let config_file: ConfigFile = toml::from_str(&std::fs::read_to_string(filename)?)?;
 
     merge(&mut config, config_file)?;
     Ok(config)
@@ -134,7 +136,7 @@ mod tests {
             search_load_chunk_size = 5
 
             [active_item_style]
-            foreground_color = "green"
+            foreground = "green"
         "#;
 
         let config = toml::from_str::<ConfigFile>(toml).unwrap();
@@ -152,9 +154,9 @@ mod tests {
         assert_eq!(
             config.active_item_style,
             Some(ConfigContentStyle {
-                foreground_color: Some(Color::Green),
-                background_color: None,
-                underline_color: None,
+                foreground: Some(Color::Green),
+                background: None,
+                underline: None,
             })
         );
     }

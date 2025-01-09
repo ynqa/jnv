@@ -16,6 +16,7 @@ use promkit::{
     text_editor,
 };
 
+use log::{debug, info};
 mod editor;
 use editor::{Editor, EditorTheme};
 mod config;
@@ -107,9 +108,11 @@ pub struct Args {
         long_help = "
         Specifies the path to the configuration file.
         ",
-        default_value = "~/.config/jnv/config.toml"
+        default_value = "~/.config/jnv/config.toml",
+        // create an FnOnce to parse the value
+        value_parser = |x: &str| Ok::<String, std::convert::Infallible>(shellexpand::tilde(x).into_owned()),
     )]
-    pub config_file: PathBuf,
+    pub config_file: String,
 
     #[arg(
         long = "max-streams",
@@ -171,12 +174,18 @@ fn parse_input(args: &Args) -> Result<String> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+    info!("Starting jnv");
     let args = Args::parse();
     let input = parse_input(&args)?;
 
+    debug!("Looking for config file: {}", args.config_file);
+    // expand args.config_file to an absolute path
     let config = if Path::new(&args.config_file).exists() {
-        config::load(&args.config_file.to_string_lossy())?
+        debug!("Loading config file: {}", args.config_file);
+        config::load(&args.config_file)?
     } else {
+        debug!("No config file found, using default configuration");
         config::Config::default()
     };
 
