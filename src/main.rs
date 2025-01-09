@@ -185,17 +185,13 @@ async fn main() -> anyhow::Result<()> {
         query_debounce_duration,
         resize_debounce_duration,
         search_load_chunk_size,
+        active_item_style,
     } = config;
 
     let listbox_state = listbox::State {
         listbox: Listbox::from_displayable(Vec::<String>::new()),
         cursor: String::from("❯ "),
-        active_item_style: Some(
-            StyleBuilder::new()
-                .fgc(Color::Grey)
-                .bgc(Color::Yellow)
-                .build(),
-        ),
+        active_item_style,
         inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
         lines: Some(args.suggestions),
     };
