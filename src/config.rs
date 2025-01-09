@@ -135,8 +135,6 @@ mod tests {
 
             [active_item_style]
             foreground_color = "green"
-            background_color = "grey"
-            underline_color = "red"
         "#;
 
         let config = toml::from_str::<ConfigFile>(toml).unwrap();
@@ -151,5 +149,13 @@ mod tests {
             Some(Duration::from_millis(2000))
         );
         assert_eq!(config.search_load_chunk_size, Some(5));
+        assert_eq!(
+            config.active_item_style,
+            Some(ConfigContentStyle {
+                foreground_color: Some(Color::Green),
+                background_color: None,
+                underline_color: None,
+            })
+        );
     }
 }
