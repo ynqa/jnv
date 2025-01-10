@@ -19,8 +19,8 @@ pub struct Editor {
 }
 
 pub struct EditorTheme {
+    // Prefix for the prompt string.
     pub prefix: String,
-
     /// Style applied to the prompt string.
     pub prefix_style: ContentStyle,
     /// Style applied to the currently selected character.

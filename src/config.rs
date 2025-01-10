@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -25,10 +26,13 @@ struct ConfigFile {
     pub active_item_style: Option<ConfigContentStyle>,
 
     pub move_to_tail: Option<KeyPress>,
+    pub backward: Option<KeyPress>,
 
     pub search_result_chunk_size: Option<usize>,
     pub search_load_chunk_size: Option<usize>,
     pub focus_prefix: Option<String>,
+    pub defocus_prefix: Option<String>,
+    pub word_break_chars: Option<Vec<char>>,
 }
 
 pub struct Config {
@@ -37,78 +41,12 @@ pub struct Config {
     pub active_item_style: Option<ContentStyle>,
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
-    pub move_to_tail: KeyEvent,
     pub focus_prefix: String,
-}
+    pub defocus_prefix: String,
+    pub word_break_chars: std::collections::HashSet<char>,
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ConfigContentStyle {
-    /// The foreground color.
-    foreground: Option<Color>,
-    /// The background color.
-    background: Option<Color>,
-    /// The underline color.
-    underline: Option<Color>,
-    // TODO: List of attributes.
-    // pub attributes: Attributes,
-}
-
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct KeyPress {
-    pub key: KeyCode,
-    pub modifiers: KeyModifiers,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            focus_prefix: String::from("❯❯ "),
-            active_item_style: Some(
-                StyleBuilder::new()
-                    .fgc(Color::Grey)
-                    .bgc(Color::Yellow)
-                    .build(),
-            ),
-            search_result_chunk_size: 100,
-            query_debounce_duration: Duration::from_millis(600),
-            resize_debounce_duration: Duration::from_millis(200),
-            search_load_chunk_size: 50000,
-            move_to_tail: KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
-        }
-    }
-}
-
-impl TryFrom<KeyPress> for KeyEvent {
-    type Error = anyhow::Error;
-
-    fn try_from(keybind: KeyPress) -> Result<Self, Self::Error> {
-        Ok(KeyEvent::new(keybind.key, keybind.modifiers))
-    }
-}
-
-// Convert a ConfigContentStyle into a ContentStyle
-impl TryFrom<ConfigContentStyle> for ContentStyle {
-    type Error = anyhow::Error;
-
-    fn try_from(config_content_style: ConfigContentStyle) -> Result<Self, Self::Error> {
-        let mut style_builder = StyleBuilder::new();
-
-        if let Some(foreground_color) = config_content_style.foreground {
-            style_builder = style_builder.fgc(foreground_color);
-        }
-
-        if let Some(background_color) = config_content_style.background {
-            style_builder = style_builder.bgc(background_color);
-        }
-
-        if let Some(underline_color) = config_content_style.underline {
-            style_builder = style_builder.ulc(underline_color);
-        }
-
-        Ok(style_builder.build())
-    }
+    pub move_to_tail: KeyEvent,
+    pub backward: KeyEvent,
 }
 
 pub fn load(filename: &str) -> anyhow::Result<Config> {
@@ -148,7 +86,92 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
         config.focus_prefix = focus_prefix;
     }
 
+    if let Some(defocus_prefix) = config_file.defocus_prefix {
+        config.defocus_prefix = defocus_prefix;
+    }
+
+    if let Some(backward) = config_file.backward {
+        config.backward = backward.try_into()?;
+    }
+
+    if let Some(word_break_chars) = config_file.word_break_chars {
+        config.word_break_chars = word_break_chars.into_iter().collect();
+    }
+
     Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigContentStyle {
+    /// The foreground color.
+    foreground: Option<Color>,
+    /// The background color.
+    background: Option<Color>,
+    /// The underline color.
+    underline: Option<Color>,
+    // TODO: List of attributes.
+    // pub attributes: Attributes,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyPress {
+    pub key: KeyCode,
+    pub modifiers: KeyModifiers,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            focus_prefix: String::from("❯❯ "),
+            active_item_style: Some(
+                StyleBuilder::new()
+                    .fgc(Color::Grey)
+                    .bgc(Color::Yellow)
+                    .build(),
+            ),
+            defocus_prefix: String::from("▼"),
+            search_result_chunk_size: 100,
+            query_debounce_duration: Duration::from_millis(600),
+            resize_debounce_duration: Duration::from_millis(200),
+            search_load_chunk_size: 50000,
+            move_to_tail: KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+            backward: KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
+        }
+    }
+}
+
+impl TryFrom<KeyPress> for KeyEvent {
+    type Error = anyhow::Error;
+
+    fn try_from(keybind: KeyPress) -> Result<Self, Self::Error> {
+        Ok(KeyEvent::new(keybind.key, keybind.modifiers))
+    }
+}
+
+// Convert a ConfigContentStyle into a ContentStyle
+impl TryFrom<ConfigContentStyle> for ContentStyle {
+    type Error = anyhow::Error;
+
+    fn try_from(config_content_style: ConfigContentStyle) -> Result<Self, Self::Error> {
+        let mut style_builder = StyleBuilder::new();
+
+        if let Some(foreground_color) = config_content_style.foreground {
+            style_builder = style_builder.fgc(foreground_color);
+        }
+
+        if let Some(background_color) = config_content_style.background {
+            style_builder = style_builder.bgc(background_color);
+        }
+
+        if let Some(underline_color) = config_content_style.underline {
+            style_builder = style_builder.ulc(underline_color);
+        }
+
+        Ok(style_builder.build())
+    }
 }
 
 #[cfg(test)]
@@ -169,7 +192,7 @@ mod tests {
             foreground = "green"
 
             [move_to_tail]
-            key = { Char = "e" }
+            key = { Char = "$" }
             modifiers = "CONTROL"
         "#;
 
@@ -197,7 +220,7 @@ mod tests {
         assert_eq!(
             config.move_to_tail,
             Some(KeyPress {
-                key: KeyCode::Char('e'),
+                key: KeyCode::Char('$'),
                 modifiers: KeyModifiers::CONTROL
             })
         );
