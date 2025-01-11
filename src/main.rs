@@ -215,6 +215,7 @@ async fn main() -> anyhow::Result<()> {
         erase_to_previous_nearest,
         erase_to_next_nearest,
         search_up,
+        spin_duration,
     } = config;
 
     let listbox_state = listbox::State {
@@ -300,8 +301,6 @@ async fn main() -> anyhow::Result<()> {
         editor_defocus_theme,
         editor_keybinds,
     );
-
-    let spin_duration = Duration::from_millis(300);
 
     prompt::run(
         item,

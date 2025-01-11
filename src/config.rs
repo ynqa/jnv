@@ -39,6 +39,7 @@ struct ConfigFile {
     pub defocus_inactive_char_style: Option<ConfigContentStyle>,
 
     pub word_break_chars: Option<Vec<char>>,
+    pub spin_duration: Option<Duration>,
 
     pub move_to_tail: Option<KeyPress>,
     pub move_to_head: Option<KeyPress>,
@@ -74,6 +75,7 @@ pub struct Config {
     pub focus_active_char_style: ContentStyle,
     pub focus_inactive_char_style: ContentStyle,
 
+    pub spin_duration: Duration,
     pub word_break_chars: std::collections::HashSet<char>,
 
     pub move_to_tail: KeyEvent,
@@ -158,6 +160,10 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
 
     if let Some(defocus_inactive_char_style) = config_file.defocus_inactive_char_style {
         config.defocus_inactive_char_style = defocus_inactive_char_style.try_into()?;
+    }
+
+    if let Some(spin_duration) = config_file.spin_duration {
+        config.spin_duration = spin_duration;
     }
 
     if let Some(word_break_chars) = config_file.word_break_chars {
@@ -252,6 +258,7 @@ impl Default for Config {
             search_load_chunk_size: 50000,
             move_to_tail: KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
             move_to_head: KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+            spin_duration: Duration::from_millis(300),
             word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
             backward: KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
             forward: KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
