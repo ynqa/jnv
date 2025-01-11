@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
@@ -182,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
     // expand args.config_file to an absolute path
     let config = if Path::new(&args.config_file).exists() {
         debug!("Loading config file: {}", args.config_file);
-        config::load(&args.config_file)?
+        config::load_file(&args.config_file)?
     } else {
         debug!("No config file found, using default configuration");
         config::Config::default()
@@ -194,15 +193,35 @@ async fn main() -> anyhow::Result<()> {
         resize_debounce_duration,
         search_load_chunk_size,
         active_item_style,
+        defocus_prefix,
         focus_prefix,
         move_to_tail,
+        word_break_chars,
+        backward,
+        forward,
+        defocus_prefix_style,
+        defocus_active_char_style,
+        defocus_inactive_char_style,
+        focus_prefix_style,
+        focus_active_char_style,
+        focus_inactive_char_style,
+        inactive_item_style,
+        completion,
+        move_to_head,
+        move_to_next_nearest,
+        move_to_previous_nearest,
+        erase,
+        erase_all,
+        erase_to_previous_nearest,
+        erase_to_next_nearest,
+        search_up,
     } = config;
 
     let listbox_state = listbox::State {
         listbox: Listbox::from_displayable(Vec::<String>::new()),
         cursor: String::from("❯ "),
         active_item_style,
-        inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
+        inactive_item_style,
         lines: Some(args.suggestions),
     };
 
@@ -217,29 +236,22 @@ async fn main() -> anyhow::Result<()> {
         active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
         inactive_char_style: StyleBuilder::new().build(),
         edit_mode: args.edit_mode,
-        word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+        word_break_chars,
         lines: Default::default(),
     };
 
     let editor_focus_theme = EditorTheme {
         prefix: focus_prefix.clone(),
-        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-        inactive_char_style: StyleBuilder::new().build(),
+        prefix_style: focus_prefix_style,
+        active_char_style: focus_active_char_style,
+        inactive_char_style: focus_inactive_char_style,
     };
 
     let editor_defocus_theme = EditorTheme {
-        prefix: String::from("▼"),
-        prefix_style: StyleBuilder::new()
-            .fgc(Color::Blue)
-            .attrs(Attributes::from(Attribute::Dim))
-            .build(),
-        active_char_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Dim))
-            .build(),
-        inactive_char_style: StyleBuilder::new()
-            .attrs(Attributes::from(Attribute::Dim))
-            .build(),
+        prefix: defocus_prefix,
+        prefix_style: defocus_prefix_style,
+        active_char_style: defocus_active_char_style,
+        inactive_char_style: defocus_inactive_char_style,
     };
 
     let provider = &mut JsonStreamProvider::new(
@@ -266,7 +278,20 @@ async fn main() -> anyhow::Result<()> {
 
     let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
 
-    let editor_keybinds = editor::Keybinds { move_to_tail };
+    let editor_keybinds = editor::Keybinds {
+        move_to_tail,
+        backward,
+        forward,
+        completion,
+        move_to_head,
+        move_to_previous_nearest,
+        move_to_next_nearest,
+        erase,
+        erase_all,
+        erase_to_previous_nearest,
+        erase_to_next_nearest,
+        search_up,
+    };
 
     let editor = Editor::new(
         text_editor_state,
