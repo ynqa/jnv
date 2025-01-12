@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -121,6 +121,12 @@ pub struct Args {
     pub max_streams: Option<usize>,
 
     #[arg(
+        long = "write-default-config",
+        help = "Writes the default configuration to the specified file and exits."
+    )]
+    pub write_default_config: bool,
+
+    #[arg(
         long = "suggestions",
         default_value = "3",
         help = "Number of autocomplete suggestions to show",
@@ -131,6 +137,22 @@ pub struct Args {
         "
     )]
     pub suggestions: usize,
+}
+
+impl Args {
+    pub fn write_default_config(&self) -> anyhow::Result<()> {
+        let config_path = shellexpand::tilde(&self.config_file).into_owned();
+        let path = PathBuf::from(config_path);
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let mut file = std::fs::File::create(path)?;
+        let default_config: config::ConfigFile = Default::default();
+        file.write_all(toml::to_string_pretty(&default_config)?.as_bytes())?;
+        Ok(())
+    }
 }
 
 fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
@@ -170,6 +192,11 @@ fn parse_input(args: &Args) -> Result<String> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    if args.write_default_config {
+        return args.write_default_config().map_err(Into::into);
+    }
+
     let input = parse_input(&args)?;
 
     let config = if Path::new(&args.config_file).exists() {

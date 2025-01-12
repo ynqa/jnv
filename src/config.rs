@@ -26,24 +26,21 @@ pub(crate) fn load_file(filename: &str) -> anyhow::Result<Config> {
 }
 
 fn load_string(content: &str) -> anyhow::Result<Config> {
-    let mut config = Config::default();
     let config_file: ConfigFile = toml::from_str(content)?;
-
-    merge(&mut config, config_file)?;
-    Ok(config)
+    Ok(config_file.into())
 }
 
 #[serde_as]
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ConfigFile {
+pub(crate) struct ConfigFile {
     /// Duration to debounce query events, in milliseconds.
-    #[serde(default, alias = "query_debounce_duration_ms")]
+    #[serde(default, rename = "query_debounce_duration_ms")]
     #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
     pub query_debounce_duration: Option<Duration>,
 
     /// Duration to debounce resize events, in milliseconds.
-    #[serde(default, alias = "resize_debounce_duration_ms")]
+    #[serde(default, rename = "resize_debounce_duration_ms")]
     #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
     pub resize_debounce_duration: Option<Duration>,
 
@@ -76,6 +73,8 @@ struct ConfigFile {
     pub null_value_style: Option<ContentStyle>,
 
     pub word_break_chars: Option<Vec<char>>,
+    #[serde(default, rename = "spin_duration_ms")]
+    #[serde_as(as = "Option<DurationMilliSeconds<u64>>")]
     pub spin_duration: Option<Duration>,
 
     pub move_to_tail: Option<KeyEvent>,
@@ -90,6 +89,88 @@ struct ConfigFile {
     pub erase_to_previous_nearest: Option<KeyEvent>,
     pub erase_to_next_nearest: Option<KeyEvent>,
     pub search_up: Option<KeyEvent>,
+}
+
+impl From<ConfigFile> for Config {
+    fn from(val: ConfigFile) -> Self {
+        let mut config = Config::default();
+        merge(&mut config, val).unwrap();
+        config
+    }
+}
+
+impl From<crossterm::style::ContentStyle> for ContentStyle {
+    fn from(style: crossterm::style::ContentStyle) -> Self {
+        Self {
+            foreground: style.foreground_color,
+            background: style.background_color,
+            underline: style.underline_color,
+            attributes: if style.attributes.is_empty() {
+                None
+            } else {
+                Some(
+                    Attribute::iterator()
+                        .filter(|x| style.attributes.has(*x))
+                        .collect(),
+                )
+            },
+        }
+    }
+}
+
+impl From<crossterm::event::KeyEvent> for KeyEvent {
+    fn from(keybind: crossterm::event::KeyEvent) -> Self {
+        Self {
+            key: keybind.code,
+            modifiers: keybind.modifiers,
+        }
+    }
+}
+
+impl Default for ConfigFile {
+    fn default() -> Self {
+        let default = Config::default();
+        Self {
+            query_debounce_duration: Some(default.query_debounce_duration),
+            resize_debounce_duration: Some(default.resize_debounce_duration),
+            search_result_chunk_size: Some(default.search_result_chunk_size),
+            search_load_chunk_size: Some(default.search_load_chunk_size),
+            active_item_style: Some(default.active_item_style.unwrap().into()),
+            inactive_item_style: Some(default.inactive_item_style.unwrap().into()),
+            prefix_style: Some(default.prefix_style.into()),
+            active_char_style: Some(default.active_char_style.into()),
+            inactive_char_style: Some(default.inactive_char_style.into()),
+            focus_prefix: Some(default.focus_prefix),
+            focus_prefix_style: Some(default.focus_prefix_style.into()),
+            focus_active_char_style: Some(default.focus_active_char_style.into()),
+            focus_inactive_char_style: Some(default.focus_inactive_char_style.into()),
+            defocus_prefix: Some(default.defocus_prefix),
+            defocus_prefix_style: Some(default.defocus_prefix_style.into()),
+            defocus_active_char_style: Some(default.defocus_active_char_style.into()),
+            defocus_inactive_char_style: Some(default.defocus_inactive_char_style.into()),
+            curly_brackets_style: Some(default.curly_brackets_style.into()),
+            square_brackets_style: Some(default.square_brackets_style.into()),
+            key_style: Some(default.key_style.into()),
+            string_value_style: Some(default.string_value_style.into()),
+            number_value_style: Some(default.number_value_style.into()),
+            boolean_value_style: Some(default.boolean_value_style.into()),
+            null_value_style: Some(default.null_value_style.into()),
+            word_break_chars: Some(default.word_break_chars.iter().copied().collect()),
+            spin_duration: Some(default.spin_duration),
+            move_to_tail: Some(default.move_to_tail.into()),
+            move_to_head: Some(default.move_to_head.into()),
+            backward: Some(default.backward.into()),
+            forward: Some(default.forward.into()),
+            completion: Some(default.completion.into()),
+            move_to_next_nearest: Some(default.move_to_next_nearest.into()),
+            move_to_previous_nearest: Some(default.move_to_previous_nearest.into()),
+            erase: Some(default.erase.into()),
+            erase_all: Some(default.erase_all.into()),
+            erase_to_previous_nearest: Some(default.erase_to_previous_nearest.into()),
+            erase_to_next_nearest: Some(default.erase_to_next_nearest.into()),
+            search_up: Some(default.search_up.into()),
+        }
+    }
 }
 
 pub(crate) struct Config {
@@ -313,9 +394,9 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
 }
 
 /// A Deserializable struct that represents a ContentStyle in the ConfigFile
-#[derive(Default, Clone, Debug, PartialEq, Deserialize)]
+#[derive(Default, Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct ContentStyle {
+pub(crate) struct ContentStyle {
     foreground: Option<Color>,
     background: Option<Color>,
     underline: Option<Color>,
@@ -325,7 +406,7 @@ struct ContentStyle {
 /// A Deserializable struct that represents a KeyPress in the ConfigFile
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct KeyEvent {
+pub(crate) struct KeyEvent {
     pub key: crossterm::event::KeyCode,
     pub modifiers: crossterm::event::KeyModifiers,
 }
