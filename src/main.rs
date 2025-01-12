@@ -144,6 +144,10 @@ impl Args {
         let config_path = shellexpand::tilde(&self.config_file).into_owned();
         let path = PathBuf::from(config_path);
 
+        if path.exists() {
+            return Err(anyhow!("Config file `{}` already exists", path.display()));
+        }
+
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
