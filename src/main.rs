@@ -2,16 +2,14 @@ use std::{
     fs::File,
     io::{self, Read},
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use crossterm::style::{Attribute, Attributes, Color};
+use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
     listbox::{self, Listbox},
-    style::StyleBuilder,
     text_editor,
 };
 
@@ -216,6 +214,16 @@ async fn main() -> anyhow::Result<()> {
         erase_to_next_nearest,
         search_up,
         spin_duration,
+        prefix_style,
+        active_char_style,
+        inactive_char_style,
+        curly_brackets_style,
+        square_brackets_style,
+        key_style,
+        string_value_style,
+        number_value_style,
+        boolean_value_style,
+        null_value_style,
     } = config;
 
     let listbox_state = listbox::State {
@@ -233,9 +241,9 @@ async fn main() -> anyhow::Result<()> {
         history: Default::default(),
         prefix: focus_prefix.clone(),
         mask: Default::default(),
-        prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-        active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-        inactive_char_style: StyleBuilder::new().build(),
+        prefix_style,
+        active_char_style,
+        inactive_char_style,
         edit_mode: args.edit_mode,
         word_break_chars,
         lines: Default::default(),
@@ -257,17 +265,13 @@ async fn main() -> anyhow::Result<()> {
 
     let provider = &mut JsonStreamProvider::new(
         RowFormatter {
-            curly_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            square_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-            number_value_style: StyleBuilder::new().build(),
-            boolean_value_style: StyleBuilder::new().build(),
-            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            curly_brackets_style,
+            square_brackets_style,
+            key_style,
+            string_value_style,
+            number_value_style,
+            boolean_value_style,
+            null_value_style,
             active_item_attribute: Attribute::Bold,
             inactive_item_attribute: Attribute::Dim,
             indent: args.indent,

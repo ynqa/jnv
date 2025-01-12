@@ -28,6 +28,10 @@ struct ConfigFile {
     pub active_item_style: Option<ConfigContentStyle>,
     pub inactive_item_style: Option<ConfigContentStyle>,
 
+    pub prefix_style: Option<ConfigContentStyle>,
+    pub active_char_style: Option<ConfigContentStyle>,
+    pub inactive_char_style: Option<ConfigContentStyle>,
+
     pub focus_prefix: Option<String>,
     pub focus_prefix_style: Option<ConfigContentStyle>,
     pub focus_active_char_style: Option<ConfigContentStyle>,
@@ -37,6 +41,14 @@ struct ConfigFile {
     pub defocus_prefix_style: Option<ConfigContentStyle>,
     pub defocus_active_char_style: Option<ConfigContentStyle>,
     pub defocus_inactive_char_style: Option<ConfigContentStyle>,
+
+    pub curly_brackets_style: Option<ConfigContentStyle>,
+    pub square_brackets_style: Option<ConfigContentStyle>,
+    pub key_style: Option<ConfigContentStyle>,
+    pub string_value_style: Option<ConfigContentStyle>,
+    pub number_value_style: Option<ConfigContentStyle>,
+    pub boolean_value_style: Option<ConfigContentStyle>,
+    pub null_value_style: Option<ConfigContentStyle>,
 
     pub word_break_chars: Option<Vec<char>>,
     pub spin_duration: Option<Duration>,
@@ -62,8 +74,19 @@ pub struct Config {
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
 
+    pub prefix_style: ContentStyle,
+    pub active_char_style: ContentStyle,
+    pub inactive_char_style: ContentStyle,
     pub active_item_style: Option<ContentStyle>,
     pub inactive_item_style: Option<ContentStyle>,
+
+    pub curly_brackets_style: ContentStyle,
+    pub square_brackets_style: ContentStyle,
+    pub key_style: ContentStyle,
+    pub string_value_style: ContentStyle,
+    pub number_value_style: ContentStyle,
+    pub boolean_value_style: ContentStyle,
+    pub null_value_style: ContentStyle,
 
     pub defocus_prefix: String,
     pub defocus_prefix_style: ContentStyle,
@@ -128,6 +151,46 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
 
     if let Some(search_load_chunk_size) = config_file.search_load_chunk_size {
         config.search_load_chunk_size = search_load_chunk_size;
+    }
+
+    if let Some(prefix_style) = config_file.prefix_style {
+        config.prefix_style = prefix_style.try_into()?;
+    }
+
+    if let Some(active_char_style) = config_file.active_char_style {
+        config.active_char_style = active_char_style.try_into()?;
+    }
+
+    if let Some(inactive_char_style) = config_file.inactive_char_style {
+        config.inactive_char_style = inactive_char_style.try_into()?;
+    }
+
+    if let Some(curly_brackets_style) = config_file.curly_brackets_style {
+        config.curly_brackets_style = curly_brackets_style.try_into()?;
+    }
+
+    if let Some(square_brackets_style) = config_file.square_brackets_style {
+        config.square_brackets_style = square_brackets_style.try_into()?;
+    }
+
+    if let Some(key_style) = config_file.key_style {
+        config.key_style = key_style.try_into()?;
+    }
+
+    if let Some(string_value_style) = config_file.string_value_style {
+        config.string_value_style = string_value_style.try_into()?;
+    }
+
+    if let Some(number_value_style) = config_file.number_value_style {
+        config.number_value_style = number_value_style.try_into()?;
+    }
+
+    if let Some(boolean_value_style) = config_file.boolean_value_style {
+        config.boolean_value_style = boolean_value_style.try_into()?;
+    }
+
+    if let Some(null_value_style) = config_file.null_value_style {
+        config.null_value_style = null_value_style.try_into()?;
     }
 
     if let Some(focus_prefix) = config_file.focus_prefix {
@@ -263,6 +326,20 @@ impl Default for Config {
             backward: KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
             forward: KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
             completion: KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
+            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+            inactive_char_style: StyleBuilder::new().build(),
+            curly_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
+                .build(),
+            square_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
+                .build(),
+            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+            number_value_style: StyleBuilder::new().build(),
+            boolean_value_style: StyleBuilder::new().build(),
+            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
             defocus_prefix_style: StyleBuilder::new()
                 .fgc(Color::Blue)
                 .attrs(Attributes::from(Attribute::Dim))
