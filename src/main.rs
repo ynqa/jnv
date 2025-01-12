@@ -13,7 +13,6 @@ use promkit::{
     text_editor,
 };
 
-use log::{debug, info};
 mod editor;
 use editor::{Editor, EditorTheme};
 mod config;
@@ -170,18 +169,12 @@ fn parse_input(args: &Args) -> Result<String> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    env_logger::init();
-    info!("Starting jnv");
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    debug!("Looking for config file: {}", args.config_file);
-    // expand args.config_file to an absolute path
     let config = if Path::new(&args.config_file).exists() {
-        debug!("Loading config file: {}", args.config_file);
         config::load_file(&args.config_file)?
     } else {
-        debug!("No config file found, using default configuration");
         config::Config::default()
     };
 
