@@ -1,12 +1,37 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use crossterm::style::{Attribute, Attributes, Color};
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::DurationMilliSeconds;
+
+/// Loads a configuration file and parses its contents into a Config struct.
+///
+/// This function reads the contents of the specified file and parses it into a Config struct.
+/// It returns a Result containing the Config struct if successful, or an error if the file
+/// cannot be read or parsed.
+///
+/// # Arguments
+///
+/// * `filename` - A string slice that holds the name of the file to be loaded.
+///
+/// # Returns
+///
+/// This function returns an `anyhow::Result<Config>` which is `Ok(Config)` if the file is
+/// successfully read and parsed, or an error if something goes wrong during the process.
+pub(crate) fn load_file(filename: &str) -> anyhow::Result<Config> {
+    load_string(&std::fs::read_to_string(filename)?)
+}
+
+fn load_string(content: &str) -> anyhow::Result<Config> {
+    let mut config = Config::default();
+    let config_file: ConfigFile = toml::from_str(content)?;
+
+    merge(&mut config, config_file)?;
+    Ok(config)
+}
 
 #[serde_as]
 #[derive(Deserialize)]
@@ -25,109 +50,112 @@ struct ConfigFile {
     pub search_result_chunk_size: Option<usize>,
     pub search_load_chunk_size: Option<usize>,
 
-    pub active_item_style: Option<ConfigContentStyle>,
-    pub inactive_item_style: Option<ConfigContentStyle>,
+    pub active_item_style: Option<ContentStyle>,
+    pub inactive_item_style: Option<ContentStyle>,
 
-    pub prefix_style: Option<ConfigContentStyle>,
-    pub active_char_style: Option<ConfigContentStyle>,
-    pub inactive_char_style: Option<ConfigContentStyle>,
+    pub prefix_style: Option<ContentStyle>,
+    pub active_char_style: Option<ContentStyle>,
+    pub inactive_char_style: Option<ContentStyle>,
 
     pub focus_prefix: Option<String>,
-    pub focus_prefix_style: Option<ConfigContentStyle>,
-    pub focus_active_char_style: Option<ConfigContentStyle>,
-    pub focus_inactive_char_style: Option<ConfigContentStyle>,
+    pub focus_prefix_style: Option<ContentStyle>,
+    pub focus_active_char_style: Option<ContentStyle>,
+    pub focus_inactive_char_style: Option<ContentStyle>,
 
     pub defocus_prefix: Option<String>,
-    pub defocus_prefix_style: Option<ConfigContentStyle>,
-    pub defocus_active_char_style: Option<ConfigContentStyle>,
-    pub defocus_inactive_char_style: Option<ConfigContentStyle>,
+    pub defocus_prefix_style: Option<ContentStyle>,
+    pub defocus_active_char_style: Option<ContentStyle>,
+    pub defocus_inactive_char_style: Option<ContentStyle>,
 
-    pub curly_brackets_style: Option<ConfigContentStyle>,
-    pub square_brackets_style: Option<ConfigContentStyle>,
-    pub key_style: Option<ConfigContentStyle>,
-    pub string_value_style: Option<ConfigContentStyle>,
-    pub number_value_style: Option<ConfigContentStyle>,
-    pub boolean_value_style: Option<ConfigContentStyle>,
-    pub null_value_style: Option<ConfigContentStyle>,
+    pub curly_brackets_style: Option<ContentStyle>,
+    pub square_brackets_style: Option<ContentStyle>,
+    pub key_style: Option<ContentStyle>,
+    pub string_value_style: Option<ContentStyle>,
+    pub number_value_style: Option<ContentStyle>,
+    pub boolean_value_style: Option<ContentStyle>,
+    pub null_value_style: Option<ContentStyle>,
 
     pub word_break_chars: Option<Vec<char>>,
     pub spin_duration: Option<Duration>,
 
-    pub move_to_tail: Option<KeyPress>,
-    pub move_to_head: Option<KeyPress>,
-    pub backward: Option<KeyPress>,
-    pub forward: Option<KeyPress>,
-    pub completion: Option<KeyPress>,
-    pub move_to_next_nearest: Option<KeyPress>,
-    pub move_to_previous_nearest: Option<KeyPress>,
-    pub erase: Option<KeyPress>,
-    pub erase_all: Option<KeyPress>,
-    pub erase_to_previous_nearest: Option<KeyPress>,
-    pub erase_to_next_nearest: Option<KeyPress>,
-    pub search_up: Option<KeyPress>,
+    pub move_to_tail: Option<KeyEvent>,
+    pub move_to_head: Option<KeyEvent>,
+    pub backward: Option<KeyEvent>,
+    pub forward: Option<KeyEvent>,
+    pub completion: Option<KeyEvent>,
+    pub move_to_next_nearest: Option<KeyEvent>,
+    pub move_to_previous_nearest: Option<KeyEvent>,
+    pub erase: Option<KeyEvent>,
+    pub erase_all: Option<KeyEvent>,
+    pub erase_to_previous_nearest: Option<KeyEvent>,
+    pub erase_to_next_nearest: Option<KeyEvent>,
+    pub search_up: Option<KeyEvent>,
 }
 
-pub struct Config {
+pub(crate) struct Config {
     pub query_debounce_duration: Duration,
     pub resize_debounce_duration: Duration,
 
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
 
-    pub prefix_style: ContentStyle,
-    pub active_char_style: ContentStyle,
-    pub inactive_char_style: ContentStyle,
-    pub active_item_style: Option<ContentStyle>,
-    pub inactive_item_style: Option<ContentStyle>,
+    pub prefix_style: crossterm::style::ContentStyle,
+    pub active_char_style: crossterm::style::ContentStyle,
+    pub inactive_char_style: crossterm::style::ContentStyle,
+    pub active_item_style: Option<crossterm::style::ContentStyle>,
+    pub inactive_item_style: Option<crossterm::style::ContentStyle>,
 
-    pub curly_brackets_style: ContentStyle,
-    pub square_brackets_style: ContentStyle,
-    pub key_style: ContentStyle,
-    pub string_value_style: ContentStyle,
-    pub number_value_style: ContentStyle,
-    pub boolean_value_style: ContentStyle,
-    pub null_value_style: ContentStyle,
+    pub curly_brackets_style: crossterm::style::ContentStyle,
+    pub square_brackets_style: crossterm::style::ContentStyle,
+    pub key_style: crossterm::style::ContentStyle,
+    pub string_value_style: crossterm::style::ContentStyle,
+    pub number_value_style: crossterm::style::ContentStyle,
+    pub boolean_value_style: crossterm::style::ContentStyle,
+    pub null_value_style: crossterm::style::ContentStyle,
 
     pub defocus_prefix: String,
-    pub defocus_prefix_style: ContentStyle,
-    pub defocus_active_char_style: ContentStyle,
-    pub defocus_inactive_char_style: ContentStyle,
+    pub defocus_prefix_style: crossterm::style::ContentStyle,
+    pub defocus_active_char_style: crossterm::style::ContentStyle,
+    pub defocus_inactive_char_style: crossterm::style::ContentStyle,
 
     pub focus_prefix: String,
-    pub focus_prefix_style: ContentStyle,
-    pub focus_active_char_style: ContentStyle,
-    pub focus_inactive_char_style: ContentStyle,
+    pub focus_prefix_style: crossterm::style::ContentStyle,
+    pub focus_active_char_style: crossterm::style::ContentStyle,
+    pub focus_inactive_char_style: crossterm::style::ContentStyle,
 
     pub spin_duration: Duration,
     pub word_break_chars: std::collections::HashSet<char>,
 
-    pub move_to_tail: KeyEvent,
-    pub move_to_head: KeyEvent,
-    pub move_to_next_nearest: KeyEvent,
-    pub move_to_previous_nearest: KeyEvent,
-    pub backward: KeyEvent,
-    pub forward: KeyEvent,
-    pub completion: KeyEvent,
-    pub erase: KeyEvent,
-    pub erase_all: KeyEvent,
-    pub erase_to_previous_nearest: KeyEvent,
-    pub erase_to_next_nearest: KeyEvent,
-    pub search_up: KeyEvent,
-    // pub search_down: KeyEvent,
+    pub move_to_tail: crossterm::event::KeyEvent,
+    pub move_to_head: crossterm::event::KeyEvent,
+    pub move_to_next_nearest: crossterm::event::KeyEvent,
+    pub move_to_previous_nearest: crossterm::event::KeyEvent,
+    pub backward: crossterm::event::KeyEvent,
+    pub forward: crossterm::event::KeyEvent,
+    pub completion: crossterm::event::KeyEvent,
+    pub erase: crossterm::event::KeyEvent,
+    pub erase_all: crossterm::event::KeyEvent,
+    pub erase_to_previous_nearest: crossterm::event::KeyEvent,
+    pub erase_to_next_nearest: crossterm::event::KeyEvent,
+    pub search_up: crossterm::event::KeyEvent,
+    // pub search_down: KeyEvent, TODO: Vec of KeyEvent
 }
 
-pub fn load_file(filename: &str) -> anyhow::Result<Config> {
-    load_string(&std::fs::read_to_string(filename)?)
-}
-
-fn load_string(content: &str) -> anyhow::Result<Config> {
-    let mut config = Config::default();
-    let config_file: ConfigFile = toml::from_str(content)?;
-
-    merge(&mut config, config_file)?;
-    Ok(config)
-}
-
+/// Merge the ConfigFile into the Config
+///
+/// This function is used to merge the ConfigFile into the Config. It will only update the fields
+/// that are present in the ConfigFile. If a field is not present in the ConfigFile, the Config will
+/// keep its default value.
+///
+/// # Arguments
+///
+/// * `config` - A mutable reference to the Config struct that will be updated.
+/// * `config_file` - The ConfigFile struct containing the new configuration values.
+///
+/// # Returns
+///
+/// This function returns an `anyhow::Result<()>` which is `Ok(())` if the merge is successful,
+/// or an error if something goes wrong during the merge process.
 fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
     if let Some(query_debounce_duration) = config_file.query_debounce_duration {
         config.query_debounce_duration = query_debounce_duration;
@@ -284,24 +312,22 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A Deserializable struct that represents a ContentStyle in the ConfigFile
 #[derive(Default, Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ConfigContentStyle {
-    /// The foreground color.
+struct ContentStyle {
     foreground: Option<Color>,
-    /// The background color.
     background: Option<Color>,
-    /// The underline color.
     underline: Option<Color>,
-    /// The attributes like bold, italic, etc.
     attributes: Option<Vec<Attribute>>,
 }
 
+/// A Deserializable struct that represents a KeyPress in the ConfigFile
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct KeyPress {
-    pub key: KeyCode,
-    pub modifiers: KeyModifiers,
+struct KeyEvent {
+    pub key: crossterm::event::KeyCode,
+    pub modifiers: crossterm::event::KeyModifiers,
 }
 
 impl Default for Config {
@@ -319,13 +345,28 @@ impl Default for Config {
             query_debounce_duration: Duration::from_millis(600),
             resize_debounce_duration: Duration::from_millis(200),
             search_load_chunk_size: 50000,
-            move_to_tail: KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
-            move_to_head: KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL),
+            move_to_tail: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('e'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+            move_to_head: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('a'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
             spin_duration: Duration::from_millis(300),
             word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-            backward: KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
-            forward: KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
-            completion: KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
+            backward: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Left,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+            forward: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Right,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+            completion: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Tab,
+                crossterm::event::KeyModifiers::NONE,
+            ),
             prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
             active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
             inactive_char_style: StyleBuilder::new().build(),
@@ -354,31 +395,55 @@ impl Default for Config {
             focus_active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
             focus_inactive_char_style: StyleBuilder::new().build(),
             inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-            move_to_next_nearest: KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT),
-            move_to_previous_nearest: KeyEvent::new(KeyCode::Char('b'), KeyModifiers::ALT),
-            erase: KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE),
-            erase_all: KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL),
-            erase_to_previous_nearest: KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
-            erase_to_next_nearest: KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL),
-            search_up: KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+            move_to_next_nearest: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('f'),
+                crossterm::event::KeyModifiers::ALT,
+            ),
+            move_to_previous_nearest: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('b'),
+                crossterm::event::KeyModifiers::ALT,
+            ),
+            erase: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Backspace,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+            erase_all: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('u'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+            erase_to_previous_nearest: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('w'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+            erase_to_next_nearest: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('d'),
+                crossterm::event::KeyModifiers::CONTROL,
+            ),
+            search_up: crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Up,
+                crossterm::event::KeyModifiers::NONE,
+            ),
             // search_down: KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
         }
     }
 }
 
-impl TryFrom<KeyPress> for KeyEvent {
+impl TryFrom<KeyEvent> for crossterm::event::KeyEvent {
     type Error = anyhow::Error;
 
-    fn try_from(keybind: KeyPress) -> Result<Self, Self::Error> {
-        Ok(KeyEvent::new(keybind.key, keybind.modifiers))
+    fn try_from(keybind: KeyEvent) -> Result<Self, Self::Error> {
+        Ok(crossterm::event::KeyEvent::new(
+            keybind.key,
+            keybind.modifiers,
+        ))
     }
 }
 
 // Convert a ConfigContentStyle into a ContentStyle
-impl TryFrom<ConfigContentStyle> for ContentStyle {
+impl TryFrom<ContentStyle> for crossterm::style::ContentStyle {
     type Error = anyhow::Error;
 
-    fn try_from(config_content_style: ConfigContentStyle) -> Result<Self, Self::Error> {
+    fn try_from(config_content_style: ContentStyle) -> Result<Self, Self::Error> {
         let mut style_builder = StyleBuilder::new();
 
         if let Some(foreground_color) = config_content_style.foreground {
@@ -445,7 +510,10 @@ mod tests {
 
         assert_eq!(
             config.move_to_tail,
-            KeyEvent::new(KeyCode::Char('$'), KeyModifiers::CONTROL)
+            crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char('$'),
+                crossterm::event::KeyModifiers::CONTROL
+            )
         );
 
         assert_eq!(config.focus_prefix, "❯ ".to_string());
