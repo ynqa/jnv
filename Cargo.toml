@@ -15,6 +15,7 @@ async-trait = "0.1.83"
 clap = { version = "4.5.23", features = ["derive"] }
 # See https://github.com/crossterm-rs/crossterm/issues/935
 crossterm = { version = "0.28.1", features = ["use-dev-tty", "event-stream", "libc", "serde"] }
+dirs = "6.0.0"
 futures = "0.3.30"
 futures-timer = "3.0.3"
 jaq-core = "1.2.1"
@@ -24,7 +25,6 @@ jaq-std = "1.2.1"
 promkit = "0.6.2"
 serde = "1.0.217"
 serde_with = "3.12.0"
-shellexpand = "3.1.0"
 tokio = { version = "1.42.0", features = ["full"] }
 tokio-stream = "0.1.16"
 toml = "0.8.19"

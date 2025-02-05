@@ -29,6 +29,14 @@ use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
 
+use std::sync::OnceLock;
+
+static DEFAULT_CONFIG_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+fn get_config_dir() -> &'static PathBuf {
+    DEFAULT_CONFIG_FILE.get_or_init(|| dirs::config_dir().unwrap().join("jnv/config.toml"))
+}
+
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
 #[command(
@@ -104,8 +112,7 @@ pub struct Args {
         long_help = "
         Specifies the path to the configuration file.
         ",
-        default_value = "~/.config/jnv/config.toml",
-        value_parser = |x: &str| Ok::<String, std::convert::Infallible>(shellexpand::tilde(x).into_owned()),
+        default_value = get_config_dir().to_str().unwrap(),
     )]
     pub config_file: String,
 
@@ -141,8 +148,7 @@ pub struct Args {
 
 impl Args {
     pub fn write_default_config(&self) -> anyhow::Result<()> {
-        let config_path = shellexpand::tilde(&self.config_file).into_owned();
-        let path = PathBuf::from(config_path);
+        let path = PathBuf::from(&self.config_file);
 
         if path.exists() {
             return Err(anyhow!("Config file `{}` already exists", path.display()));
