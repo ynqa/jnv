@@ -124,6 +124,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
     let query_debouncer =
         spawn_debouncer(debounce_query_rx, last_query_tx, query_debounce_duration);
+    if !editor.text().is_empty() {
+        debounce_query_tx.send(editor.text()).await?;
+    }
 
     let (last_resize_tx, mut last_resize_rx) = mpsc::channel::<(u16, u16)>(1);
     let (debounce_resize_tx, debounce_resize_rx) = mpsc::channel(1);

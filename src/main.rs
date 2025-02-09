@@ -13,7 +13,7 @@ use promkit::{
     jsonz::format::RowFormatter,
     listbox::{self, Listbox},
     style::StyleBuilder,
-    text_editor,
+    text_editor::{self, TextEditor},
 };
 
 mod editor;
@@ -98,6 +98,16 @@ pub struct Args {
         "
     )]
     pub no_hint: bool,
+
+    #[arg(
+        long = "default-filter",
+        help = "Default jq filter to apply to the input data",
+        long_help = "
+        Sets the default jq filter to apply to the input data.
+        The filter is applied when the interface is first loaded.
+        "
+    )]
+    default_filter: Option<String>,
 
     #[arg(
         long = "max-streams",
@@ -187,7 +197,11 @@ async fn main() -> anyhow::Result<()> {
             args.max_streams,
         ),
         text_editor::State {
-            texteditor: Default::default(),
+            texteditor: if let Some(filter) = args.default_filter {
+                TextEditor::new(filter)
+            } else {
+                Default::default()
+            },
             history: Default::default(),
             prefix: String::from("❯❯ "),
             mask: Default::default(),
