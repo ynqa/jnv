@@ -9,7 +9,6 @@ use crossterm::{
     terminal::{self, disable_raw_mode, enable_raw_mode},
 };
 use futures::StreamExt;
-use futures_timer::Delay;
 use promkit::{style::StyleBuilder, text, PaneFactory};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
@@ -28,10 +27,8 @@ fn spawn_debouncer<T: Send + 'static>(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut last_query = None;
+        let mut delay = tokio::time::interval(duration);
         loop {
-            let delay = Delay::new(duration);
-            futures::pin_mut!(delay);
-
             tokio::select! {
                 maybe_query = debounce_rx.recv() => {
                     if let Some(query) = maybe_query {
@@ -40,7 +37,7 @@ fn spawn_debouncer<T: Send + 'static>(
                         break;
                     }
                 },
-                _ = delay => {
+                _ = delay.tick() => {
                     if let Some(text) = last_query.take() {
                         let _ = last_tx.send(text).await;
                     }
