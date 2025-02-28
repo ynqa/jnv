@@ -10,16 +10,15 @@ use crossterm::{
 };
 use futures::StreamExt;
 use futures_timer::Delay;
-use promkit::{listbox, style::StyleBuilder, text, text_editor, PaneFactory};
+use promkit::{style::StyleBuilder, text, PaneFactory};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
 };
 
 use crate::{
-    Context, ContextMonitor, Editor, EditorTheme, IncrementalSearcher, PaneIndex, Processor,
-    Renderer, SearchProvider, SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer,
-    EMPTY_PANE,
+    Context, ContextMonitor, Editor, PaneIndex, Processor, Renderer, SearchProvider,
+    SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -85,27 +84,14 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     query_debounce_duration: Duration,
     resize_debounce_duration: Duration,
     provider: &mut T,
-    text_editor_state: text_editor::State,
-    editor_focus_theme: EditorTheme,
-    editor_defocus_theme: EditorTheme,
-    listbox_state: listbox::State,
-    search_result_chunk_size: usize,
-    search_load_chunk_size: usize,
+    editor: Editor,
+    loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
 ) -> anyhow::Result<()> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
 
     let size = terminal::size()?;
-
-    let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
-    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
-    let editor = Editor::new(
-        text_editor_state,
-        searcher,
-        editor_focus_theme,
-        editor_defocus_theme,
-    );
 
     let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
         [

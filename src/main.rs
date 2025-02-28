@@ -1,23 +1,21 @@
 use std::{
-    collections::HashSet,
     fs::File,
-    io::{self, Read},
-    path::PathBuf,
-    time::Duration,
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
 };
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use crossterm::style::{Attribute, Attributes, Color};
+use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
     listbox::{self, Listbox},
-    style::StyleBuilder,
     text_editor,
 };
 
 mod editor;
 use editor::{Editor, EditorTheme};
+mod config;
 mod json;
 use json::JsonStreamProvider;
 mod processor;
@@ -30,6 +28,14 @@ mod render;
 use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
+
+use std::sync::OnceLock;
+
+static DEFAULT_CONFIG_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+fn get_config_dir() -> &'static PathBuf {
+    DEFAULT_CONFIG_FILE.get_or_init(|| dirs::config_dir().unwrap().join("jnv/config.toml"))
+}
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -100,6 +106,17 @@ pub struct Args {
     pub no_hint: bool,
 
     #[arg(
+        short = 'c',
+        long = "config-file",
+        help = "Path to the configuration file.",
+        long_help = "
+        Specifies the path to the configuration file.
+        ",
+        default_value = get_config_dir().to_str().unwrap(),
+    )]
+    pub config_file: String,
+
+    #[arg(
         long = "max-streams",
         help = "Maximum number of JSON streams to display",
         long_help = "
@@ -109,6 +126,12 @@ pub struct Args {
         "
     )]
     pub max_streams: Option<usize>,
+
+    #[arg(
+        long = "write-default-config",
+        help = "Writes the default configuration to the specified file and exits."
+    )]
+    pub write_default_config: bool,
 
     #[arg(
         long = "suggestions",
@@ -121,6 +144,25 @@ pub struct Args {
         "
     )]
     pub suggestions: usize,
+}
+
+impl Args {
+    pub fn write_default_config(&self) -> anyhow::Result<()> {
+        let path = PathBuf::from(&self.config_file);
+
+        if path.exists() {
+            return Err(anyhow!("Config file `{}` already exists", path.display()));
+        }
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let mut file = std::fs::File::create(path)?;
+        let default_config: config::ConfigFile = Default::default();
+        file.write_all(toml::to_string_pretty(&default_config)?.as_bytes())?;
+        Ok(())
+    }
 }
 
 fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
@@ -160,77 +202,148 @@ fn parse_input(args: &Args) -> Result<String> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+
+    if args.write_default_config {
+        return args.write_default_config().map_err(Into::into);
+    }
+
     let input = parse_input(&args)?;
 
+    let config = if Path::new(&args.config_file).exists() {
+        config::load_file(&args.config_file)?
+    } else {
+        config::Config::default()
+    };
+
+    let config::Config {
+        search_result_chunk_size,
+        query_debounce_duration,
+        resize_debounce_duration,
+        search_load_chunk_size,
+        active_item_style,
+        defocus_prefix,
+        focus_prefix,
+        move_to_tail,
+        word_break_chars,
+        backward,
+        forward,
+        defocus_prefix_style,
+        defocus_active_char_style,
+        defocus_inactive_char_style,
+        focus_prefix_style,
+        focus_active_char_style,
+        focus_inactive_char_style,
+        inactive_item_style,
+        completion,
+        move_to_head,
+        move_to_next_nearest,
+        move_to_previous_nearest,
+        erase,
+        erase_all,
+        erase_to_previous_nearest,
+        erase_to_next_nearest,
+        search_up,
+        spin_duration,
+        prefix_style,
+        active_char_style,
+        inactive_char_style,
+        curly_brackets_style,
+        square_brackets_style,
+        key_style,
+        string_value_style,
+        number_value_style,
+        boolean_value_style,
+        null_value_style,
+    } = config;
+
+    let listbox_state = listbox::State {
+        listbox: Listbox::from_displayable(Vec::<String>::new()),
+        cursor: String::from("❯ "),
+        active_item_style,
+        inactive_item_style,
+        lines: Some(args.suggestions),
+    };
+
+    let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
+
+    let text_editor_state = text_editor::State {
+        texteditor: Default::default(),
+        history: Default::default(),
+        prefix: focus_prefix.clone(),
+        mask: Default::default(),
+        prefix_style,
+        active_char_style,
+        inactive_char_style,
+        edit_mode: args.edit_mode,
+        word_break_chars,
+        lines: Default::default(),
+    };
+
+    let editor_focus_theme = EditorTheme {
+        prefix: focus_prefix.clone(),
+        prefix_style: focus_prefix_style,
+        active_char_style: focus_active_char_style,
+        inactive_char_style: focus_inactive_char_style,
+    };
+
+    let editor_defocus_theme = EditorTheme {
+        prefix: defocus_prefix,
+        prefix_style: defocus_prefix_style,
+        active_char_style: defocus_active_char_style,
+        inactive_char_style: defocus_inactive_char_style,
+    };
+
+    let provider = &mut JsonStreamProvider::new(
+        RowFormatter {
+            curly_brackets_style,
+            square_brackets_style,
+            key_style,
+            string_value_style,
+            number_value_style,
+            boolean_value_style,
+            null_value_style,
+            active_item_attribute: Attribute::Bold,
+            inactive_item_attribute: Attribute::Dim,
+            indent: args.indent,
+        },
+        args.max_streams,
+    );
+
+    let item = Box::leak(input.into_boxed_str());
+
+    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
+
+    let editor_keybinds = editor::Keybinds {
+        move_to_tail,
+        backward,
+        forward,
+        completion,
+        move_to_head,
+        move_to_previous_nearest,
+        move_to_next_nearest,
+        erase,
+        erase_all,
+        erase_to_previous_nearest,
+        erase_to_next_nearest,
+        search_up,
+    };
+
+    let editor = Editor::new(
+        text_editor_state,
+        searcher,
+        editor_focus_theme,
+        editor_defocus_theme,
+        editor_keybinds,
+    );
+
     prompt::run(
-        Box::leak(input.into_boxed_str()),
-        Duration::from_millis(300),
-        Duration::from_millis(600),
-        Duration::from_millis(200),
-        &mut JsonStreamProvider::new(
-            RowFormatter {
-                curly_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                square_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                number_value_style: StyleBuilder::new().build(),
-                boolean_value_style: StyleBuilder::new().build(),
-                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                active_item_attribute: Attribute::Bold,
-                inactive_item_attribute: Attribute::Dim,
-                indent: args.indent,
-            },
-            args.max_streams,
-        ),
-        text_editor::State {
-            texteditor: Default::default(),
-            history: Default::default(),
-            prefix: String::from("❯❯ "),
-            mask: Default::default(),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-            edit_mode: args.edit_mode,
-            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-            lines: Default::default(),
-        },
-        EditorTheme {
-            prefix: String::from("❯❯ "),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-        },
-        EditorTheme {
-            prefix: String::from("▼"),
-            prefix_style: StyleBuilder::new()
-                .fgc(Color::Blue)
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            active_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            inactive_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-        },
-        listbox::State {
-            listbox: Listbox::from_displayable(Vec::<String>::new()),
-            cursor: String::from("❯ "),
-            active_item_style: Some(
-                StyleBuilder::new()
-                    .fgc(Color::Grey)
-                    .bgc(Color::Yellow)
-                    .build(),
-            ),
-            inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-            lines: Some(args.suggestions),
-        },
-        100,
-        50000,
+        item,
+        spin_duration,
+        query_debounce_duration,
+        resize_debounce_duration,
+        provider,
+        editor,
+        loading_suggestions_task,
         args.no_hint,
     )
     .await?;
