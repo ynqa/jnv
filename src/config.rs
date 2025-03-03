@@ -1,6 +1,8 @@
 use std::collections::HashSet;
+use std::env;
 use std::time::Duration;
 
+use crossterm::style::ContentStyle as CrosstermContentStyle;
 use crossterm::style::{Attribute, Attributes, Color};
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
@@ -47,30 +49,30 @@ pub(crate) struct ConfigFile {
     pub search_result_chunk_size: Option<usize>,
     pub search_load_chunk_size: Option<usize>,
 
-    pub active_item_style: Option<ContentStyle>,
-    pub inactive_item_style: Option<ContentStyle>,
+    pub active_item_style: Option<ConfigContentStyle>,
+    pub inactive_item_style: Option<ConfigContentStyle>,
 
-    pub prefix_style: Option<ContentStyle>,
-    pub active_char_style: Option<ContentStyle>,
-    pub inactive_char_style: Option<ContentStyle>,
+    pub prefix_style: Option<ConfigContentStyle>,
+    pub active_char_style: Option<ConfigContentStyle>,
+    pub inactive_char_style: Option<ConfigContentStyle>,
 
     pub focus_prefix: Option<String>,
-    pub focus_prefix_style: Option<ContentStyle>,
-    pub focus_active_char_style: Option<ContentStyle>,
-    pub focus_inactive_char_style: Option<ContentStyle>,
+    pub focus_prefix_style: Option<ConfigContentStyle>,
+    pub focus_active_char_style: Option<ConfigContentStyle>,
+    pub focus_inactive_char_style: Option<ConfigContentStyle>,
 
     pub defocus_prefix: Option<String>,
-    pub defocus_prefix_style: Option<ContentStyle>,
-    pub defocus_active_char_style: Option<ContentStyle>,
-    pub defocus_inactive_char_style: Option<ContentStyle>,
+    pub defocus_prefix_style: Option<ConfigContentStyle>,
+    pub defocus_active_char_style: Option<ConfigContentStyle>,
+    pub defocus_inactive_char_style: Option<ConfigContentStyle>,
 
-    pub curly_brackets_style: Option<ContentStyle>,
-    pub square_brackets_style: Option<ContentStyle>,
-    pub key_style: Option<ContentStyle>,
-    pub string_value_style: Option<ContentStyle>,
-    pub number_value_style: Option<ContentStyle>,
-    pub boolean_value_style: Option<ContentStyle>,
-    pub null_value_style: Option<ContentStyle>,
+    pub curly_brackets_style: Option<ConfigContentStyle>,
+    pub square_brackets_style: Option<ConfigContentStyle>,
+    pub key_style: Option<ConfigContentStyle>,
+    pub string_value_style: Option<ConfigContentStyle>,
+    pub number_value_style: Option<ConfigContentStyle>,
+    pub boolean_value_style: Option<ConfigContentStyle>,
+    pub null_value_style: Option<ConfigContentStyle>,
 
     pub word_break_chars: Option<Vec<char>>,
     #[serde(default, rename = "spin_duration_ms")]
@@ -99,8 +101,8 @@ impl From<ConfigFile> for Config {
     }
 }
 
-impl From<crossterm::style::ContentStyle> for ContentStyle {
-    fn from(style: crossterm::style::ContentStyle) -> Self {
+impl From<CrosstermContentStyle> for ConfigContentStyle {
+    fn from(style: CrosstermContentStyle) -> Self {
         Self {
             foreground: style.foreground_color,
             background: style.background_color,
@@ -180,29 +182,29 @@ pub(crate) struct Config {
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
 
-    pub prefix_style: crossterm::style::ContentStyle,
-    pub active_char_style: crossterm::style::ContentStyle,
-    pub inactive_char_style: crossterm::style::ContentStyle,
-    pub active_item_style: Option<crossterm::style::ContentStyle>,
-    pub inactive_item_style: Option<crossterm::style::ContentStyle>,
+    pub prefix_style: CrosstermContentStyle,
+    pub active_char_style: CrosstermContentStyle,
+    pub inactive_char_style: CrosstermContentStyle,
+    pub active_item_style: Option<CrosstermContentStyle>,
+    pub inactive_item_style: Option<CrosstermContentStyle>,
 
-    pub curly_brackets_style: crossterm::style::ContentStyle,
-    pub square_brackets_style: crossterm::style::ContentStyle,
-    pub key_style: crossterm::style::ContentStyle,
-    pub string_value_style: crossterm::style::ContentStyle,
-    pub number_value_style: crossterm::style::ContentStyle,
-    pub boolean_value_style: crossterm::style::ContentStyle,
-    pub null_value_style: crossterm::style::ContentStyle,
+    pub curly_brackets_style: CrosstermContentStyle,
+    pub square_brackets_style: CrosstermContentStyle,
+    pub key_style: CrosstermContentStyle,
+    pub string_value_style: CrosstermContentStyle,
+    pub number_value_style: CrosstermContentStyle,
+    pub boolean_value_style: CrosstermContentStyle,
+    pub null_value_style: CrosstermContentStyle,
 
     pub defocus_prefix: String,
-    pub defocus_prefix_style: crossterm::style::ContentStyle,
-    pub defocus_active_char_style: crossterm::style::ContentStyle,
-    pub defocus_inactive_char_style: crossterm::style::ContentStyle,
+    pub defocus_prefix_style: CrosstermContentStyle,
+    pub defocus_active_char_style: CrosstermContentStyle,
+    pub defocus_inactive_char_style: CrosstermContentStyle,
 
     pub focus_prefix: String,
-    pub focus_prefix_style: crossterm::style::ContentStyle,
-    pub focus_active_char_style: crossterm::style::ContentStyle,
-    pub focus_inactive_char_style: crossterm::style::ContentStyle,
+    pub focus_prefix_style: CrosstermContentStyle,
+    pub focus_active_char_style: CrosstermContentStyle,
+    pub focus_inactive_char_style: CrosstermContentStyle,
 
     pub spin_duration: Duration,
     pub word_break_chars: std::collections::HashSet<char>,
@@ -396,7 +398,7 @@ fn merge(config: &mut Config, config_file: ConfigFile) -> anyhow::Result<()> {
 /// A Deserializable struct that represents a ContentStyle in the ConfigFile
 #[derive(Default, Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ContentStyle {
+pub(crate) struct ConfigContentStyle {
     foreground: Option<Color>,
     background: Option<Color>,
     underline: Option<Color>,
@@ -411,8 +413,144 @@ pub(crate) struct KeyEvent {
     pub modifiers: crossterm::event::KeyModifiers,
 }
 
+#[derive(Debug, PartialEq, Default)]
+struct JqColors {
+    null: Option<ConfigContentStyle>,
+    #[allow(dead_code)]
+    r#false: Option<ConfigContentStyle>,
+    r#true: Option<ConfigContentStyle>,
+    numbers: Option<ConfigContentStyle>,
+    strings: Option<ConfigContentStyle>,
+    arrays: Option<ConfigContentStyle>,
+    objects: Option<ConfigContentStyle>,
+    object_keys: Option<ConfigContentStyle>,
+}
+
+impl TryFrom<&str> for ConfigContentStyle {
+    type Error = anyhow::Error;
+
+    // This is not a manual for VT100/ANSI escapes. However, each of these color specifications should consist of two numbers separated by a semi-colon, where the first number is one of these:
+    //
+    // 1 (bright)
+    // 2 (dim)
+    // 4 (underscore)
+    // 5 (blink)
+    // 7 (reverse)
+    // 8 (hidden)
+    //
+    // and the second is one of these:
+    //
+    // 30 (black)
+    // 31 (red)
+    // 32 (green)
+    // 33 (yellow)
+    // 34 (blue)
+    // 35 (magenta)
+    // 36 (cyan)
+    // 37 (white)
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let (attributes, color) = value.split_once(';').unwrap();
+        let attributes = match attributes {
+            "0" => None,
+            "1" => Some(vec![Attribute::Bold]),
+            "2" => Some(vec![Attribute::Dim]),
+            "4" => Some(vec![Attribute::Underlined]),
+            "5" => Some(vec![Attribute::SlowBlink]),
+            "7" => Some(vec![Attribute::Reverse]),
+            "8" => Some(vec![Attribute::Hidden]),
+            _ => return Err(anyhow::anyhow!("Invalid attribute")),
+        };
+
+        let color = match color {
+            "30" => Color::Black,
+            "31" => Color::Red,
+            "32" => Color::Green,
+            "33" => Color::Yellow,
+            "34" => Color::Blue,
+            "35" => Color::Magenta,
+            "36" => Color::Cyan,
+            "37" => Color::White,
+            _ => return Err(anyhow::anyhow!("Invalid color")),
+        };
+
+        Ok(Self {
+            foreground: Some(color),
+            underline: None,
+            background: None,
+            attributes,
+        })
+    }
+}
+
+// To configure alternative colors just set the JQ_COLORS environment variable to colon-delimited list of partial terminal escape sequences like "1;31", in this order:
+//
+// color for null
+// color for false
+// color for true
+// color for numbers
+// color for strings
+// color for arrays
+// color for objects
+// color for object keys
+//
+// The default color scheme is the same as setting JQ_COLORS="0;90:0;37:0;37:0;37:0;32:1;37:1;37:1;34".
+//
+// See: https://jqlang.org/manual/#colors
+impl JqColors {
+    fn parse(colors: &str) -> Result<Self, anyhow::Error> {
+        let mut colors = colors.split(':');
+
+        Ok(Self {
+            null: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            r#false: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            r#true: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            numbers: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            strings: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            arrays: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            objects: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+            object_keys: colors
+                .next()
+                .map(ConfigContentStyle::try_from)
+                .transpose()?,
+        })
+    }
+
+    fn parse_from_env() -> Result<Option<Self>, anyhow::Error> {
+        let colors = env::var("JQ_COLORS").unwrap_or_default();
+        if colors.is_empty() {
+            return Ok(None);
+        }
+        Self::parse(&colors).map(Some)
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
+        let jq_colors = JqColors::parse_from_env()
+            .unwrap_or(None)
+            .unwrap_or_default();
+
         Self {
             focus_prefix: String::from("❯❯ "),
             active_item_style: Some(
@@ -451,17 +589,42 @@ impl Default for Config {
             prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
             active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
             inactive_char_style: StyleBuilder::new().build(),
-            curly_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            square_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-            number_value_style: StyleBuilder::new().build(),
-            boolean_value_style: StyleBuilder::new().build(),
-            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            curly_brackets_style: jq_colors.objects.map_or_else(
+                || {
+                    StyleBuilder::new()
+                        .attrs(Attributes::from(Attribute::Bold))
+                        .build()
+                },
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            square_brackets_style: jq_colors.arrays.map_or_else(
+                || {
+                    StyleBuilder::new()
+                        .attrs(Attributes::from(Attribute::Bold))
+                        .build()
+                },
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            key_style: jq_colors.object_keys.map_or_else(
+                || StyleBuilder::new().fgc(Color::Cyan).build(),
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            string_value_style: jq_colors.strings.map_or_else(
+                || StyleBuilder::new().fgc(Color::Green).build(),
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            number_value_style: jq_colors.numbers.map_or_else(
+                || StyleBuilder::new().fgc(Color::Yellow).build(),
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            boolean_value_style: jq_colors.r#true.map_or_else(
+                || StyleBuilder::new().fgc(Color::Magenta).build(),
+                |colors| colors.clone().try_into().unwrap(),
+            ),
+            null_value_style: jq_colors.null.map_or_else(
+                || StyleBuilder::new().fgc(Color::Grey).build(),
+                |colors| colors.clone().try_into().unwrap(),
+            ),
             defocus_prefix_style: StyleBuilder::new()
                 .fgc(Color::Blue)
                 .attrs(Attributes::from(Attribute::Dim))
@@ -521,10 +684,10 @@ impl TryFrom<KeyEvent> for crossterm::event::KeyEvent {
 }
 
 // Convert a ConfigContentStyle into a ContentStyle
-impl TryFrom<ContentStyle> for crossterm::style::ContentStyle {
+impl TryFrom<ConfigContentStyle> for CrosstermContentStyle {
     type Error = anyhow::Error;
 
-    fn try_from(config_content_style: ContentStyle) -> Result<Self, Self::Error> {
+    fn try_from(config_content_style: ConfigContentStyle) -> Result<Self, Self::Error> {
         let mut style_builder = StyleBuilder::new();
 
         if let Some(foreground_color) = config_content_style.foreground {
@@ -606,6 +769,97 @@ mod tests {
                 .ulc(Color::Red)
                 .attrs(Attributes::from(Attribute::Bold) | Attribute::Underlined)
                 .build(),
+        );
+    }
+
+    #[test]
+    fn test_jq_colors() {
+        let colors = JqColors::parse("1;37:0;31:0;35:0;36:0;32:1;37:1;37")
+            .expect("Failed to parse JQ_COLORS");
+        assert_eq!(
+            colors.null,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::White),
+                background: None,
+                underline: None,
+                attributes: Some(vec![Attribute::Bold])
+            })
+        );
+
+        assert_eq!(
+            colors.r#false,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::Red),
+                background: None,
+                underline: None,
+                attributes: None
+            })
+        );
+
+        assert_eq!(
+            colors.r#true,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::Magenta),
+                background: None,
+                underline: None,
+                attributes: None
+            })
+        );
+
+        assert_eq!(
+            colors.numbers,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::Cyan),
+                background: None,
+                underline: None,
+                attributes: None
+            })
+        );
+
+        assert_eq!(
+            colors.strings,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::Green),
+                background: None,
+                underline: None,
+                attributes: None
+            })
+        );
+
+        assert_eq!(
+            colors.arrays,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::White),
+                background: None,
+                underline: None,
+                attributes: Some(vec![Attribute::Bold])
+            })
+        );
+
+        assert_eq!(
+            colors.objects,
+            Some(ConfigContentStyle {
+                foreground: Some(Color::White),
+                background: None,
+                underline: None,
+                attributes: Some(vec![Attribute::Bold])
+            })
+        );
+
+        assert_eq!(colors.object_keys, None,);
+    }
+
+    #[test]
+    fn test_config_content_style_try_from() {
+        let config_content_style = ConfigContentStyle::try_from("1;31").unwrap();
+        assert_eq!(
+            config_content_style,
+            ConfigContentStyle {
+                foreground: Some(Color::Red),
+                background: None,
+                underline: None,
+                attributes: Some(vec![Attribute::Bold])
+            }
         );
     }
 }
