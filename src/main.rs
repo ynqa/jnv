@@ -204,7 +204,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     if args.write_default_config {
-        return args.write_default_config().map_err(Into::into);
+        return args.write_default_config();
     }
 
     let input = parse_input(&args)?;
