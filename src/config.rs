@@ -8,86 +8,34 @@ use tokio::time::Duration;
 
 mod content_style_serde {
     use super::*;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{Deserializer, Serializer};
 
     #[derive(Serialize, Deserialize)]
     struct ContentStyleDef {
         foreground: Option<Color>,
         background: Option<Color>,
         underline: Option<Color>,
-        attributes: Option<Vec<String>>,
+        attributes: Option<Vec<Attribute>>,
     }
 
     pub fn serialize<S>(style: &ContentStyle, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut style_def = ContentStyleDef {
+        let style_def = ContentStyleDef {
             foreground: style.foreground_color,
             background: style.background_color,
             underline: style.underline_color,
-            attributes: None,
+            attributes: if style.attributes.is_empty() {
+                None
+            } else {
+                Some(
+                    Attribute::iterator()
+                        .filter(|x| style.attributes.has(*x))
+                        .collect(),
+                )
+            },
         };
-
-        if !style.attributes.is_empty() {
-            let mut attr_vec = Vec::new();
-
-            if style.attributes.has(Attribute::Bold) {
-                attr_vec.push("Bold".to_string());
-            }
-            if style.attributes.has(Attribute::Dim) {
-                attr_vec.push("Dim".to_string());
-            }
-            if style.attributes.has(Attribute::Italic) {
-                attr_vec.push("Italic".to_string());
-            }
-            if style.attributes.has(Attribute::Underlined) {
-                attr_vec.push("Underlined".to_string());
-            }
-            if style.attributes.has(Attribute::SlowBlink) {
-                attr_vec.push("SlowBlink".to_string());
-            }
-            if style.attributes.has(Attribute::RapidBlink) {
-                attr_vec.push("RapidBlink".to_string());
-            }
-            if style.attributes.has(Attribute::Reverse) {
-                attr_vec.push("Reverse".to_string());
-            }
-            if style.attributes.has(Attribute::Hidden) {
-                attr_vec.push("Hidden".to_string());
-            }
-            if style.attributes.has(Attribute::CrossedOut) {
-                attr_vec.push("CrossedOut".to_string());
-            }
-            if style.attributes.has(Attribute::Fraktur) {
-                attr_vec.push("Fraktur".to_string());
-            }
-            if style.attributes.has(Attribute::DoubleUnderlined) {
-                attr_vec.push("DoubleUnderlined".to_string());
-            }
-            if style.attributes.has(Attribute::Undercurled) {
-                attr_vec.push("Undercurled".to_string());
-            }
-            if style.attributes.has(Attribute::Underdotted) {
-                attr_vec.push("Underdotted".to_string());
-            }
-            if style.attributes.has(Attribute::Underdashed) {
-                attr_vec.push("Underdashed".to_string());
-            }
-            if style.attributes.has(Attribute::Framed) {
-                attr_vec.push("Framed".to_string());
-            }
-            if style.attributes.has(Attribute::Encircled) {
-                attr_vec.push("Encircled".to_string());
-            }
-            if style.attributes.has(Attribute::OverLined) {
-                attr_vec.push("OverLined".to_string());
-            }
-
-            if !attr_vec.is_empty() {
-                style_def.attributes = Some(attr_vec);
-            }
-        }
 
         style_def.serialize(serializer)
     }
@@ -103,39 +51,11 @@ mod content_style_serde {
         style.foreground_color = style_def.foreground;
         style.background_color = style_def.background;
         style.underline_color = style_def.underline;
-
-        if let Some(attrs) = style_def.attributes {
-            let mut attributes = Attributes::default();
-            for attr_name in attrs {
-                match attr_name.as_str() {
-                    "Bold" => attributes = attributes | Attribute::Bold,
-                    "Dim" => attributes = attributes | Attribute::Dim,
-                    "Italic" => attributes = attributes | Attribute::Italic,
-                    "Underlined" => attributes = attributes | Attribute::Underlined,
-                    "SlowBlink" => attributes = attributes | Attribute::SlowBlink,
-                    "RapidBlink" => attributes = attributes | Attribute::RapidBlink,
-                    "Reverse" => attributes = attributes | Attribute::Reverse,
-                    "Hidden" => attributes = attributes | Attribute::Hidden,
-                    "CrossedOut" => attributes = attributes | Attribute::CrossedOut,
-                    "Fraktur" => attributes = attributes | Attribute::Fraktur,
-                    "DoubleUnderlined" => attributes = attributes | Attribute::DoubleUnderlined,
-                    "Undercurled" => attributes = attributes | Attribute::Undercurled,
-                    "Underdotted" => attributes = attributes | Attribute::Underdotted,
-                    "Underdashed" => attributes = attributes | Attribute::Underdashed,
-                    "Framed" => attributes = attributes | Attribute::Framed,
-                    "Encircled" => attributes = attributes | Attribute::Encircled,
-                    "OverLined" => attributes = attributes | Attribute::OverLined,
-                    _ => {
-                        return Err(serde::de::Error::custom(format!(
-                            "Unknown attribute: {}",
-                            attr_name
-                        )))
-                    }
-                }
-            }
-            style.attributes = attributes;
+        if let Some(attributes) = style_def.attributes {
+            style.attributes = attributes
+                .into_iter()
+                .fold(Attributes::default(), |acc, x| acc | x);
         }
-
         Ok(style)
     }
 }
@@ -217,26 +137,6 @@ pub(crate) struct Config {
     pub erase_to_previous_nearest: crossterm::event::KeyEvent,
     pub erase_to_next_nearest: crossterm::event::KeyEvent,
     pub search_up: crossterm::event::KeyEvent,
-}
-
-impl Config {
-    /// Overrides the current configuration with values from a string.
-    ///
-    /// This function parses the provided string and overrides the current configuration
-    /// with the values from the parsed configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - A string slice that holds the configuration content to be parsed.
-    ///
-    /// # Returns
-    ///
-    /// This function returns an `anyhow::Result<()>` which is `Ok(())` if the string is
-    /// successfully parsed and the configuration is overridden, or an error if something
-    /// goes wrong during the process.
-    pub(crate) fn override_from_string(&mut self, content: &str) -> anyhow::Result<Self> {
-        Ok(self)
-    }
 }
 
 impl Default for Config {
@@ -361,8 +261,6 @@ mod tests {
             key = { Char = "$" }
             modifiers = "CONTROL"
         "#;
-
-        let config = Config::default().override_from_string(toml).unwrap();
 
         assert_eq!(config.search_result_chunk_size, 10);
         assert_eq!(config.query_debounce_duration, Duration::from_millis(1000));
