@@ -166,26 +166,49 @@ fn parse_input(args: &Args) -> anyhow::Result<String> {
     Ok(ret)
 }
 
+/// Creates a file if it doesn't exist
+///
+/// If the file already exists, returns Ok.
+/// If the file doesn't exist, attempts to create it.
+/// Returns an error if file creation fails.
+fn ensure_file_exists(path: &PathBuf) -> anyhow::Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    // Create directory if needed
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow!("Failed to create directory: {}", e))?;
+    }
+
+    // Create the file
+    std::fs::File::create(path).map_err(|e| anyhow!("Failed to create file: {}", e))?;
+
+    Ok(())
+}
+
 /// Determines the configuration file path with the following precedence:
 /// 1. The provided `config_path` argument, if it exists.
 /// 2. The default configuration file path in the user's configuration directory.
+///
+/// If the configuration file does not exist, it will be created.
+/// Returns an error if the file creation fails.
 fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
-    if let Some(config_path) = config_path {
-        if config_path.exists() {
-            return Ok(config_path);
-        }
+    // If a custom path is provided
+    if let Some(path) = config_path {
+        ensure_file_exists(&path)?;
+        return Ok(path);
     }
 
-    let config_path = dirs::config_dir()
+    // Use the default path
+    let default_path = dirs::config_dir()
         .ok_or_else(|| anyhow!("Failed to determine the configuration directory"))?
         .join("jnv")
         .join("config.toml");
 
-    if config_path.exists() {
-        return Ok(config_path);
-    }
-
-    Ok(config_path)
+    ensure_file_exists(&default_path)?;
+    Ok(default_path)
 }
 
 #[tokio::main]
