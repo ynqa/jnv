@@ -1,11 +1,79 @@
 use std::collections::HashSet;
 
-use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use crossterm::{
+    event::{KeyCode, KeyEvent, KeyModifiers},
+    style::{Attribute, Attributes, Color, ContentStyle},
+};
 use derive_builder::Builder;
 use duration_string::DurationString;
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
+
+#[derive(Serialize, Deserialize)]
+struct KeyEventDef {
+    code: KeyCode,
+    modifiers: KeyModifiers,
+}
+
+impl From<&KeyEvent> for KeyEventDef {
+    fn from(key_event: &KeyEvent) -> Self {
+        KeyEventDef {
+            code: key_event.code,
+            modifiers: key_event.modifiers,
+        }
+    }
+}
+
+impl From<KeyEventDef> for KeyEvent {
+    fn from(key_event_def: KeyEventDef) -> Self {
+        KeyEvent::new(key_event_def.code, key_event_def.modifiers)
+    }
+}
+
+mod key_event_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(key_event: &KeyEvent, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let key_event_def = KeyEventDef::from(key_event);
+        key_event_def.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<KeyEvent, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let key_event_def = KeyEventDef::deserialize(deserializer)?;
+        Ok(KeyEvent::from(key_event_def))
+    }
+}
+
+mod option_key_event_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(key_event_opt: &Option<KeyEvent>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match key_event_opt {
+            Some(key_event) => key_event_serde::serialize(key_event, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<KeyEvent>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<KeyEventDef>::deserialize(deserializer)
+            .map_or(Ok(None), |opt| Ok(opt.map(KeyEvent::from)))
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 struct ContentStyleDef {
@@ -218,18 +286,42 @@ pub(crate) struct Config {
 
     pub word_break_chars: HashSet<char>,
 
-    pub move_to_tail: crossterm::event::KeyEvent,
-    pub move_to_head: crossterm::event::KeyEvent,
-    pub backward: crossterm::event::KeyEvent,
-    pub forward: crossterm::event::KeyEvent,
-    pub completion: crossterm::event::KeyEvent,
-    pub move_to_next_nearest: crossterm::event::KeyEvent,
-    pub move_to_previous_nearest: crossterm::event::KeyEvent,
-    pub erase: crossterm::event::KeyEvent,
-    pub erase_all: crossterm::event::KeyEvent,
-    pub erase_to_previous_nearest: crossterm::event::KeyEvent,
-    pub erase_to_next_nearest: crossterm::event::KeyEvent,
-    pub search_up: crossterm::event::KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub move_to_tail: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub move_to_head: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub backward: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub forward: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub completion: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub move_to_next_nearest: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub move_to_previous_nearest: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub erase: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub erase_all: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub erase_to_previous_nearest: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub erase_to_next_nearest: KeyEvent,
+    #[serde(with = "key_event_serde")]
+    #[builder_field_attr(serde(with = "option_key_event_serde"))]
+    pub search_up: KeyEvent,
 }
 
 impl Default for Config {
