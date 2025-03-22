@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
-use duration_str::deserialize_duration;
+use duration_string::DurationString;
 use figment::{
     providers::{Format, Serialized, Toml},
     Figment,
@@ -64,15 +64,34 @@ mod content_style_serde {
     }
 }
 
+mod duration_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&DurationString::from(*duration).to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(DurationString::deserialize(deserializer)?.into())
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     #[serde(default)]
-    #[serde(deserialize_with = "deserialize_duration")]
+    #[serde(with = "duration_serde")]
     pub query_debounce_duration: Duration,
 
     #[serde(default)]
-    #[serde(deserialize_with = "deserialize_duration")]
+    #[serde(with = "duration_serde")]
     pub resize_debounce_duration: Duration,
 
     pub search_result_chunk_size: usize,
@@ -122,8 +141,7 @@ pub(crate) struct Config {
     pub null_value_style: ContentStyle,
 
     pub word_break_chars: HashSet<char>,
-    #[serde(default)]
-    #[serde(deserialize_with = "deserialize_duration")]
+    #[serde(with = "duration_serde")]
     pub spin_duration: Duration,
 
     pub move_to_tail: crossterm::event::KeyEvent,

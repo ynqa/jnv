@@ -13,7 +13,7 @@ anyhow = "1.0.95"
 arboard = "3.4.1"
 async-trait = "0.1.83"
 clap = { version = "4.5.23", features = ["derive"] }
-duration-str = "0.16.1"
+duration-string = { version = "0.5.2", features = ["serde"] }
 figment = { version = "0.10.19", features = ["toml"] }
 # See https://github.com/crossterm-rs/crossterm/issues/935
 crossterm = { version = "0.28.1", features = ["use-dev-tty", "event-stream", "libc", "serde"] }

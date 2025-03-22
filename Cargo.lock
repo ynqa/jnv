@@ -118,12 +118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arrayvec"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
-
-[[package]]
 name = "async-trait"
 version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -235,15 +229,6 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
-
-[[package]]
-name = "chrono"
-version = "0.4.39"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e36cc9d416881d2e24f9a963be5fb1cd90966419ac844274161d10488b3e825"
-dependencies = [
- "num-traits",
-]
 
 [[package]]
 name = "chumsky"
@@ -443,17 +428,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "duration-str"
-version = "0.16.1"
+name = "duration-string"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5edd16e9a9d5022b1ebc6ff96eb31eed3233a1b186a52b7ebe4c59483377ab40"
+checksum = "04782251e09dc67c90d694d89e9a3e5fc6cfe883df1b203202de672d812fb299"
 dependencies = [
- "chrono",
- "rust_decimal",
  "serde",
- "thiserror 2.0.11",
- "time",
- "winnow",
 ]
 
 [[package]]
@@ -823,7 +803,7 @@ dependencies = [
  "clap",
  "crossterm",
  "dirs",
- "duration-str",
+ "duration-string",
  "figment",
  "futures",
  "futures-timer",
@@ -1227,16 +1207,6 @@ name = "regex-syntax"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adad44e29e4c806119491a7f06f03de4d1af22c3a680dd47f1e6e179439d1f56"
-
-[[package]]
-name = "rust_decimal"
-version = "1.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c24af6e7ac43c88a8a458d1139d0246fdce2f6cd2f1ac6cb51eb88b29c978af"
-dependencies = [
- "arrayvec",
- "num-traits",
-]
 
 [[package]]
 name = "rustc-demangle"
