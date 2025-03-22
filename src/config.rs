@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use duration_str::deserialize_duration;
 use figment::{
     providers::{Format, Serialized, Toml},
     Figment,
 };
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, DurationMilliSeconds};
 use tokio::time::Duration;
 
 mod content_style_serde {
@@ -64,18 +64,15 @@ mod content_style_serde {
     }
 }
 
-#[serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
-    /// Duration to debounce query events, in milliseconds.
-    #[serde(default, rename = "query_debounce_duration_ms")]
-    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_duration")]
     pub query_debounce_duration: Duration,
 
-    /// Duration to debounce resize events, in milliseconds.
-    #[serde(default, rename = "resize_debounce_duration_ms")]
-    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_duration")]
     pub resize_debounce_duration: Duration,
 
     pub search_result_chunk_size: usize,
@@ -125,8 +122,8 @@ pub(crate) struct Config {
     pub null_value_style: ContentStyle,
 
     pub word_break_chars: HashSet<char>,
-    #[serde(default, rename = "spin_duration_ms")]
-    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_duration")]
     pub spin_duration: Duration,
 
     pub move_to_tail: crossterm::event::KeyEvent,
@@ -257,10 +254,11 @@ mod tests {
     fn test_config_deserialization() {
         let toml = r#"
             search_result_chunk_size = 10
-            query_debounce_duration_ms = 1000
-            resize_debounce_duration_ms = 2000
+            query_debounce_duration = "1000ms"
+            resize_debounce_duration = "2s"
             search_load_chunk_size = 5
             focus_prefix = "❯ "
+            spin_duration = "500ms"
 
             [active_item_style]
             foreground = "green"
@@ -280,7 +278,8 @@ mod tests {
 
         assert_eq!(config.search_result_chunk_size, 10);
         assert_eq!(config.query_debounce_duration, Duration::from_millis(1000));
-        assert_eq!(config.resize_debounce_duration, Duration::from_millis(2000));
+        assert_eq!(config.resize_debounce_duration, Duration::from_secs(2));
+        assert_eq!(config.spin_duration, Duration::from_millis(500));
         assert_eq!(config.search_load_chunk_size, 5);
         assert_eq!(
             config.active_item_style,
