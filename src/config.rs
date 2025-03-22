@@ -1,32 +1,23 @@
 use std::collections::HashSet;
 
 use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use derive_builder::Builder;
 use duration_string::DurationString;
-use figment::{
-    providers::{Format, Serialized, Toml},
-    Figment,
-};
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
-mod content_style_serde {
-    use super::*;
-    use serde::{Deserializer, Serializer};
+#[derive(Serialize, Deserialize)]
+struct ContentStyleDef {
+    foreground: Option<Color>,
+    background: Option<Color>,
+    underline: Option<Color>,
+    attributes: Option<Vec<Attribute>>,
+}
 
-    #[derive(Serialize, Deserialize)]
-    struct ContentStyleDef {
-        foreground: Option<Color>,
-        background: Option<Color>,
-        underline: Option<Color>,
-        attributes: Option<Vec<Attribute>>,
-    }
-
-    pub fn serialize<S>(style: &ContentStyle, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let style_def = ContentStyleDef {
+impl From<&ContentStyle> for ContentStyleDef {
+    fn from(style: &ContentStyle) -> Self {
+        ContentStyleDef {
             foreground: style.foreground_color,
             background: style.background_color,
             underline: style.underline_color,
@@ -39,19 +30,13 @@ mod content_style_serde {
                         .collect(),
                 )
             },
-        };
-
-        style_def.serialize(serializer)
+        }
     }
+}
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<ContentStyle, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let style_def = ContentStyleDef::deserialize(deserializer)?;
-
+impl From<ContentStyleDef> for ContentStyle {
+    fn from(style_def: ContentStyleDef) -> Self {
         let mut style = ContentStyle::new();
-
         style.foreground_color = style_def.foreground;
         style.background_color = style_def.background;
         style.underline_color = style_def.underline;
@@ -60,7 +45,28 @@ mod content_style_serde {
                 .into_iter()
                 .fold(Attributes::default(), |acc, x| acc | x);
         }
-        Ok(style)
+        style
+    }
+}
+
+mod content_style_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(style: &ContentStyle, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let style_def = ContentStyleDef::from(style);
+        style_def.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ContentStyle, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let style_def = ContentStyleDef::deserialize(deserializer)?;
+        Ok(ContentStyle::from(style_def))
     }
 }
 
@@ -83,66 +89,134 @@ mod duration_serde {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+mod option_content_style_serde {
+    use super::*;
+    use serde::{de, Deserializer, Serializer};
+
+    pub fn serialize<S>(style_opt: &Option<ContentStyle>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match style_opt {
+            Some(style) => content_style_serde::serialize(style, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ContentStyle>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<ContentStyleDef>::deserialize(deserializer)
+            .map_or(Ok(None), |opt| Ok(opt.map(ContentStyle::from)))
+    }
+}
+
+mod option_duration_serde {
+    use super::*;
+    use serde::{de, Deserializer, Serializer};
+
+    pub fn serialize<S>(duration_opt: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match duration_opt {
+            Some(duration) => duration_serde::serialize(duration, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<String>::deserialize(deserializer).map_or(Ok(None), |opt| {
+            Ok(opt.and_then(|s| DurationString::from_string(s).ok().map(|ds| ds.into())))
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Builder)]
+#[builder(derive(Serialize, Deserialize))]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
-    #[serde(default)]
     #[serde(with = "duration_serde")]
+    #[builder_field_attr(serde(with = "option_duration_serde"))]
     pub query_debounce_duration: Duration,
 
-    #[serde(default)]
     #[serde(with = "duration_serde")]
+    #[builder_field_attr(serde(with = "option_duration_serde"))]
     pub resize_debounce_duration: Duration,
+
+    #[serde(with = "duration_serde")]
+    #[builder_field_attr(serde(with = "option_duration_serde"))]
+    pub spin_duration: Duration,
 
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
 
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub active_item_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub inactive_item_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub inactive_char_style: ContentStyle,
 
     pub focus_prefix: String,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub focus_prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub focus_active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub focus_inactive_char_style: ContentStyle,
 
     pub defocus_prefix: String,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub defocus_prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub defocus_active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub defocus_inactive_char_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub curly_brackets_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub square_brackets_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub key_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub string_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub number_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub boolean_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(with = "option_content_style_serde"))]
     pub null_value_style: ContentStyle,
 
     pub word_break_chars: HashSet<char>,
-    #[serde(with = "duration_serde")]
-    pub spin_duration: Duration,
 
     pub move_to_tail: crossterm::event::KeyEvent,
     pub move_to_head: crossterm::event::KeyEvent,
@@ -256,10 +330,8 @@ impl Default for Config {
 impl Config {
     /// Overrides the current configuration with values from a string.
     pub(crate) fn override_from_string(self, content: &str) -> anyhow::Result<Self> {
-        Figment::from(Serialized::defaults(&self))
-            .merge(Toml::string(content))
-            .extract()
-            .map_err(Into::into)
+        let builder: ConfigBuilder = toml::from_str(content)?;
+        Ok(self)
     }
 }
 
