@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::PathBuf,
 };
 
@@ -166,24 +166,22 @@ fn parse_input(args: &Args) -> anyhow::Result<String> {
     Ok(ret)
 }
 
-/// Creates a file if it doesn't exist
+/// Ensures the configuration file exists, creating it with default settings if it doesn't
 ///
 /// If the file already exists, returns Ok.
-/// If the file doesn't exist, attempts to create it.
+/// If the file doesn't exist, writes the default configuration in TOML format.
 /// Returns an error if file creation fails.
-fn ensure_file_exists(path: &PathBuf) -> anyhow::Result<()> {
+fn ensure_file_exists(path: &PathBuf, default_config: &Config) -> anyhow::Result<()> {
     if path.exists() {
         return Ok(());
     }
 
-    // Create directory if needed
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow!("Failed to create directory: {}", e))?;
     }
 
-    // Create the file
-    std::fs::File::create(path).map_err(|e| anyhow!("Failed to create file: {}", e))?;
+    std::fs::File::create(path)?.write_all(toml::to_string_pretty(default_config)?.as_bytes())?;
 
     Ok(())
 }
@@ -194,10 +192,13 @@ fn ensure_file_exists(path: &PathBuf) -> anyhow::Result<()> {
 ///
 /// If the configuration file does not exist, it will be created.
 /// Returns an error if the file creation fails.
-fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+fn determine_config_file(
+    config_path: Option<PathBuf>,
+    default_config: &Config,
+) -> anyhow::Result<PathBuf> {
     // If a custom path is provided
     if let Some(path) = config_path {
-        ensure_file_exists(&path)?;
+        ensure_file_exists(&path, default_config)?;
         return Ok(path);
     }
 
@@ -207,7 +208,7 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
         .join("jnv")
         .join("config.toml");
 
-    ensure_file_exists(&default_path)?;
+    ensure_file_exists(&default_path, default_config)?;
     Ok(default_path)
 }
 
@@ -217,7 +218,7 @@ async fn main() -> anyhow::Result<()> {
     let input = parse_input(&args)?;
 
     let mut config = Config::default();
-    if let Ok(config_file) = determine_config_file(args.config_file.clone()) {
+    if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
         config = config.override_from_string(&content)?;
