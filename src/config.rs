@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 
 use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use figment::{
+    providers::{Format, Serialized, Toml},
+    Figment,
+};
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DurationMilliSeconds};
@@ -230,8 +234,16 @@ impl Default for Config {
                 crossterm::event::KeyCode::Up,
                 crossterm::event::KeyModifiers::NONE,
             ),
-            // search_down: KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
         }
+    }
+}
+
+impl Config {
+    /// Overrides the current configuration with values from a string.
+    pub(crate) fn override_from_string(self, content: &str) -> anyhow::Result<Self> {
+        let fig = Figment::from(Serialized::defaults(&self));
+        let merged = fig.merge(Toml::string(content));
+        Ok(merged.extract()?)
     }
 }
 
@@ -261,6 +273,9 @@ mod tests {
             key = { Char = "$" }
             modifiers = "CONTROL"
         "#;
+
+        let config = Config::default();
+        let config = config.override_from_string(toml).unwrap();
 
         assert_eq!(config.search_result_chunk_size, 10);
         assert_eq!(config.query_debounce_duration, Duration::from_millis(1000));
