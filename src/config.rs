@@ -241,9 +241,10 @@ impl Default for Config {
 impl Config {
     /// Overrides the current configuration with values from a string.
     pub(crate) fn override_from_string(self, content: &str) -> anyhow::Result<Self> {
-        let fig = Figment::from(Serialized::defaults(&self));
-        let merged = fig.merge(Toml::string(content));
-        Ok(merged.extract()?)
+        Figment::from(Serialized::defaults(&self))
+            .merge(Toml::string(content))
+            .extract()
+            .map_err(Into::into)
     }
 }
 
