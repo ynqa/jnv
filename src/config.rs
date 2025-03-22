@@ -91,7 +91,7 @@ mod duration_serde {
 
 mod option_content_style_serde {
     use super::*;
-    use serde::{de, Deserializer, Serializer};
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S>(style_opt: &Option<ContentStyle>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -114,7 +114,7 @@ mod option_content_style_serde {
 
 mod option_duration_serde {
     use super::*;
-    use serde::{de, Deserializer, Serializer};
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S>(duration_opt: &Option<Duration>, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -329,8 +329,124 @@ impl Default for Config {
 
 impl Config {
     /// Overrides the current configuration with values from a string.
-    pub(crate) fn override_from_string(self, content: &str) -> anyhow::Result<Self> {
+    pub(crate) fn override_from_string(mut self, content: &str) -> anyhow::Result<Self> {
         let builder: ConfigBuilder = toml::from_str(content)?;
+        // TODO: This is awful verbose. Can we do better?
+        if let Some(val) = builder.query_debounce_duration {
+            self.query_debounce_duration = val;
+        }
+        if let Some(val) = builder.resize_debounce_duration {
+            self.resize_debounce_duration = val;
+        }
+        if let Some(val) = builder.spin_duration {
+            self.spin_duration = val;
+        }
+        if let Some(val) = builder.search_result_chunk_size {
+            self.search_result_chunk_size = val;
+        }
+        if let Some(val) = builder.search_load_chunk_size {
+            self.search_load_chunk_size = val;
+        }
+        if let Some(val) = builder.active_item_style {
+            self.active_item_style = val;
+        }
+        if let Some(val) = builder.inactive_item_style {
+            self.inactive_item_style = val;
+        }
+        if let Some(val) = builder.prefix_style {
+            self.prefix_style = val;
+        }
+        if let Some(val) = builder.active_char_style {
+            self.active_char_style = val;
+        }
+        if let Some(val) = builder.inactive_char_style {
+            self.inactive_char_style = val;
+        }
+        if let Some(val) = builder.focus_prefix {
+            self.focus_prefix = val;
+        }
+        if let Some(val) = builder.focus_prefix_style {
+            self.focus_prefix_style = val;
+        }
+        if let Some(val) = builder.focus_active_char_style {
+            self.focus_active_char_style = val;
+        }
+        if let Some(val) = builder.focus_inactive_char_style {
+            self.focus_inactive_char_style = val;
+        }
+        if let Some(val) = builder.defocus_prefix {
+            self.defocus_prefix = val;
+        }
+        if let Some(val) = builder.defocus_prefix_style {
+            self.defocus_prefix_style = val;
+        }
+        if let Some(val) = builder.defocus_active_char_style {
+            self.defocus_active_char_style = val;
+        }
+        if let Some(val) = builder.defocus_inactive_char_style {
+            self.defocus_inactive_char_style = val;
+        }
+        if let Some(val) = builder.curly_brackets_style {
+            self.curly_brackets_style = val;
+        }
+        if let Some(val) = builder.square_brackets_style {
+            self.square_brackets_style = val;
+        }
+        if let Some(val) = builder.key_style {
+            self.key_style = val;
+        }
+        if let Some(val) = builder.string_value_style {
+            self.string_value_style = val;
+        }
+        if let Some(val) = builder.number_value_style {
+            self.number_value_style = val;
+        }
+        if let Some(val) = builder.boolean_value_style {
+            self.boolean_value_style = val;
+        }
+        if let Some(val) = builder.null_value_style {
+            self.null_value_style = val;
+        }
+        if let Some(val) = builder.word_break_chars {
+            self.word_break_chars = val;
+        }
+        if let Some(val) = builder.move_to_tail {
+            self.move_to_tail = val;
+        }
+        if let Some(val) = builder.move_to_head {
+            self.move_to_head = val;
+        }
+        if let Some(val) = builder.backward {
+            self.backward = val;
+        }
+        if let Some(val) = builder.forward {
+            self.forward = val;
+        }
+        if let Some(val) = builder.completion {
+            self.completion = val;
+        }
+        if let Some(val) = builder.move_to_next_nearest {
+            self.move_to_next_nearest = val;
+        }
+        if let Some(val) = builder.move_to_previous_nearest {
+            self.move_to_previous_nearest = val;
+        }
+        if let Some(val) = builder.erase {
+            self.erase = val;
+        }
+        if let Some(val) = builder.erase_all {
+            self.erase_all = val;
+        }
+        if let Some(val) = builder.erase_to_previous_nearest {
+            self.erase_to_previous_nearest = val;
+        }
+        if let Some(val) = builder.erase_to_next_nearest {
+            self.erase_to_next_nearest = val;
+        }
+        if let Some(val) = builder.search_up {
+            self.search_up = val;
+        }
+
         Ok(self)
     }
 }
@@ -359,7 +475,7 @@ mod tests {
             attributes = ["Bold", "Underlined"]
 
             [move_to_tail]
-            key = { Char = "$" }
+            code = { Char = "$" }
             modifiers = "CONTROL"
         "#;
 
