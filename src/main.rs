@@ -1,11 +1,12 @@
 use std::{
     fs::File,
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    io::{self, Read},
+    path::PathBuf,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use clap::Parser;
+use config::Config;
 use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
@@ -28,14 +29,6 @@ mod render;
 use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
-
-use std::sync::OnceLock;
-
-static DEFAULT_CONFIG_FILE: OnceLock<PathBuf> = OnceLock::new();
-
-fn get_config_dir() -> &'static PathBuf {
-    DEFAULT_CONFIG_FILE.get_or_init(|| dirs::config_dir().unwrap().join("jnv/config.toml"))
-}
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -107,14 +100,13 @@ pub struct Args {
 
     #[arg(
         short = 'c',
-        long = "config-file",
+        long = "config",
         help = "Path to the configuration file.",
         long_help = "
         Specifies the path to the configuration file.
-        ",
-        default_value = get_config_dir().to_str().unwrap(),
+        "
     )]
-    pub config_file: String,
+    pub config_file: Option<PathBuf>,
 
     #[arg(
         long = "max-streams",
@@ -126,12 +118,6 @@ pub struct Args {
         "
     )]
     pub max_streams: Option<usize>,
-
-    #[arg(
-        long = "write-default-config",
-        help = "Writes the default configuration to the specified file and exits."
-    )]
-    pub write_default_config: bool,
 
     #[arg(
         long = "suggestions",
@@ -146,26 +132,7 @@ pub struct Args {
     pub suggestions: usize,
 }
 
-impl Args {
-    pub fn write_default_config(&self) -> anyhow::Result<()> {
-        let path = PathBuf::from(&self.config_file);
-
-        if path.exists() {
-            return Err(anyhow!("Config file `{}` already exists", path.display()));
-        }
-
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        let mut file = std::fs::File::create(path)?;
-        let default_config: config::ConfigFile = Default::default();
-        file.write_all(toml::to_string_pretty(&default_config)?.as_bytes())?;
-        Ok(())
-    }
-}
-
-fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
+fn edit_mode_validator(val: &str) -> anyhow::Result<text_editor::Mode> {
     match val {
         "insert" | "" => Ok(text_editor::Mode::Insert),
         "overwrite" => Ok(text_editor::Mode::Overwrite),
@@ -180,7 +147,7 @@ fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
 /// that equals "-", data is read from standard input.
 /// Otherwise, the function attempts to open and
 /// read from the file specified in the `input` argument.
-fn parse_input(args: &Args) -> Result<String> {
+fn parse_input(args: &Args) -> anyhow::Result<String> {
     let mut ret = String::new();
 
     match &args.input {
@@ -199,21 +166,39 @@ fn parse_input(args: &Args) -> Result<String> {
     Ok(ret)
 }
 
+/// Determines the configuration file path with the following precedence:
+/// 1. The provided `config_path` argument, if it exists.
+/// 2. The default configuration file path in the user's configuration directory.
+fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    if let Some(config_path) = config_path {
+        if config_path.exists() {
+            return Ok(config_path);
+        }
+    }
+
+    let config_path = dirs::config_dir()
+        .ok_or_else(|| anyhow!("Failed to determine the configuration directory"))?
+        .join("jnv")
+        .join("config.toml");
+
+    if config_path.exists() {
+        return Ok(config_path);
+    }
+
+    Ok(config_path)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    if args.write_default_config {
-        return args.write_default_config().map_err(Into::into);
-    }
-
     let input = parse_input(&args)?;
 
-    let config = if Path::new(&args.config_file).exists() {
-        config::load_file(&args.config_file)?
-    } else {
-        config::Config::default()
-    };
+    let mut config = Config::default();
+    if let Ok(config_file) = determine_config_file(args.config_file.clone()) {
+        // Note that the configuration file absolutely exists.
+        let content = std::fs::read_to_string(&config_file)?;
+        config = config.override_from_string(&content)?;
+    }
 
     let config::Config {
         search_result_chunk_size,
@@ -259,8 +244,8 @@ async fn main() -> anyhow::Result<()> {
     let listbox_state = listbox::State {
         listbox: Listbox::from_displayable(Vec::<String>::new()),
         cursor: String::from("❯ "),
-        active_item_style,
-        inactive_item_style,
+        active_item_style: Some(active_item_style),
+        inactive_item_style: Some(inactive_item_style),
         lines: Some(args.suggestions),
     };
 
