@@ -63,26 +63,3 @@ pub mod content_style_serde {
         Ok(ContentStyle::from(style_def))
     }
 }
-
-pub mod option_content_style_serde {
-    use super::*;
-    use serde::{Deserializer, Serializer};
-
-    pub fn serialize<S>(style_opt: &Option<ContentStyle>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match style_opt {
-            Some(style) => content_style_serde::serialize(style, serializer),
-            None => serializer.serialize_none(),
-        }
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ContentStyle>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Option::<ContentStyleDef>::deserialize(deserializer)
-            .map_or(Ok(None), |opt| Ok(opt.map(ContentStyle::from)))
-    }
-}
