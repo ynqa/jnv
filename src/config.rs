@@ -4,46 +4,35 @@ use crossterm::{
     event::{KeyCode, KeyModifiers},
     style::{Attribute, Attributes, Color, ContentStyle},
 };
-use derive_builder::Builder;
 use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
 mod content_style;
-use content_style::{content_style_serde, option_content_style_serde};
+use content_style::content_style_serde;
 mod duration;
-use duration::{duration_serde, option_duration_serde};
+use duration::duration_serde;
 pub mod event;
 use event::{EventDefSet, KeyEventDef};
 
-#[derive(Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "EditorConfigFromFile")]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct EditorConfig {
     pub theme_on_focus: EditorTheme,
     pub theme_on_defocus: EditorTheme,
-
-    #[builder_field_attr(serde(default))]
     pub word_break_chars: HashSet<char>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "EditorThemeFromFile")]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct EditorTheme {
-    #[builder_field_attr(serde(default))]
     pub prefix: String,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub prefix_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub active_char_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_char_style: ContentStyle,
 }
 
@@ -74,60 +63,29 @@ impl Default for EditorConfig {
     }
 }
 
-impl EditorConfigFromFile {
-    /// Load the config from a string.
-    pub fn load_from(content: &str) -> anyhow::Result<Self> {
-        toml::from_str(content).map_err(Into::into)
-    }
-}
-
-impl EditorConfig {
-    pub fn patch_with(&mut self, config: EditorConfigFromFile) {
-        // TODO: This is awful verbose. Can we do better?
-        if let Some(theme_on_focus) = config.theme_on_focus {
-            self.theme_on_focus = theme_on_focus;
-        }
-        if let Some(theme_on_defocus) = config.theme_on_defocus {
-            self.theme_on_defocus = theme_on_defocus;
-        }
-        if let Some(val) = config.word_break_chars {
-            self.word_break_chars = val;
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "JsonThemeFromFile")]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct JsonTheme {
     pub indent: usize,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub curly_brackets_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub square_brackets_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub key_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub string_value_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub number_value_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub boolean_value_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub null_value_style: ContentStyle,
 }
 
@@ -150,61 +108,18 @@ impl Default for JsonTheme {
     }
 }
 
-impl JsonThemeFromFile {
-    /// Load the config from a string.
-    pub fn load_from(content: &str) -> anyhow::Result<Self> {
-        toml::from_str(content).map_err(Into::into)
-    }
-}
-
-impl JsonTheme {
-    pub fn patch_with(&mut self, theme: JsonThemeFromFile) {
-        // TODO: This is awful verbose. Can we do better?
-        if let Some(val) = theme.indent {
-            self.indent = val;
-        }
-        if let Some(val) = theme.curly_brackets_style {
-            self.curly_brackets_style = val;
-        }
-        if let Some(val) = theme.square_brackets_style {
-            self.square_brackets_style = val;
-        }
-        if let Some(val) = theme.key_style {
-            self.key_style = val;
-        }
-        if let Some(val) = theme.string_value_style {
-            self.string_value_style = val;
-        }
-        if let Some(val) = theme.number_value_style {
-            self.number_value_style = val;
-        }
-        if let Some(val) = theme.boolean_value_style {
-            self.boolean_value_style = val;
-        }
-        if let Some(val) = theme.null_value_style {
-            self.null_value_style = val;
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "CompletionConfigFromFile")]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct CompletionConfig {
     pub lines: Option<usize>,
 
-    #[builder_field_attr(serde(default))]
     pub search_result_chunk_size: usize,
 
-    #[builder_field_attr(serde(default))]
     pub search_load_chunk_size: usize,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub active_item_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_item_style: ContentStyle,
 }
 
@@ -223,86 +138,7 @@ impl Default for CompletionConfig {
     }
 }
 
-impl CompletionConfigFromFile {
-    /// Load the config from a string.
-    pub fn load_from(content: &str) -> anyhow::Result<Self> {
-        toml::from_str(content).map_err(Into::into)
-    }
-}
-
-impl CompletionConfig {
-    pub fn patch_with(&mut self, config: CompletionConfigFromFile) {
-        // TODO: This is awful verbose. Can we do better?
-        match config.lines {
-            Some(val) => self.lines = val,
-            None => self.lines = None,
-        }
-        if let Some(val) = config.search_result_chunk_size {
-            self.search_result_chunk_size = val;
-        }
-        if let Some(val) = config.search_load_chunk_size {
-            self.search_load_chunk_size = val;
-        }
-        if let Some(val) = config.active_item_style {
-            self.active_item_style = val;
-        }
-        if let Some(val) = config.inactive_item_style {
-            self.inactive_item_style = val;
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "ConfigFromFile")]
-pub(crate) struct Config {
-    #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
-    pub query_debounce_duration: Duration,
-
-    #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
-    pub resize_debounce_duration: Duration,
-
-    #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
-    pub spin_duration: Duration,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            query_debounce_duration: Duration::from_millis(600),
-            resize_debounce_duration: Duration::from_millis(200),
-            spin_duration: Duration::from_millis(300),
-        }
-    }
-}
-
-impl ConfigFromFile {
-    pub fn load_from(content: &str) -> anyhow::Result<Self> {
-        toml::from_str(content).map_err(Into::into)
-    }
-}
-
-impl Config {
-    pub fn patch_with(&mut self, config: ConfigFromFile) {
-        // TODO: This is awful verbose. Can we do better?
-        if let Some(val) = config.query_debounce_duration {
-            self.query_debounce_duration = val;
-        }
-        if let Some(val) = config.resize_debounce_duration {
-            self.resize_debounce_duration = val;
-        }
-        if let Some(val) = config.spin_duration {
-            self.spin_duration = val;
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Builder)]
-#[builder(derive(Serialize, Deserialize))]
-#[builder(name = "KeybindsFromFile")]
+#[derive(Serialize, Deserialize)]
 pub struct Keybinds {
     pub move_to_tail: EventDefSet,
     pub backward: EventDefSet,
@@ -358,51 +194,39 @@ impl Default for Keybinds {
     }
 }
 
-impl KeybindsFromFile {
-    /// Load the config from a string.
-    pub fn load_from(content: &str) -> anyhow::Result<Self> {
-        toml::from_str(content).map_err(Into::into)
+#[derive(Serialize, Deserialize)]
+pub(crate) struct Config {
+    #[serde(with = "duration_serde")]
+    pub query_debounce_duration: Duration,
+
+    #[serde(with = "duration_serde")]
+    pub resize_debounce_duration: Duration,
+
+    #[serde(with = "duration_serde")]
+    pub spin_duration: Duration,
+
+    pub editor: EditorConfig,
+    pub json: JsonTheme,
+    pub completion: CompletionConfig,
+    pub keybinds: Keybinds,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            query_debounce_duration: Duration::from_millis(600),
+            resize_debounce_duration: Duration::from_millis(200),
+            spin_duration: Duration::from_millis(300),
+            editor: EditorConfig::default(),
+            json: JsonTheme::default(),
+            completion: CompletionConfig::default(),
+            keybinds: Keybinds::default(),
+        }
     }
 }
 
-impl Keybinds {
-    pub fn patch_with(&mut self, keybinds: KeybindsFromFile) {
-        // TODO: This is awful verbose. Can we do better?
-        if let Some(val) = keybinds.move_to_tail {
-            self.move_to_tail = val;
-        }
-        if let Some(val) = keybinds.move_to_head {
-            self.move_to_head = val;
-        }
-        if let Some(val) = keybinds.backward {
-            self.backward = val;
-        }
-        if let Some(val) = keybinds.forward {
-            self.forward = val;
-        }
-        if let Some(val) = keybinds.completion {
-            self.completion = val;
-        }
-        if let Some(val) = keybinds.move_to_next_nearest {
-            self.move_to_next_nearest = val;
-        }
-        if let Some(val) = keybinds.move_to_previous_nearest {
-            self.move_to_previous_nearest = val;
-        }
-        if let Some(val) = keybinds.erase {
-            self.erase = val;
-        }
-        if let Some(val) = keybinds.erase_all {
-            self.erase_all = val;
-        }
-        if let Some(val) = keybinds.erase_to_previous_nearest {
-            self.erase_to_previous_nearest = val;
-        }
-        if let Some(val) = keybinds.erase_to_next_nearest {
-            self.erase_to_next_nearest = val;
-        }
-        if let Some(val) = keybinds.search_up {
-            self.search_up = val;
-        }
+impl Config {
+    pub fn load_from(content: &str) -> anyhow::Result<Self> {
+        toml::from_str(content).map_err(Into::into)
     }
 }

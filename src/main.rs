@@ -6,10 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use config::{
-    CompletionConfig, CompletionConfigFromFile, Config, ConfigFromFile, EditorConfig,
-    EditorConfigFromFile, JsonTheme, JsonThemeFromFile, Keybinds, KeybindsFromFile,
-};
+use config::Config;
 use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
@@ -196,76 +193,49 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    #[rustfmt::skip]
-    let (
-        mut config,
-        mut keybinds,
-        mut editor_config,
-        mut json_theme,
-        mut comp_config,
-    ) = (
-        Config::default(),
-        Keybinds::default(),
-        EditorConfig::default(),
-        JsonTheme::default(),
-        CompletionConfig::default(),
-    );
+    let mut config = Config::default();
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
-        let config_from_file = ConfigFromFile::load_from(&content)?;
-        let keybinds_from_file = KeybindsFromFile::load_from(&content)?;
-        let editor_config_from_file = EditorConfigFromFile::load_from(&content)?;
-        let json_theme_from_file = JsonThemeFromFile::load_from(&content)?;
-        let comp_config_from_file = CompletionConfigFromFile::load_from(&content)?;
-        config.patch_with(config_from_file);
-        keybinds.patch_with(keybinds_from_file);
-        editor_config.patch_with(editor_config_from_file);
-        json_theme.patch_with(json_theme_from_file);
-        comp_config.patch_with(comp_config_from_file);
+        config = Config::load_from(&content)?;
     }
-
-    let config::Config {
-        query_debounce_duration,
-        resize_debounce_duration,
-        spin_duration,
-    } = config;
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
         cursor: String::from("❯ "),
-        active_item_style: Some(comp_config.active_item_style),
-        inactive_item_style: Some(comp_config.inactive_item_style),
-        lines: comp_config.lines,
+        active_item_style: Some(config.completion.active_item_style),
+        inactive_item_style: Some(config.completion.inactive_item_style),
+        lines: config.completion.lines,
     };
 
-    let searcher = IncrementalSearcher::new(listbox_state, comp_config.search_result_chunk_size);
+    let searcher =
+        IncrementalSearcher::new(listbox_state, config.completion.search_result_chunk_size);
 
     let text_editor_state = text_editor::State {
         texteditor: Default::default(),
         history: Default::default(),
-        prefix: editor_config.theme_on_focus.prefix.clone(),
+        prefix: config.editor.theme_on_focus.prefix.clone(),
         mask: Default::default(),
-        prefix_style: editor_config.theme_on_focus.prefix_style,
-        active_char_style: editor_config.theme_on_focus.active_char_style,
-        inactive_char_style: editor_config.theme_on_focus.inactive_char_style,
+        prefix_style: config.editor.theme_on_focus.prefix_style,
+        active_char_style: config.editor.theme_on_focus.active_char_style,
+        inactive_char_style: config.editor.theme_on_focus.inactive_char_style,
         edit_mode: args.edit_mode,
-        word_break_chars: editor_config.word_break_chars,
+        word_break_chars: config.editor.word_break_chars,
         lines: Default::default(),
     };
 
     let provider = &mut JsonStreamProvider::new(
         RowFormatter {
-            curly_brackets_style: json_theme.curly_brackets_style,
-            square_brackets_style: json_theme.square_brackets_style,
-            key_style: json_theme.key_style,
-            string_value_style: json_theme.string_value_style,
-            number_value_style: json_theme.number_value_style,
-            boolean_value_style: json_theme.boolean_value_style,
-            null_value_style: json_theme.null_value_style,
+            curly_brackets_style: config.json.curly_brackets_style,
+            square_brackets_style: config.json.square_brackets_style,
+            key_style: config.json.key_style,
+            string_value_style: config.json.string_value_style,
+            number_value_style: config.json.number_value_style,
+            boolean_value_style: config.json.boolean_value_style,
+            null_value_style: config.json.null_value_style,
             active_item_attribute: Attribute::Bold,
             inactive_item_attribute: Attribute::Dim,
-            indent: json_theme.indent,
+            indent: config.json.indent,
         },
         args.max_streams,
     );
@@ -273,21 +243,21 @@ async fn main() -> anyhow::Result<()> {
     let item = Box::leak(input.into_boxed_str());
 
     let loading_suggestions_task =
-        searcher.spawn_load_task(provider, item, comp_config.search_load_chunk_size);
+        searcher.spawn_load_task(provider, item, config.completion.search_load_chunk_size);
 
     let editor = Editor::new(
         text_editor_state,
         searcher,
-        editor_config.theme_on_focus,
-        editor_config.theme_on_defocus,
-        keybinds,
+        config.editor.theme_on_focus,
+        config.editor.theme_on_defocus,
+        config.keybinds,
     );
 
     prompt::run(
         item,
-        spin_duration,
-        query_debounce_duration,
-        resize_debounce_duration,
+        config.spin_duration,
+        config.query_debounce_duration,
+        config.resize_debounce_duration,
         provider,
         editor,
         loading_suggestions_task,
