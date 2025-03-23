@@ -7,8 +7,8 @@ use std::{
 use anyhow::anyhow;
 use clap::Parser;
 use config::{
-    Config, ConfigFromFile, EditorConfig, EditorConfigFromFile, JsonTheme, JsonThemeFromFile,
-    Keybinds, KeybindsFromFile,
+    CompletionConfig, CompletionConfigFromFile, Config, ConfigFromFile, EditorConfig,
+    EditorConfigFromFile, JsonTheme, JsonThemeFromFile, Keybinds, KeybindsFromFile,
 };
 use crossterm::style::Attribute;
 use promkit::{
@@ -109,18 +109,6 @@ pub struct Args {
         "
     )]
     pub max_streams: Option<usize>,
-
-    #[arg(
-        long = "suggestions",
-        default_value = "3",
-        help = "Number of autocomplete suggestions to show",
-        long_help = "
-        Sets the number of autocomplete suggestions displayed during incremental search.
-        Higher values show more suggestions but may occupy more screen space.
-        Adjust this value based on your screen size and preference.
-        "
-    )]
-    pub suggestions: usize,
 }
 
 fn edit_mode_validator(val: &str) -> anyhow::Result<text_editor::Mode> {
@@ -208,11 +196,19 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let (mut config, mut keybinds, mut editor_config, mut json_theme) = (
+    #[rustfmt::skip]
+    let (
+        mut config,
+        mut keybinds,
+        mut editor_config,
+        mut json_theme,
+        mut comp_config,
+    ) = (
         Config::default(),
         Keybinds::default(),
         EditorConfig::default(),
         JsonTheme::default(),
+        CompletionConfig::default(),
     );
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
@@ -221,31 +217,29 @@ async fn main() -> anyhow::Result<()> {
         let keybinds_from_file = KeybindsFromFile::load_from(&content)?;
         let editor_config_from_file = EditorConfigFromFile::load_from(&content)?;
         let json_theme_from_file = JsonThemeFromFile::load_from(&content)?;
+        let comp_config_from_file = CompletionConfigFromFile::load_from(&content)?;
         config.patch_with(config_from_file);
         keybinds.patch_with(keybinds_from_file);
         editor_config.patch_with(editor_config_from_file);
         json_theme.patch_with(json_theme_from_file);
+        comp_config.patch_with(comp_config_from_file);
     }
 
     let config::Config {
-        search_result_chunk_size,
         query_debounce_duration,
         resize_debounce_duration,
-        search_load_chunk_size,
-        active_item_style,
-        inactive_item_style,
         spin_duration,
     } = config;
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
         cursor: String::from("❯ "),
-        active_item_style: Some(active_item_style),
-        inactive_item_style: Some(inactive_item_style),
-        lines: Some(args.suggestions),
+        active_item_style: Some(comp_config.active_item_style),
+        inactive_item_style: Some(comp_config.inactive_item_style),
+        lines: comp_config.lines,
     };
 
-    let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
+    let searcher = IncrementalSearcher::new(listbox_state, comp_config.search_result_chunk_size);
 
     let text_editor_state = text_editor::State {
         texteditor: Default::default(),
@@ -278,7 +272,8 @@ async fn main() -> anyhow::Result<()> {
 
     let item = Box::leak(input.into_boxed_str());
 
-    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
+    let loading_suggestions_task =
+        searcher.spawn_load_task(provider, item, comp_config.search_load_chunk_size);
 
     let editor = Editor::new(
         text_editor_state,

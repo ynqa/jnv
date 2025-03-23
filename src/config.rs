@@ -187,6 +187,71 @@ impl JsonTheme {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Builder)]
+#[builder(derive(Serialize, Deserialize))]
+#[builder(name = "CompletionConfigFromFile")]
+pub(crate) struct CompletionConfig {
+    pub lines: Option<usize>,
+
+    #[builder_field_attr(serde(default))]
+    pub search_result_chunk_size: usize,
+
+    #[builder_field_attr(serde(default))]
+    pub search_load_chunk_size: usize,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub active_item_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub inactive_item_style: ContentStyle,
+}
+
+impl Default for CompletionConfig {
+    fn default() -> Self {
+        Self {
+            lines: Some(3),
+            search_result_chunk_size: 100,
+            search_load_chunk_size: 50000,
+            active_item_style: StyleBuilder::new()
+                .fgc(Color::Grey)
+                .bgc(Color::Yellow)
+                .build(),
+            inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        }
+    }
+}
+
+impl CompletionConfigFromFile {
+    /// Load the config from a string.
+    pub fn load_from(content: &str) -> anyhow::Result<Self> {
+        toml::from_str(content).map_err(Into::into)
+    }
+}
+
+impl CompletionConfig {
+    pub fn patch_with(&mut self, config: CompletionConfigFromFile) {
+        // TODO: This is awful verbose. Can we do better?
+        match config.lines {
+            Some(val) => self.lines = val,
+            None => self.lines = None,
+        }
+        if let Some(val) = config.search_result_chunk_size {
+            self.search_result_chunk_size = val;
+        }
+        if let Some(val) = config.search_load_chunk_size {
+            self.search_load_chunk_size = val;
+        }
+        if let Some(val) = config.active_item_style {
+            self.active_item_style = val;
+        }
+        if let Some(val) = config.inactive_item_style {
+            self.inactive_item_style = val;
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
 #[builder(name = "ConfigFromFile")]
@@ -202,34 +267,14 @@ pub(crate) struct Config {
     #[serde(with = "duration_serde")]
     #[builder_field_attr(serde(default, with = "option_duration_serde"))]
     pub spin_duration: Duration,
-
-    #[builder_field_attr(serde(default))]
-    pub search_result_chunk_size: usize,
-
-    #[builder_field_attr(serde(default))]
-    pub search_load_chunk_size: usize,
-
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub active_item_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub inactive_item_style: ContentStyle,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            active_item_style: StyleBuilder::new()
-                .fgc(Color::Grey)
-                .bgc(Color::Yellow)
-                .build(),
-            inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
-            search_result_chunk_size: 100,
             query_debounce_duration: Duration::from_millis(600),
             resize_debounce_duration: Duration::from_millis(200),
             spin_duration: Duration::from_millis(300),
-            search_load_chunk_size: 50000,
         }
     }
 }
@@ -251,18 +296,6 @@ impl Config {
         }
         if let Some(val) = config.spin_duration {
             self.spin_duration = val;
-        }
-        if let Some(val) = config.search_result_chunk_size {
-            self.search_result_chunk_size = val;
-        }
-        if let Some(val) = config.search_load_chunk_size {
-            self.search_load_chunk_size = val;
-        }
-        if let Some(val) = config.active_item_style {
-            self.active_item_style = val;
-        }
-        if let Some(val) = config.inactive_item_style {
-            self.inactive_item_style = val;
         }
     }
 }
