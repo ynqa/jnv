@@ -206,6 +206,7 @@ mod option_duration_serde {
 
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
+#[builder(name = "ConfigFromFile")]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
@@ -458,123 +459,128 @@ impl Default for Config {
     }
 }
 
+impl ConfigFromFile {
+    /// Load the config from a string.
+    pub fn load_from(content: &str) -> anyhow::Result<Self> {
+        toml::from_str(content).map_err(Into::into)
+    }
+}
+
 impl Config {
-    /// Overrides the current configuration with values from a string.
-    pub(crate) fn override_from_string(mut self, content: &str) -> anyhow::Result<Self> {
-        let builder: ConfigBuilder = toml::from_str(content)?;
+    pub fn patch_with(mut self, config: ConfigFromFile) -> anyhow::Result<Self> {
         // TODO: This is awful verbose. Can we do better?
-        if let Some(val) = builder.query_debounce_duration {
+        if let Some(val) = config.query_debounce_duration {
             self.query_debounce_duration = val;
         }
-        if let Some(val) = builder.resize_debounce_duration {
+        if let Some(val) = config.resize_debounce_duration {
             self.resize_debounce_duration = val;
         }
-        if let Some(val) = builder.spin_duration {
+        if let Some(val) = config.spin_duration {
             self.spin_duration = val;
         }
-        if let Some(val) = builder.search_result_chunk_size {
+        if let Some(val) = config.search_result_chunk_size {
             self.search_result_chunk_size = val;
         }
-        if let Some(val) = builder.search_load_chunk_size {
+        if let Some(val) = config.search_load_chunk_size {
             self.search_load_chunk_size = val;
         }
-        if let Some(val) = builder.active_item_style {
+        if let Some(val) = config.active_item_style {
             self.active_item_style = val;
         }
-        if let Some(val) = builder.inactive_item_style {
+        if let Some(val) = config.inactive_item_style {
             self.inactive_item_style = val;
         }
-        if let Some(val) = builder.prefix_style {
+        if let Some(val) = config.prefix_style {
             self.prefix_style = val;
         }
-        if let Some(val) = builder.active_char_style {
+        if let Some(val) = config.active_char_style {
             self.active_char_style = val;
         }
-        if let Some(val) = builder.inactive_char_style {
+        if let Some(val) = config.inactive_char_style {
             self.inactive_char_style = val;
         }
-        if let Some(val) = builder.focus_prefix {
+        if let Some(val) = config.focus_prefix {
             self.focus_prefix = val;
         }
-        if let Some(val) = builder.focus_prefix_style {
+        if let Some(val) = config.focus_prefix_style {
             self.focus_prefix_style = val;
         }
-        if let Some(val) = builder.focus_active_char_style {
+        if let Some(val) = config.focus_active_char_style {
             self.focus_active_char_style = val;
         }
-        if let Some(val) = builder.focus_inactive_char_style {
+        if let Some(val) = config.focus_inactive_char_style {
             self.focus_inactive_char_style = val;
         }
-        if let Some(val) = builder.defocus_prefix {
+        if let Some(val) = config.defocus_prefix {
             self.defocus_prefix = val;
         }
-        if let Some(val) = builder.defocus_prefix_style {
+        if let Some(val) = config.defocus_prefix_style {
             self.defocus_prefix_style = val;
         }
-        if let Some(val) = builder.defocus_active_char_style {
+        if let Some(val) = config.defocus_active_char_style {
             self.defocus_active_char_style = val;
         }
-        if let Some(val) = builder.defocus_inactive_char_style {
+        if let Some(val) = config.defocus_inactive_char_style {
             self.defocus_inactive_char_style = val;
         }
-        if let Some(val) = builder.curly_brackets_style {
+        if let Some(val) = config.curly_brackets_style {
             self.curly_brackets_style = val;
         }
-        if let Some(val) = builder.square_brackets_style {
+        if let Some(val) = config.square_brackets_style {
             self.square_brackets_style = val;
         }
-        if let Some(val) = builder.key_style {
+        if let Some(val) = config.key_style {
             self.key_style = val;
         }
-        if let Some(val) = builder.string_value_style {
+        if let Some(val) = config.string_value_style {
             self.string_value_style = val;
         }
-        if let Some(val) = builder.number_value_style {
+        if let Some(val) = config.number_value_style {
             self.number_value_style = val;
         }
-        if let Some(val) = builder.boolean_value_style {
+        if let Some(val) = config.boolean_value_style {
             self.boolean_value_style = val;
         }
-        if let Some(val) = builder.null_value_style {
+        if let Some(val) = config.null_value_style {
             self.null_value_style = val;
         }
-        if let Some(val) = builder.word_break_chars {
+        if let Some(val) = config.word_break_chars {
             self.word_break_chars = val;
         }
-        if let Some(val) = builder.move_to_tail {
+        if let Some(val) = config.move_to_tail {
             self.move_to_tail = val;
         }
-        if let Some(val) = builder.move_to_head {
+        if let Some(val) = config.move_to_head {
             self.move_to_head = val;
         }
-        if let Some(val) = builder.backward {
+        if let Some(val) = config.backward {
             self.backward = val;
         }
-        if let Some(val) = builder.forward {
+        if let Some(val) = config.forward {
             self.forward = val;
         }
-        if let Some(val) = builder.completion {
+        if let Some(val) = config.completion {
             self.completion = val;
         }
-        if let Some(val) = builder.move_to_next_nearest {
+        if let Some(val) = config.move_to_next_nearest {
             self.move_to_next_nearest = val;
         }
-        if let Some(val) = builder.move_to_previous_nearest {
+        if let Some(val) = config.move_to_previous_nearest {
             self.move_to_previous_nearest = val;
         }
-        if let Some(val) = builder.erase {
+        if let Some(val) = config.erase {
             self.erase = val;
         }
-        if let Some(val) = builder.erase_all {
+        if let Some(val) = config.erase_all {
             self.erase_all = val;
         }
-        if let Some(val) = builder.erase_to_previous_nearest {
+        if let Some(val) = config.erase_to_previous_nearest {
             self.erase_to_previous_nearest = val;
         }
-        if let Some(val) = builder.erase_to_next_nearest {
+        if let Some(val) = config.erase_to_next_nearest {
             self.erase_to_next_nearest = val;
         }
-        if let Some(val) = builder.search_up {
+        if let Some(val) = config.search_up {
             self.search_up = val;
         }
 
@@ -584,62 +590,67 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::time::Duration;
+    mod load_from {
+        use super::super::*;
 
-    #[test]
-    fn test_config_deserialization() {
-        let toml = r#"
-            search_result_chunk_size = 10
-            query_debounce_duration = "1000ms"
-            resize_debounce_duration = "2s"
-            search_load_chunk_size = 5
-            focus_prefix = "❯ "
-            spin_duration = "500ms"
+        #[test]
+        fn test() {
+            let toml = r#"
+                search_result_chunk_size = 10
+                query_debounce_duration = "1000ms"
+                resize_debounce_duration = "2s"
+                search_load_chunk_size = 5
+                focus_prefix = "❯ "
+                spin_duration = "500ms"
 
-            [active_item_style]
-            foreground = "green"
+                [active_item_style]
+                foreground = "green"
 
-            [focus_active_char_style]
-            background = "green"
-            underline = "red"
-            attributes = ["Bold", "Underlined"]
+                [focus_active_char_style]
+                background = "green"
+                underline = "red"
+                attributes = ["Bold", "Underlined"]
 
-            [move_to_tail]
-            code = { Char = "$" }
-            modifiers = "CONTROL"
-        "#;
+                [move_to_tail]
+                code = { Char = "$" }
+                modifiers = "CONTROL"
+            "#;
 
-        let config = Config::default();
-        let config = config.override_from_string(toml).unwrap();
+            let config = ConfigFromFile::load_from(toml).unwrap();
 
-        assert_eq!(config.search_result_chunk_size, 10);
-        assert_eq!(config.query_debounce_duration, Duration::from_millis(1000));
-        assert_eq!(config.resize_debounce_duration, Duration::from_secs(2));
-        assert_eq!(config.spin_duration, Duration::from_millis(500));
-        assert_eq!(config.search_load_chunk_size, 5);
-        assert_eq!(
-            config.active_item_style,
-            StyleBuilder::new().fgc(Color::Green).build(),
-        );
+            assert_eq!(config.search_result_chunk_size, Some(10));
+            assert_eq!(
+                config.query_debounce_duration,
+                Some(Duration::from_millis(1000))
+            );
+            assert_eq!(
+                config.resize_debounce_duration,
+                Some(Duration::from_secs(2))
+            );
+            assert_eq!(config.spin_duration, Some(Duration::from_millis(500)));
+            assert_eq!(config.search_load_chunk_size, Some(5));
+            assert_eq!(
+                config.active_item_style,
+                Some(StyleBuilder::new().fgc(Color::Green).build()),
+            );
 
-        assert_eq!(
-            config.move_to_tail,
-            crossterm::event::KeyEvent::new(
-                crossterm::event::KeyCode::Char('$'),
-                crossterm::event::KeyModifiers::CONTROL
-            )
-        );
+            assert_eq!(
+                config.move_to_tail,
+                Some(KeyEvent::new(KeyCode::Char('$'), KeyModifiers::CONTROL))
+            );
 
-        assert_eq!(config.focus_prefix, "❯ ".to_string());
+            assert_eq!(config.focus_prefix, Some("❯ ".to_string()));
 
-        assert_eq!(
-            config.focus_active_char_style,
-            StyleBuilder::new()
-                .bgc(Color::Green)
-                .ulc(Color::Red)
-                .attrs(Attributes::from(Attribute::Bold) | Attribute::Underlined)
-                .build(),
-        );
+            assert_eq!(
+                config.focus_active_char_style,
+                Some(
+                    StyleBuilder::new()
+                        .bgc(Color::Green)
+                        .ulc(Color::Red)
+                        .attrs(Attributes::from(Attribute::Bold) | Attribute::Underlined)
+                        .build()
+                ),
+            );
+        }
     }
 }

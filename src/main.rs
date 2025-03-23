@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use config::Config;
+use config::{Config, ConfigFromFile};
 use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
@@ -221,7 +221,8 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
-        config = config.override_from_string(&content)?;
+        let loaded = ConfigFromFile::load_from(&content)?;
+        config = config.patch_with(loaded)?;
     }
 
     let config::Config {
