@@ -19,7 +19,6 @@ use event::{EventDefSet, KeyEventDef};
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
 #[builder(name = "ConfigFromFile")]
-#[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
     #[builder_field_attr(serde(default, with = "option_duration_serde"))]
@@ -246,7 +245,6 @@ impl Config {
 #[derive(Clone, Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
 #[builder(name = "KeybindsFromFile")]
-#[serde(deny_unknown_fields)]
 pub struct Keybinds {
     pub move_to_tail: EventDefSet,
     pub backward: EventDefSet,
