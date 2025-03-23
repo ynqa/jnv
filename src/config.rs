@@ -96,6 +96,97 @@ impl EditorConfig {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize, Builder)]
+#[builder(derive(Serialize, Deserialize))]
+#[builder(name = "JsonThemeFromFile")]
+pub(crate) struct JsonTheme {
+    pub indent: usize,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub curly_brackets_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub square_brackets_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub key_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub string_value_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub number_value_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub boolean_value_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub null_value_style: ContentStyle,
+}
+
+impl Default for JsonTheme {
+    fn default() -> Self {
+        Self {
+            indent: 2,
+            curly_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
+                .build(),
+            square_brackets_style: StyleBuilder::new()
+                .attrs(Attributes::from(Attribute::Bold))
+                .build(),
+            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+            number_value_style: StyleBuilder::new().build(),
+            boolean_value_style: StyleBuilder::new().build(),
+            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+        }
+    }
+}
+
+impl JsonThemeFromFile {
+    /// Load the config from a string.
+    pub fn load_from(content: &str) -> anyhow::Result<Self> {
+        toml::from_str(content).map_err(Into::into)
+    }
+}
+
+impl JsonTheme {
+    pub fn patch_with(&mut self, theme: JsonThemeFromFile) {
+        // TODO: This is awful verbose. Can we do better?
+        if let Some(val) = theme.indent {
+            self.indent = val;
+        }
+        if let Some(val) = theme.curly_brackets_style {
+            self.curly_brackets_style = val;
+        }
+        if let Some(val) = theme.square_brackets_style {
+            self.square_brackets_style = val;
+        }
+        if let Some(val) = theme.key_style {
+            self.key_style = val;
+        }
+        if let Some(val) = theme.string_value_style {
+            self.string_value_style = val;
+        }
+        if let Some(val) = theme.number_value_style {
+            self.number_value_style = val;
+        }
+        if let Some(val) = theme.boolean_value_style {
+            self.boolean_value_style = val;
+        }
+        if let Some(val) = theme.null_value_style {
+            self.null_value_style = val;
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
 #[builder(name = "ConfigFromFile")]
@@ -124,28 +215,6 @@ pub(crate) struct Config {
     #[serde(with = "content_style_serde")]
     #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_item_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub curly_brackets_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub square_brackets_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub key_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub string_value_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub number_value_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub boolean_value_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub null_value_style: ContentStyle,
 }
 
 impl Default for Config {
@@ -161,17 +230,6 @@ impl Default for Config {
             resize_debounce_duration: Duration::from_millis(200),
             spin_duration: Duration::from_millis(300),
             search_load_chunk_size: 50000,
-            curly_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            square_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-            number_value_style: StyleBuilder::new().build(),
-            boolean_value_style: StyleBuilder::new().build(),
-            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
         }
     }
 }
@@ -205,27 +263,6 @@ impl Config {
         }
         if let Some(val) = config.inactive_item_style {
             self.inactive_item_style = val;
-        }
-        if let Some(val) = config.curly_brackets_style {
-            self.curly_brackets_style = val;
-        }
-        if let Some(val) = config.square_brackets_style {
-            self.square_brackets_style = val;
-        }
-        if let Some(val) = config.key_style {
-            self.key_style = val;
-        }
-        if let Some(val) = config.string_value_style {
-            self.string_value_style = val;
-        }
-        if let Some(val) = config.number_value_style {
-            self.number_value_style = val;
-        }
-        if let Some(val) = config.boolean_value_style {
-            self.boolean_value_style = val;
-        }
-        if let Some(val) = config.null_value_style {
-            self.null_value_style = val;
         }
     }
 }

@@ -7,7 +7,8 @@ use std::{
 use anyhow::anyhow;
 use clap::Parser;
 use config::{
-    Config, ConfigFromFile, EditorConfig, EditorConfigFromFile, Keybinds, KeybindsFromFile,
+    Config, ConfigFromFile, EditorConfig, EditorConfigFromFile, JsonTheme, JsonThemeFromFile,
+    Keybinds, KeybindsFromFile,
 };
 use crossterm::style::Attribute;
 use promkit::{
@@ -76,18 +77,6 @@ pub struct Args {
         "#,
     )]
     pub edit_mode: text_editor::Mode,
-
-    #[arg(
-        short = 'i',
-        long = "indent",
-        default_value = "2",
-        help = "Number of spaces used for indentation in the visualized data.",
-        long_help = "
-        Affect the formatting of the displayed JSON,
-        making it more readable by adjusting the indentation level.
-        "
-    )]
-    pub indent: usize,
 
     #[arg(
         short = 'n',
@@ -219,10 +208,11 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let (mut config, mut keybinds, mut editor_config) = (
+    let (mut config, mut keybinds, mut editor_config, mut json_theme) = (
         Config::default(),
         Keybinds::default(),
         EditorConfig::default(),
+        JsonTheme::default(),
     );
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
@@ -230,9 +220,11 @@ async fn main() -> anyhow::Result<()> {
         let config_from_file = ConfigFromFile::load_from(&content)?;
         let keybinds_from_file = KeybindsFromFile::load_from(&content)?;
         let editor_config_from_file = EditorConfigFromFile::load_from(&content)?;
+        let json_theme_from_file = JsonThemeFromFile::load_from(&content)?;
         config.patch_with(config_from_file);
         keybinds.patch_with(keybinds_from_file);
         editor_config.patch_with(editor_config_from_file);
+        json_theme.patch_with(json_theme_from_file);
     }
 
     let config::Config {
@@ -243,17 +235,10 @@ async fn main() -> anyhow::Result<()> {
         active_item_style,
         inactive_item_style,
         spin_duration,
-        curly_brackets_style,
-        square_brackets_style,
-        key_style,
-        string_value_style,
-        number_value_style,
-        boolean_value_style,
-        null_value_style,
     } = config;
 
     let listbox_state = listbox::State {
-        listbox: Listbox::from_displayable(Vec::<String>::new()),
+        listbox: Listbox::default(),
         cursor: String::from("❯ "),
         active_item_style: Some(active_item_style),
         inactive_item_style: Some(inactive_item_style),
@@ -277,16 +262,16 @@ async fn main() -> anyhow::Result<()> {
 
     let provider = &mut JsonStreamProvider::new(
         RowFormatter {
-            curly_brackets_style,
-            square_brackets_style,
-            key_style,
-            string_value_style,
-            number_value_style,
-            boolean_value_style,
-            null_value_style,
+            curly_brackets_style: json_theme.curly_brackets_style,
+            square_brackets_style: json_theme.square_brackets_style,
+            key_style: json_theme.key_style,
+            string_value_style: json_theme.string_value_style,
+            number_value_style: json_theme.number_value_style,
+            boolean_value_style: json_theme.boolean_value_style,
+            null_value_style: json_theme.null_value_style,
             active_item_attribute: Attribute::Bold,
             inactive_item_attribute: Attribute::Dim,
-            indent: args.indent,
+            indent: json_theme.indent,
         },
         args.max_streams,
     );
