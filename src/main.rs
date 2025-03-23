@@ -6,7 +6,9 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use config::{Config, ConfigFromFile, Keybinds, KeybindsFromFile};
+use config::{
+    Config, ConfigFromFile, EditorConfig, EditorConfigFromFile, Keybinds, KeybindsFromFile,
+};
 use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
@@ -15,7 +17,7 @@ use promkit::{
 };
 
 mod editor;
-use editor::{Editor, EditorTheme};
+use editor::Editor;
 mod config;
 mod json;
 use json::JsonStreamProvider;
@@ -217,14 +219,20 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let (mut config, mut keybinds) = (Config::default(), Keybinds::default());
+    let (mut config, mut keybinds, mut editor_config) = (
+        Config::default(),
+        Keybinds::default(),
+        EditorConfig::default(),
+    );
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
         let config_from_file = ConfigFromFile::load_from(&content)?;
         let keybinds_from_file = KeybindsFromFile::load_from(&content)?;
+        let editor_config_from_file = EditorConfigFromFile::load_from(&content)?;
         config.patch_with(config_from_file);
         keybinds.patch_with(keybinds_from_file);
+        editor_config.patch_with(editor_config_from_file);
     }
 
     let config::Config {
@@ -233,20 +241,8 @@ async fn main() -> anyhow::Result<()> {
         resize_debounce_duration,
         search_load_chunk_size,
         active_item_style,
-        defocus_prefix,
-        focus_prefix,
-        word_break_chars,
-        defocus_prefix_style,
-        defocus_active_char_style,
-        defocus_inactive_char_style,
-        focus_prefix_style,
-        focus_active_char_style,
-        focus_inactive_char_style,
         inactive_item_style,
         spin_duration,
-        prefix_style,
-        active_char_style,
-        inactive_char_style,
         curly_brackets_style,
         square_brackets_style,
         key_style,
@@ -269,28 +265,14 @@ async fn main() -> anyhow::Result<()> {
     let text_editor_state = text_editor::State {
         texteditor: Default::default(),
         history: Default::default(),
-        prefix: focus_prefix.clone(),
+        prefix: editor_config.theme_on_focus.prefix.clone(),
         mask: Default::default(),
-        prefix_style,
-        active_char_style,
-        inactive_char_style,
+        prefix_style: editor_config.theme_on_focus.prefix_style,
+        active_char_style: editor_config.theme_on_focus.active_char_style,
+        inactive_char_style: editor_config.theme_on_focus.inactive_char_style,
         edit_mode: args.edit_mode,
-        word_break_chars,
+        word_break_chars: editor_config.word_break_chars,
         lines: Default::default(),
-    };
-
-    let editor_focus_theme = EditorTheme {
-        prefix: focus_prefix.clone(),
-        prefix_style: focus_prefix_style,
-        active_char_style: focus_active_char_style,
-        inactive_char_style: focus_inactive_char_style,
-    };
-
-    let editor_defocus_theme = EditorTheme {
-        prefix: defocus_prefix,
-        prefix_style: defocus_prefix_style,
-        active_char_style: defocus_active_char_style,
-        inactive_char_style: defocus_inactive_char_style,
     };
 
     let provider = &mut JsonStreamProvider::new(
@@ -316,8 +298,8 @@ async fn main() -> anyhow::Result<()> {
     let editor = Editor::new(
         text_editor_state,
         searcher,
-        editor_focus_theme,
-        editor_defocus_theme,
+        editor_config.theme_on_focus,
+        editor_config.theme_on_defocus,
         keybinds,
     );
 

@@ -18,6 +18,86 @@ use event::{EventDefSet, KeyEventDef};
 
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
+#[builder(name = "EditorConfigFromFile")]
+pub(crate) struct EditorConfig {
+    pub theme_on_focus: EditorTheme,
+    pub theme_on_defocus: EditorTheme,
+
+    #[builder_field_attr(serde(default))]
+    pub word_break_chars: HashSet<char>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Builder)]
+#[builder(derive(Serialize, Deserialize))]
+#[builder(name = "EditorThemeFromFile")]
+pub(crate) struct EditorTheme {
+    #[builder_field_attr(serde(default))]
+    pub prefix: String,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub prefix_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub active_char_style: ContentStyle,
+
+    #[serde(with = "content_style_serde")]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
+    pub inactive_char_style: ContentStyle,
+}
+
+impl Default for EditorConfig {
+    fn default() -> Self {
+        Self {
+            theme_on_focus: EditorTheme {
+                prefix: String::from("❯❯ "),
+                prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
+                active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
+                inactive_char_style: StyleBuilder::new().build(),
+            },
+            theme_on_defocus: EditorTheme {
+                prefix: String::from("▼"),
+                prefix_style: StyleBuilder::new()
+                    .fgc(Color::Blue)
+                    .attrs(Attributes::from(Attribute::Dim))
+                    .build(),
+                active_char_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Dim))
+                    .build(),
+                inactive_char_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Dim))
+                    .build(),
+            },
+            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
+        }
+    }
+}
+
+impl EditorConfigFromFile {
+    /// Load the config from a string.
+    pub fn load_from(content: &str) -> anyhow::Result<Self> {
+        toml::from_str(content).map_err(Into::into)
+    }
+}
+
+impl EditorConfig {
+    pub fn patch_with(&mut self, config: EditorConfigFromFile) {
+        // TODO: This is awful verbose. Can we do better?
+        if let Some(theme_on_focus) = config.theme_on_focus {
+            self.theme_on_focus = theme_on_focus;
+        }
+        if let Some(theme_on_defocus) = config.theme_on_defocus {
+            self.theme_on_defocus = theme_on_defocus;
+        }
+        if let Some(val) = config.word_break_chars {
+            self.word_break_chars = val;
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Builder)]
+#[builder(derive(Serialize, Deserialize))]
 #[builder(name = "ConfigFromFile")]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
@@ -38,49 +118,12 @@ pub(crate) struct Config {
     #[builder_field_attr(serde(default))]
     pub search_load_chunk_size: usize,
 
-    #[builder_field_attr(serde(default))]
-    pub word_break_chars: HashSet<char>,
-
     #[serde(with = "content_style_serde")]
     #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub active_item_style: ContentStyle,
     #[serde(with = "content_style_serde")]
     #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_item_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub prefix_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub active_char_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub inactive_char_style: ContentStyle,
-
-    #[builder_field_attr(serde(default))]
-    pub focus_prefix: String,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub focus_prefix_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub focus_active_char_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub focus_inactive_char_style: ContentStyle,
-
-    #[builder_field_attr(serde(default))]
-    pub defocus_prefix: String,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub defocus_prefix_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub defocus_active_char_style: ContentStyle,
-    #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
-    pub defocus_inactive_char_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
     #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
@@ -108,21 +151,16 @@ pub(crate) struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            focus_prefix: String::from("❯❯ "),
             active_item_style: StyleBuilder::new()
                 .fgc(Color::Grey)
                 .bgc(Color::Yellow)
                 .build(),
-            defocus_prefix: String::from("▼"),
+            inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
             search_result_chunk_size: 100,
             query_debounce_duration: Duration::from_millis(600),
             resize_debounce_duration: Duration::from_millis(200),
             spin_duration: Duration::from_millis(300),
-            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
             search_load_chunk_size: 50000,
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
             curly_brackets_style: StyleBuilder::new()
                 .attrs(Attributes::from(Attribute::Bold))
                 .build(),
@@ -134,20 +172,6 @@ impl Default for Config {
             number_value_style: StyleBuilder::new().build(),
             boolean_value_style: StyleBuilder::new().build(),
             null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-            defocus_prefix_style: StyleBuilder::new()
-                .fgc(Color::Blue)
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            defocus_active_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            defocus_inactive_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            focus_prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            focus_active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            focus_inactive_char_style: StyleBuilder::new().build(),
-            inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
         }
     }
 }
@@ -182,39 +206,6 @@ impl Config {
         if let Some(val) = config.inactive_item_style {
             self.inactive_item_style = val;
         }
-        if let Some(val) = config.prefix_style {
-            self.prefix_style = val;
-        }
-        if let Some(val) = config.active_char_style {
-            self.active_char_style = val;
-        }
-        if let Some(val) = config.inactive_char_style {
-            self.inactive_char_style = val;
-        }
-        if let Some(val) = config.focus_prefix {
-            self.focus_prefix = val;
-        }
-        if let Some(val) = config.focus_prefix_style {
-            self.focus_prefix_style = val;
-        }
-        if let Some(val) = config.focus_active_char_style {
-            self.focus_active_char_style = val;
-        }
-        if let Some(val) = config.focus_inactive_char_style {
-            self.focus_inactive_char_style = val;
-        }
-        if let Some(val) = config.defocus_prefix {
-            self.defocus_prefix = val;
-        }
-        if let Some(val) = config.defocus_prefix_style {
-            self.defocus_prefix_style = val;
-        }
-        if let Some(val) = config.defocus_active_char_style {
-            self.defocus_active_char_style = val;
-        }
-        if let Some(val) = config.defocus_inactive_char_style {
-            self.defocus_inactive_char_style = val;
-        }
         if let Some(val) = config.curly_brackets_style {
             self.curly_brackets_style = val;
         }
@@ -235,9 +226,6 @@ impl Config {
         }
         if let Some(val) = config.null_value_style {
             self.null_value_style = val;
-        }
-        if let Some(val) = config.word_break_chars {
-            self.word_break_chars = val;
         }
     }
 }

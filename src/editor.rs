@@ -2,12 +2,12 @@ use std::{future::Future, pin::Pin};
 
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-    style::{Color, ContentStyle},
+    style::Color,
 };
 use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
 
 use crate::{
-    config::{event::Matcher, Keybinds},
+    config::{event::Matcher, EditorTheme, Keybinds},
     search::IncrementalSearcher,
 };
 
@@ -19,17 +19,6 @@ pub struct Editor {
     guide: text::State,
     searcher: IncrementalSearcher,
     keybinds: Keybinds,
-}
-
-pub struct EditorTheme {
-    // Prefix for the prompt string.
-    pub prefix: String,
-    /// Style applied to the prompt string.
-    pub prefix_style: ContentStyle,
-    /// Style applied to the currently selected character.
-    pub active_char_style: ContentStyle,
-    /// Style applied to characters that are not currently selected.
-    pub inactive_char_style: ContentStyle,
 }
 
 impl Editor {
