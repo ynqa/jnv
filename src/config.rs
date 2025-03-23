@@ -467,7 +467,7 @@ impl ConfigFromFile {
 }
 
 impl Config {
-    pub fn patch_with(mut self, config: ConfigFromFile) -> anyhow::Result<Self> {
+    pub fn patch_with(&mut self, config: ConfigFromFile) {
         // TODO: This is awful verbose. Can we do better?
         if let Some(val) = config.query_debounce_duration {
             self.query_debounce_duration = val;
@@ -583,8 +583,6 @@ impl Config {
         if let Some(val) = config.search_up {
             self.search_up = val;
         }
-
-        Ok(self)
     }
 }
 
@@ -651,6 +649,44 @@ mod tests {
                         .build()
                 ),
             );
+
+            // Check the part of the config that was not set in the toml
+            assert_eq!(config.backward, None);
+            assert_eq!(config.forward, None);
+            assert_eq!(config.completion, None);
+        }
+
+        #[test]
+        fn test_with_empty() {
+            let toml = "";
+            let config = ConfigFromFile::load_from(toml).unwrap();
+
+            assert_eq!(config.search_result_chunk_size, None);
+            assert_eq!(config.query_debounce_duration, None);
+            assert_eq!(config.resize_debounce_duration, None);
+            assert_eq!(config.spin_duration, None);
+            assert_eq!(config.search_load_chunk_size, None);
+            assert_eq!(config.active_item_style, None);
+            assert_eq!(config.inactive_item_style, None);
+            assert_eq!(config.focus_prefix, None);
+            assert_eq!(config.focus_active_char_style, None);
+            assert_eq!(config.move_to_tail, None);
+            assert_eq!(config.move_to_head, None);
+        }
+    }
+
+    mod patch_with {
+        use super::super::*;
+
+        #[test]
+        fn test() {
+            let mut config = Config::default();
+            let config_from_file = ConfigFromFile {
+                focus_prefix: Some(":)".to_string()),
+                ..Default::default()
+            };
+            config.patch_with(config_from_file);
+            assert_eq!(config.focus_prefix, ":)".to_string());
         }
     }
 }

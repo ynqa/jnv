@@ -222,7 +222,7 @@ async fn main() -> anyhow::Result<()> {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
         let loaded = ConfigFromFile::load_from(&content)?;
-        config = config.patch_with(loaded)?;
+        config.patch_with(loaded);
     }
 
     let config::Config {
