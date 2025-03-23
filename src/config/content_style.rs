@@ -1,7 +1,4 @@
-use crossterm::{
-    event::{KeyCode, KeyEvent, KeyModifiers},
-    style::{Attribute, Attributes, Color, ContentStyle},
-};
+use crossterm::style::{Attribute, Attributes, Color, ContentStyle};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

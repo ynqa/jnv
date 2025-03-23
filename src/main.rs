@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::anyhow;
 use clap::Parser;
-use config::{Config, ConfigFromFile};
+use config::{Config, ConfigFromFile, Keybinds, KeybindsFromFile};
 use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
@@ -217,12 +217,14 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let mut config = Config::default();
+    let (mut config, mut keybinds) = (Config::default(), Keybinds::default());
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)?;
-        let loaded = ConfigFromFile::load_from(&content)?;
-        config.patch_with(loaded);
+        let config_from_file = ConfigFromFile::load_from(&content)?;
+        let keybinds_from_file = KeybindsFromFile::load_from(&content)?;
+        config.patch_with(config_from_file);
+        keybinds.patch_with(keybinds_from_file);
     }
 
     let config::Config {
@@ -233,10 +235,7 @@ async fn main() -> anyhow::Result<()> {
         active_item_style,
         defocus_prefix,
         focus_prefix,
-        move_to_tail,
         word_break_chars,
-        backward,
-        forward,
         defocus_prefix_style,
         defocus_active_char_style,
         defocus_inactive_char_style,
@@ -244,15 +243,6 @@ async fn main() -> anyhow::Result<()> {
         focus_active_char_style,
         focus_inactive_char_style,
         inactive_item_style,
-        completion,
-        move_to_head,
-        move_to_next_nearest,
-        move_to_previous_nearest,
-        erase,
-        erase_all,
-        erase_to_previous_nearest,
-        erase_to_next_nearest,
-        search_up,
         spin_duration,
         prefix_style,
         active_char_style,
@@ -323,27 +313,12 @@ async fn main() -> anyhow::Result<()> {
 
     let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
 
-    let editor_keybinds = editor::Keybinds {
-        move_to_tail,
-        backward,
-        forward,
-        completion,
-        move_to_head,
-        move_to_previous_nearest,
-        move_to_next_nearest,
-        erase,
-        erase_all,
-        erase_to_previous_nearest,
-        erase_to_next_nearest,
-        search_up,
-    };
-
     let editor = Editor::new(
         text_editor_state,
         searcher,
         editor_focus_theme,
         editor_defocus_theme,
-        editor_keybinds,
+        keybinds,
     );
 
     prompt::run(

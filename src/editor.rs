@@ -6,7 +6,10 @@ use crossterm::{
 };
 use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
 
-use crate::search::IncrementalSearcher;
+use crate::{
+    config::{event::Matcher, Keybinds},
+    search::IncrementalSearcher,
+};
 
 pub struct Editor {
     keybind: Keybind,
@@ -27,21 +30,6 @@ pub struct EditorTheme {
     pub active_char_style: ContentStyle,
     /// Style applied to characters that are not currently selected.
     pub inactive_char_style: ContentStyle,
-}
-
-pub struct Keybinds {
-    pub move_to_tail: KeyEvent,
-    pub backward: KeyEvent,
-    pub forward: KeyEvent,
-    pub completion: KeyEvent,
-    pub move_to_head: KeyEvent,
-    pub move_to_previous_nearest: KeyEvent,
-    pub move_to_next_nearest: KeyEvent,
-    pub erase: KeyEvent,
-    pub erase_all: KeyEvent,
-    pub erase_to_previous_nearest: KeyEvent,
-    pub erase_to_next_nearest: KeyEvent,
-    pub search_up: KeyEvent,
 }
 
 impl Editor {
@@ -124,7 +112,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
     editor.guide.text = Default::default();
 
     match event {
-        key if key == &Event::Key(editor.keybinds.completion) => {
+        key if editor.keybinds.completion.matches(key) => {
             let prefix = editor.state.texteditor.text_without_cursor().to_string();
             match editor.searcher.start_search(&prefix) {
                 Ok(result) => match result.head_item {
@@ -158,29 +146,27 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         }
 
         // Move cursor.
-        key if key == &Event::Key(editor.keybinds.backward) => {
+        key if editor.keybinds.backward.matches(key) => {
             editor.state.texteditor.backward();
         }
-        key if key == &Event::Key(editor.keybinds.forward) => {
+        key if editor.keybinds.forward.matches(key) => {
             editor.state.texteditor.forward();
         }
-        key if key == &Event::Key(editor.keybinds.move_to_head) => {
+        key if editor.keybinds.move_to_head.matches(key) => {
             editor.state.texteditor.move_to_head();
         }
-
-        key if key == &Event::Key(editor.keybinds.move_to_tail) => {
+        key if editor.keybinds.move_to_tail.matches(key) => {
             editor.state.texteditor.move_to_tail();
         }
 
         // Move cursor to the nearest character.
-        key if key == &Event::Key(editor.keybinds.move_to_previous_nearest) => {
+        key if editor.keybinds.move_to_previous_nearest.matches(key) => {
             editor
                 .state
                 .texteditor
                 .move_to_previous_nearest(&editor.state.word_break_chars);
         }
-
-        key if key == &Event::Key(editor.keybinds.move_to_next_nearest) => {
+        key if editor.keybinds.move_to_next_nearest.matches(key) => {
             editor
                 .state
                 .texteditor
@@ -188,22 +174,21 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         }
 
         // Erase char(s).
-        key if key == &Event::Key(editor.keybinds.erase) => {
+        key if editor.keybinds.erase.matches(key) => {
             editor.state.texteditor.erase();
         }
-        key if key == &Event::Key(editor.keybinds.erase_all) => {
+        key if editor.keybinds.erase_all.matches(key) => {
             editor.state.texteditor.erase_all();
         }
 
         // Erase to the nearest character.
-        key if key == &Event::Key(editor.keybinds.erase_to_previous_nearest) => {
+        key if editor.keybinds.erase_to_previous_nearest.matches(key) => {
             editor
                 .state
                 .texteditor
                 .erase_to_previous_nearest(&editor.state.word_break_chars);
         }
-
-        key if key == &Event::Key(editor.keybinds.erase_to_next_nearest) => {
+        key if editor.keybinds.erase_to_next_nearest.matches(key) => {
             editor
                 .state
                 .texteditor
@@ -254,7 +239,7 @@ pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Res
                 .replace(&editor.searcher.get_current_item());
         }
 
-        key if key == &Event::Key(editor.keybinds.search_up) => {
+        key if editor.keybinds.search_up.matches(key) => {
             editor.searcher.up();
             editor
                 .state
