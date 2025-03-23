@@ -21,18 +21,15 @@ use core::{
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(with = "option_duration_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
     pub query_debounce_duration: Duration,
 
     #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(with = "option_duration_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
     pub resize_debounce_duration: Duration,
 
     #[serde(with = "duration_serde")]
-    #[builder_field_attr(serde(with = "option_duration_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_duration_serde"))]
     pub spin_duration: Duration,
 
     #[builder_field_attr(serde(default))]
@@ -42,136 +39,106 @@ pub(crate) struct Config {
     pub search_load_chunk_size: usize,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub active_item_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_item_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub inactive_char_style: ContentStyle,
 
     #[builder_field_attr(serde(default))]
     pub focus_prefix: String,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub focus_prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub focus_active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub focus_inactive_char_style: ContentStyle,
 
     #[builder_field_attr(serde(default))]
     pub defocus_prefix: String,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub defocus_prefix_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub defocus_active_char_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub defocus_inactive_char_style: ContentStyle,
 
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub curly_brackets_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub square_brackets_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub key_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub string_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub number_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub boolean_value_style: ContentStyle,
     #[serde(with = "content_style_serde")]
-    #[builder_field_attr(serde(with = "option_content_style_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub null_value_style: ContentStyle,
 
     #[builder_field_attr(serde(default))]
     pub word_break_chars: HashSet<char>,
 
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub move_to_tail: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub move_to_head: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub backward: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub forward: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub completion: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub move_to_next_nearest: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub move_to_previous_nearest: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub erase: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub erase_all: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub erase_to_previous_nearest: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub erase_to_next_nearest: KeyEvent,
     #[serde(with = "key_event_serde")]
-    #[builder_field_attr(serde(with = "option_key_event_serde"))]
-    #[builder_field_attr(serde(default))]
+    #[builder_field_attr(serde(default, with = "option_key_event_serde"))]
     pub search_up: KeyEvent,
 }
 
