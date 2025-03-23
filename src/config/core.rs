@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
 #[derive(Serialize, Deserialize)]
-pub struct KeyEventDef {
+struct KeyEventDef {
     code: KeyCode,
     modifiers: KeyModifiers,
 }
@@ -27,52 +27,62 @@ impl From<KeyEventDef> for KeyEvent {
     }
 }
 
-pub mod key_event_serde {
+pub mod key_events_serde {
     use super::*;
     use serde::{Deserializer, Serializer};
+    use std::collections::HashSet;
 
-    pub fn serialize<S>(key_event: &KeyEvent, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(key_events: &HashSet<KeyEvent>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let key_event_def = KeyEventDef::from(key_event);
-        key_event_def.serialize(serializer)
+        let key_event_defs: Vec<KeyEventDef> = key_events.iter().map(KeyEventDef::from).collect();
+        key_event_defs.serialize(serializer)
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<KeyEvent, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<HashSet<KeyEvent>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let key_event_def = KeyEventDef::deserialize(deserializer)?;
-        Ok(KeyEvent::from(key_event_def))
+        let key_event_defs = Vec::<KeyEventDef>::deserialize(deserializer)?;
+        Ok(key_event_defs.into_iter().map(KeyEvent::from).collect())
     }
 }
 
-pub mod option_key_event_serde {
+pub mod option_key_events_serde {
     use super::*;
     use serde::{Deserializer, Serializer};
+    use std::collections::HashSet;
 
-    pub fn serialize<S>(key_event_opt: &Option<KeyEvent>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(
+        key_events_opt: &Option<HashSet<KeyEvent>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        match key_event_opt {
-            Some(key_event) => key_event_serde::serialize(key_event, serializer),
+        match key_events_opt {
+            Some(key_events) => {
+                let key_event_defs: Vec<KeyEventDef> =
+                    key_events.iter().map(KeyEventDef::from).collect();
+                key_event_defs.serialize(serializer)
+            }
             None => serializer.serialize_none(),
         }
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<KeyEvent>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<HashSet<KeyEvent>>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        Option::<KeyEventDef>::deserialize(deserializer)
-            .map_or(Ok(None), |opt| Ok(opt.map(KeyEvent::from)))
+        Option::<Vec<KeyEventDef>>::deserialize(deserializer).map(|opt| {
+            opt.map(|key_event_defs| key_event_defs.into_iter().map(KeyEvent::from).collect())
+        })
     }
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ContentStyleDef {
+struct ContentStyleDef {
     foreground: Option<Color>,
     background: Option<Color>,
     underline: Option<Color>,
