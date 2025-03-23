@@ -9,11 +9,12 @@ use promkit::style::StyleBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
-mod core;
-use core::{
-    content_style_serde, duration_serde, key_events_serde, option_content_style_serde,
-    option_duration_serde, option_key_events_serde,
-};
+mod content_style;
+use content_style::{content_style_serde, option_content_style_serde};
+mod duration;
+use duration::{duration_serde, option_duration_serde};
+mod event;
+use event::{EventDefSet, KeyEventDef};
 
 #[derive(Serialize, Deserialize, Builder)]
 #[builder(derive(Serialize, Deserialize))]
@@ -104,42 +105,18 @@ pub(crate) struct Config {
     #[builder_field_attr(serde(default, with = "option_content_style_serde"))]
     pub null_value_style: ContentStyle,
 
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub move_to_tail: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub move_to_head: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub backward: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub forward: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub completion: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub move_to_next_nearest: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub move_to_previous_nearest: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub erase: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub erase_all: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub erase_to_previous_nearest: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub erase_to_next_nearest: HashSet<KeyEvent>,
-    #[serde(with = "key_events_serde")]
-    #[builder_field_attr(serde(default, with = "option_key_events_serde"))]
-    pub search_up: HashSet<KeyEvent>,
+    pub move_to_tail: EventDefSet,
+    pub move_to_head: EventDefSet,
+    pub backward: EventDefSet,
+    pub forward: EventDefSet,
+    pub completion: EventDefSet,
+    pub move_to_next_nearest: EventDefSet,
+    pub move_to_previous_nearest: EventDefSet,
+    pub erase: EventDefSet,
+    pub erase_all: EventDefSet,
+    pub erase_to_previous_nearest: EventDefSet,
+    pub erase_to_next_nearest: EventDefSet,
+    pub search_up: EventDefSet,
 }
 
 impl Default for Config {
@@ -185,39 +162,39 @@ impl Default for Config {
             focus_active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
             focus_inactive_char_style: StyleBuilder::new().build(),
             inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
-            move_to_tail: HashSet::from_iter([KeyEvent::new(
+            move_to_tail: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('e'),
                 KeyModifiers::CONTROL,
-            )]),
-            move_to_head: HashSet::from_iter([KeyEvent::new(
+            )),
+            move_to_head: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('a'),
                 KeyModifiers::CONTROL,
-            )]),
-            backward: HashSet::from_iter([KeyEvent::new(KeyCode::Left, KeyModifiers::NONE)]),
-            forward: HashSet::from_iter([KeyEvent::new(KeyCode::Right, KeyModifiers::NONE)]),
-            completion: HashSet::from_iter([KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)]),
-            move_to_next_nearest: HashSet::from_iter([KeyEvent::new(
+            )),
+            backward: EventDefSet::from(KeyEventDef::new(KeyCode::Left, KeyModifiers::NONE)),
+            forward: EventDefSet::from(KeyEventDef::new(KeyCode::Right, KeyModifiers::NONE)),
+            completion: EventDefSet::from(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
+            move_to_next_nearest: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('f'),
                 KeyModifiers::ALT,
-            )]),
-            move_to_previous_nearest: HashSet::from_iter([KeyEvent::new(
+            )),
+            move_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('b'),
                 KeyModifiers::ALT,
-            )]),
-            erase: HashSet::from_iter([KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE)]),
-            erase_all: HashSet::from_iter([KeyEvent::new(
+            )),
+            erase: EventDefSet::from(KeyEventDef::new(KeyCode::Backspace, KeyModifiers::NONE)),
+            erase_all: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('u'),
                 KeyModifiers::CONTROL,
-            )]),
-            erase_to_previous_nearest: HashSet::from_iter([KeyEvent::new(
+            )),
+            erase_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('w'),
                 KeyModifiers::CONTROL,
-            )]),
-            erase_to_next_nearest: HashSet::from_iter([KeyEvent::new(
+            )),
+            erase_to_next_nearest: EventDefSet::from(KeyEventDef::new(
                 KeyCode::Char('d'),
-                KeyModifiers::CONTROL,
-            )]),
-            search_up: HashSet::from_iter([KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)]),
+                KeyModifiers::ALT,
+            )),
+            search_up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
         }
     }
 }
@@ -397,10 +374,10 @@ mod tests {
 
             assert_eq!(
                 config.move_to_tail,
-                Some(HashSet::from_iter([KeyEvent::new(
+                Some(EventDefSet::from(KeyEventDef::new(
                     KeyCode::Char('$'),
                     KeyModifiers::CONTROL
-                )]))
+                )))
             );
 
             assert_eq!(config.focus_prefix, Some("❯ ".to_string()));
