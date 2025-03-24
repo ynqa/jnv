@@ -212,6 +212,14 @@ impl Default for Keybinds {
 ///   - https://github.com/toml-rs/toml/issues/376
 /// - Output inline tables
 ///   - https://github.com/toml-rs/toml/issues/592
+///
+/// Also difficult to patch `Config` using only the items specified in the configuration file
+/// (Premise: To address the complexity of configurations,
+/// it assumes using a macro to avoid managing Option-wrapped structures on our side).s
+///
+/// The main challenge is that, for nested structs,
+/// it is not able to wrap every leaf field with Option<>.
+/// https://github.com/colin-kiegel/rust-derive-builder/issues/254
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
