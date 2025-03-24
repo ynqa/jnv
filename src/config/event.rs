@@ -16,6 +16,12 @@ impl Matcher<Event> for EventDefSet {
     }
 }
 
+impl FromIterator<EventDef> for EventDefSet {
+    fn from_iter<I: IntoIterator<Item = EventDef>>(iter: I) -> Self {
+        EventDefSet(iter.into_iter().collect())
+    }
+}
+
 impl From<KeyEventDef> for EventDefSet {
     fn from(key_event_def: KeyEventDef) -> Self {
         EventDefSet(HashSet::from_iter([EventDef::Key(key_event_def)]))

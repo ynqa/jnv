@@ -13,7 +13,7 @@ use content_style::content_style_serde;
 mod duration;
 use duration::duration_serde;
 pub mod event;
-use event::{EventDefSet, KeyEventDef};
+use event::{EventDef, EventDefSet, KeyEventDef};
 mod text_editor;
 use text_editor::text_editor_mode_serde;
 
@@ -157,6 +157,7 @@ pub struct Keybinds {
     pub erase_to_previous_nearest: EventDefSet,
     pub erase_to_next_nearest: EventDefSet,
     pub search_up: EventDefSet,
+    pub search_down: EventDefSet,
 }
 
 impl Default for Keybinds {
@@ -195,6 +196,10 @@ impl Default for Keybinds {
                 KeyModifiers::ALT,
             )),
             search_up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
+            search_down: EventDefSet::from_iter([
+                EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
+                EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
+            ]),
         }
     }
 }
