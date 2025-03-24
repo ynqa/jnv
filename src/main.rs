@@ -80,17 +80,6 @@ pub struct Args {
         "
     )]
     pub config_file: Option<PathBuf>,
-
-    #[arg(
-        long = "max-streams",
-        help = "Maximum number of JSON streams to display",
-        long_help = "
-        Sets the maximum number of JSON streams to load and display.
-        Limiting this value improves performance for large datasets.
-        If not set, all streams will be displayed.
-        "
-    )]
-    pub max_streams: Option<usize>,
 }
 
 /// Parses the input based on the provided arguments.
@@ -205,18 +194,18 @@ async fn main() -> anyhow::Result<()> {
 
     let provider = &mut JsonStreamProvider::new(
         RowFormatter {
-            curly_brackets_style: config.json.curly_brackets_style,
-            square_brackets_style: config.json.square_brackets_style,
-            key_style: config.json.key_style,
-            string_value_style: config.json.string_value_style,
-            number_value_style: config.json.number_value_style,
-            boolean_value_style: config.json.boolean_value_style,
-            null_value_style: config.json.null_value_style,
+            curly_brackets_style: config.json.theme.curly_brackets_style,
+            square_brackets_style: config.json.theme.square_brackets_style,
+            key_style: config.json.theme.key_style,
+            string_value_style: config.json.theme.string_value_style,
+            number_value_style: config.json.theme.number_value_style,
+            boolean_value_style: config.json.theme.boolean_value_style,
+            null_value_style: config.json.theme.null_value_style,
             active_item_attribute: Attribute::Bold,
             inactive_item_attribute: Attribute::Dim,
-            indent: config.json.indent,
+            indent: config.json.theme.indent,
         },
-        args.max_streams,
+        config.json.max_streams,
     );
 
     let item = Box::leak(input.into_boxed_str());

@@ -69,6 +69,12 @@ impl Default for EditorConfig {
 }
 
 #[derive(Serialize, Deserialize)]
+pub(crate) struct JsonConfig {
+    pub max_streams: Option<usize>,
+    pub theme: JsonTheme,
+}
+
+#[derive(Serialize, Deserialize)]
 pub(crate) struct JsonTheme {
     pub indent: usize,
 
@@ -94,21 +100,24 @@ pub(crate) struct JsonTheme {
     pub null_value_style: ContentStyle,
 }
 
-impl Default for JsonTheme {
+impl Default for JsonConfig {
     fn default() -> Self {
         Self {
-            indent: 2,
-            curly_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            square_brackets_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Bold))
-                .build(),
-            key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-            string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-            number_value_style: StyleBuilder::new().build(),
-            boolean_value_style: StyleBuilder::new().build(),
-            null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            max_streams: None,
+            theme: JsonTheme {
+                indent: 2,
+                curly_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                square_brackets_style: StyleBuilder::new()
+                    .attrs(Attributes::from(Attribute::Bold))
+                    .build(),
+                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
+                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
+                number_value_style: StyleBuilder::new().build(),
+                boolean_value_style: StyleBuilder::new().build(),
+                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            },
         }
     }
 }
@@ -116,11 +125,8 @@ impl Default for JsonTheme {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CompletionConfig {
     pub lines: Option<usize>,
-
     pub cursor: String,
-
     pub search_result_chunk_size: usize,
-
     pub search_load_chunk_size: usize,
 
     #[serde(with = "content_style_serde")]
@@ -235,7 +241,7 @@ pub(crate) struct Config {
     pub spin_duration: Duration,
 
     pub editor: EditorConfig,
-    pub json: JsonTheme,
+    pub json: JsonConfig,
     pub completion: CompletionConfig,
     pub keybinds: Keybinds,
 }
@@ -247,7 +253,7 @@ impl Default for Config {
             resize_debounce_duration: Duration::from_millis(200),
             spin_duration: Duration::from_millis(300),
             editor: EditorConfig::default(),
-            json: JsonTheme::default(),
+            json: JsonConfig::default(),
             completion: CompletionConfig::default(),
             keybinds: Keybinds::default(),
         }
