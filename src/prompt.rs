@@ -17,6 +17,7 @@ use tokio::{
 };
 
 use crate::{
+    config::{event::Matcher, Keybinds},
     Context, ContextMonitor, Editor, PaneIndex, Processor, Renderer, SearchProvider,
     SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
 };
@@ -87,6 +88,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     editor: Editor,
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
+    keybinds: Keybinds,
 ) -> anyhow::Result<()> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
@@ -146,12 +148,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('c'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.exit.matches(&event) => {
                                 break 'main
                             },
                             Event::Key(KeyEvent {

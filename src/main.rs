@@ -218,8 +218,9 @@ async fn main() -> anyhow::Result<()> {
         searcher,
         config.editor.theme_on_focus,
         config.editor.theme_on_defocus,
-        config.keybinds.on_editor,
-        config.keybinds.on_completion,
+        // TODO: remove clones
+        config.keybinds.on_editor.clone(),
+        config.keybinds.on_completion.clone(),
     );
 
     prompt::run(
@@ -231,6 +232,7 @@ async fn main() -> anyhow::Result<()> {
         editor,
         loading_suggestions_task,
         args.no_hint,
+        config.keybinds,
     )
     .await?;
 

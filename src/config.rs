@@ -152,13 +152,18 @@ impl Default for CompletionConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+// TODO: remove Clone derive
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Keybinds {
+    pub exit: EventDefSet,
+    pub copy_query: EventDefSet,
+    pub copy_result: EventDefSet,
+    pub switch_mode: EventDefSet,
     pub on_editor: EditorKeybinds,
     pub on_completion: CompletionKeybinds,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct EditorKeybinds {
     pub backward: EventDefSet,
     pub forward: EventDefSet,
@@ -173,7 +178,7 @@ pub struct EditorKeybinds {
     pub completion: EventDefSet,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CompletionKeybinds {
     pub up: EventDefSet,
     pub down: EventDefSet,
@@ -182,6 +187,19 @@ pub struct CompletionKeybinds {
 impl Default for Keybinds {
     fn default() -> Self {
         Self {
+            exit: EventDefSet::from(KeyEventDef::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            copy_query: EventDefSet::from(KeyEventDef::new(
+                KeyCode::Char('q'),
+                KeyModifiers::CONTROL,
+            )),
+            copy_result: EventDefSet::from(KeyEventDef::new(
+                KeyCode::Char('o'),
+                KeyModifiers::CONTROL,
+            )),
+            switch_mode: EventDefSet::from_iter([
+                EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::SHIFT)),
+                EventDef::Key(KeyEventDef::new(KeyCode::Up, KeyModifiers::SHIFT)),
+            ]),
             on_editor: EditorKeybinds {
                 backward: EventDefSet::from(KeyEventDef::new(KeyCode::Left, KeyModifiers::NONE)),
                 forward: EventDefSet::from(KeyEventDef::new(KeyCode::Right, KeyModifiers::NONE)),

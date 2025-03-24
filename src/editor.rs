@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub struct Editor {
-    keymap: Keymap,
+    handler: Handler,
     state: text_editor::State,
     focus_theme: EditorTheme,
     defocus_theme: EditorTheme,
@@ -32,7 +32,7 @@ impl Editor {
         completion_keybinds: CompletionKeybinds,
     ) -> Self {
         Self {
-            keymap: BOXED_EDITOR_KEYMAP,
+            handler: BOXED_EDITOR_HANDLER,
             state,
             focus_theme,
             defocus_theme,
@@ -60,7 +60,7 @@ impl Editor {
         self.state.active_char_style = self.defocus_theme.active_char_style;
 
         self.searcher.leave_search();
-        self.keymap = BOXED_EDITOR_KEYMAP;
+        self.handler = BOXED_EDITOR_HANDLER;
 
         self.guide.text = Default::default();
     }
@@ -82,20 +82,20 @@ impl Editor {
     }
 
     pub async fn operate(&mut self, event: &Event) -> anyhow::Result<()> {
-        (self.keymap)(event, self).await
+        (self.handler)(event, self).await
     }
 }
 
-pub type Keymap = for<'a> fn(
+pub type Handler = for<'a> fn(
     &'a Event,
     &'a mut Editor,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
 
-const BOXED_EDITOR_KEYMAP: Keymap =
+const BOXED_EDITOR_HANDLER: Handler =
     |event, editor| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         Box::pin(edit(event, editor))
     };
-const BOXED_SEARCHER_KEYMAP: Keymap =
+const BOXED_SEARCHER_HANDLER: Handler =
     |event, editor| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
         Box::pin(search(event, editor))
     };
@@ -123,7 +123,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                             editor.guide.style = StyleBuilder::new().fgc(Color::Green).build();
                         }
                         editor.state.texteditor.replace(&head);
-                        editor.keymap = BOXED_SEARCHER_KEYMAP;
+                        editor.handler = BOXED_SEARCHER_HANDLER;
                     }
                     None => {
                         editor.guide.text = format!("No suggestion found for '{}'", prefix);
@@ -233,7 +233,7 @@ pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Res
 
         _ => {
             editor.searcher.leave_search();
-            editor.keymap = BOXED_EDITOR_KEYMAP;
+            editor.handler = BOXED_EDITOR_HANDLER;
             return edit(event, editor).await;
         }
     }
