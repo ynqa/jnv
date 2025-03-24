@@ -61,21 +61,6 @@ pub struct Args {
     pub input: Option<PathBuf>,
 
     #[arg(
-        short = 'e',
-        long = "edit-mode",
-        default_value = "insert",
-        value_parser = edit_mode_validator,
-        help = "Edit mode for the interface ('insert' or 'overwrite').",
-        long_help = r#"
-        Specifies the edit mode for the interface.
-        Acceptable values are "insert" or "overwrite".
-        - "insert" inserts a new input at the cursor's position.
-        - "overwrite" mode replaces existing characters with new input at the cursor's position.
-        "#,
-    )]
-    pub edit_mode: text_editor::Mode,
-
-    #[arg(
         short = 'n',
         long = "no-hint",
         help = "Disables the display of hints.",
@@ -106,14 +91,6 @@ pub struct Args {
         "
     )]
     pub max_streams: Option<usize>,
-}
-
-fn edit_mode_validator(val: &str) -> anyhow::Result<text_editor::Mode> {
-    match val {
-        "insert" | "" => Ok(text_editor::Mode::Insert),
-        "overwrite" => Ok(text_editor::Mode::Overwrite),
-        _ => Err(anyhow!("edit-mode must be 'insert' or 'overwrite'")),
-    }
 }
 
 /// Parses the input based on the provided arguments.
@@ -221,7 +198,7 @@ async fn main() -> anyhow::Result<()> {
         prefix_style: config.editor.theme_on_focus.prefix_style,
         active_char_style: config.editor.theme_on_focus.active_char_style,
         inactive_char_style: config.editor.theme_on_focus.inactive_char_style,
-        edit_mode: args.edit_mode,
+        edit_mode: config.editor.mode,
         word_break_chars: config.editor.word_break_chars,
         lines: Default::default(),
     };

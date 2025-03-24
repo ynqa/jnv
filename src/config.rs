@@ -4,7 +4,7 @@ use crossterm::{
     event::{KeyCode, KeyModifiers},
     style::{Attribute, Attributes, Color, ContentStyle},
 };
-use promkit::style::StyleBuilder;
+use promkit::{style::StyleBuilder, text_editor::Mode};
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 
@@ -14,11 +14,15 @@ mod duration;
 use duration::duration_serde;
 pub mod event;
 use event::{EventDefSet, KeyEventDef};
+mod text_editor;
+use text_editor::text_editor_mode_serde;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct EditorConfig {
     pub theme_on_focus: EditorTheme,
     pub theme_on_defocus: EditorTheme,
+    #[serde(with = "text_editor_mode_serde")]
+    pub mode: Mode,
     pub word_break_chars: HashSet<char>,
 }
 
@@ -58,6 +62,7 @@ impl Default for EditorConfig {
                     .attrs(Attributes::from(Attribute::Dim))
                     .build(),
             },
+            mode: Mode::Insert,
             word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
         }
     }
