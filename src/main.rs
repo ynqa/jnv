@@ -181,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
-        cursor: String::from("❯ "),
+        cursor: config.completion.cursor,
         active_item_style: Some(config.completion.active_item_style),
         inactive_item_style: Some(config.completion.inactive_item_style),
         lines: config.completion.lines,

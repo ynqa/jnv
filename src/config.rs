@@ -117,6 +117,8 @@ impl Default for JsonTheme {
 pub(crate) struct CompletionConfig {
     pub lines: Option<usize>,
 
+    pub cursor: String,
+
     pub search_result_chunk_size: usize,
 
     pub search_load_chunk_size: usize,
@@ -132,6 +134,7 @@ impl Default for CompletionConfig {
     fn default() -> Self {
         Self {
             lines: Some(3),
+            cursor: String::from("❯ "),
             search_result_chunk_size: 100,
             search_load_chunk_size: 50000,
             active_item_style: StyleBuilder::new()
