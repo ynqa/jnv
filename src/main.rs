@@ -218,7 +218,8 @@ async fn main() -> anyhow::Result<()> {
         searcher,
         config.editor.theme_on_focus,
         config.editor.theme_on_defocus,
-        config.keybinds,
+        config.keybinds.on_editor,
+        config.keybinds.on_completion,
     );
 
     prompt::run(

@@ -154,61 +154,75 @@ impl Default for CompletionConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct Keybinds {
-    pub move_to_tail: EventDefSet,
+    pub on_editor: EditorKeybinds,
+    pub on_completion: CompletionKeybinds,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct EditorKeybinds {
     pub backward: EventDefSet,
     pub forward: EventDefSet,
-    pub completion: EventDefSet,
     pub move_to_head: EventDefSet,
+    pub move_to_tail: EventDefSet,
     pub move_to_previous_nearest: EventDefSet,
     pub move_to_next_nearest: EventDefSet,
     pub erase: EventDefSet,
     pub erase_all: EventDefSet,
     pub erase_to_previous_nearest: EventDefSet,
     pub erase_to_next_nearest: EventDefSet,
-    pub search_up: EventDefSet,
-    pub search_down: EventDefSet,
+    pub completion: EventDefSet,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CompletionKeybinds {
+    pub up: EventDefSet,
+    pub down: EventDefSet,
 }
 
 impl Default for Keybinds {
     fn default() -> Self {
         Self {
-            move_to_tail: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('e'),
-                KeyModifiers::CONTROL,
-            )),
-            move_to_head: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('a'),
-                KeyModifiers::CONTROL,
-            )),
-            backward: EventDefSet::from(KeyEventDef::new(KeyCode::Left, KeyModifiers::NONE)),
-            forward: EventDefSet::from(KeyEventDef::new(KeyCode::Right, KeyModifiers::NONE)),
-            completion: EventDefSet::from(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
-            move_to_next_nearest: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('f'),
-                KeyModifiers::ALT,
-            )),
-            move_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('b'),
-                KeyModifiers::ALT,
-            )),
-            erase: EventDefSet::from(KeyEventDef::new(KeyCode::Backspace, KeyModifiers::NONE)),
-            erase_all: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('u'),
-                KeyModifiers::CONTROL,
-            )),
-            erase_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('w'),
-                KeyModifiers::CONTROL,
-            )),
-            erase_to_next_nearest: EventDefSet::from(KeyEventDef::new(
-                KeyCode::Char('d'),
-                KeyModifiers::ALT,
-            )),
-            search_up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
-            search_down: EventDefSet::from_iter([
-                EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
-                EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
-            ]),
+            on_editor: EditorKeybinds {
+                backward: EventDefSet::from(KeyEventDef::new(KeyCode::Left, KeyModifiers::NONE)),
+                forward: EventDefSet::from(KeyEventDef::new(KeyCode::Right, KeyModifiers::NONE)),
+                move_to_head: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('a'),
+                    KeyModifiers::CONTROL,
+                )),
+                move_to_tail: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('e'),
+                    KeyModifiers::CONTROL,
+                )),
+                move_to_next_nearest: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('f'),
+                    KeyModifiers::ALT,
+                )),
+                move_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('b'),
+                    KeyModifiers::ALT,
+                )),
+                erase: EventDefSet::from(KeyEventDef::new(KeyCode::Backspace, KeyModifiers::NONE)),
+                erase_all: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('u'),
+                    KeyModifiers::CONTROL,
+                )),
+                erase_to_previous_nearest: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('w'),
+                    KeyModifiers::CONTROL,
+                )),
+                erase_to_next_nearest: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('d'),
+                    KeyModifiers::ALT,
+                )),
+                completion: EventDefSet::from(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
+            },
+            on_completion: CompletionKeybinds {
+                up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
+                down: EventDefSet::from_iter([
+                    EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
+                    EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
+                ]),
+            },
         }
     }
 }
