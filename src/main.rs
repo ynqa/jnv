@@ -196,8 +196,10 @@ async fn main() -> anyhow::Result<()> {
     let mut config = Config::default();
     if let Ok(config_file) = determine_config_file(args.config_file, &config) {
         // Note that the configuration file absolutely exists.
-        let content = std::fs::read_to_string(&config_file)?;
-        config = Config::load_from(&content)?;
+        let content = std::fs::read_to_string(&config_file)
+            .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
+        config = Config::load_from(&content)
+            .map_err(|e| anyhow!("Failed to deserialize configuration file: {}", e))?;
     }
 
     let listbox_state = listbox::State {

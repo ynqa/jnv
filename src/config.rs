@@ -194,6 +194,14 @@ impl Default for Keybinds {
     }
 }
 
+/// Note that the config struct and the `.toml` configuration file are
+/// managed separately because the current toml crate
+/// does not readily support the following features:
+///
+/// - Preserve docstrings as comments in the `.toml` file
+///   - https://github.com/toml-rs/toml/issues/376
+/// - Output inline tables
+///   - https://github.com/toml-rs/toml/issues/592
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Config {
     #[serde(with = "duration_serde")]
