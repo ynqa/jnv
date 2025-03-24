@@ -161,6 +161,7 @@ pub struct Keybinds {
     pub switch_mode: EventDefSet,
     pub on_editor: EditorKeybinds,
     pub on_completion: CompletionKeybinds,
+    pub on_json_viewer: JsonViewerKeybinds,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -182,6 +183,16 @@ pub struct EditorKeybinds {
 pub struct CompletionKeybinds {
     pub up: EventDefSet,
     pub down: EventDefSet,
+}
+
+pub struct JsonViewerKeybinds {
+    pub up: EventDefSet,
+    pub down: EventDefSet,
+    pub move_to_head: EventDefSet,
+    pub move_to_tail: EventDefSet,
+    pub toggle: EventDefSet,
+    pub expand: EventDefSet,
+    pub collapse: EventDefSet,
 }
 
 impl Default for Keybinds {
