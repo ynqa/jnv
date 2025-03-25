@@ -17,7 +17,7 @@ use tokio::{
 };
 
 use crate::{
-    config::{event::Matcher, Keybinds},
+    config::{event::Matcher, Keybinds, ReactivityControl},
     Context, ContextMonitor, Editor, PaneIndex, Processor, Renderer, SearchProvider,
     SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
 };
@@ -81,9 +81,7 @@ enum Focus {
 #[allow(clippy::too_many_arguments)]
 pub async fn run<T: ViewProvider + SearchProvider>(
     item: &'static str,
-    spin_duration: Duration,
-    query_debounce_duration: Duration,
-    resize_debounce_duration: Duration,
+    reactivity_control: ReactivityControl,
     provider: &mut T,
     editor: Editor,
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
@@ -110,16 +108,23 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
-    let query_debouncer =
-        spawn_debouncer(debounce_query_rx, last_query_tx, query_debounce_duration);
+    let query_debouncer = spawn_debouncer(
+        debounce_query_rx,
+        last_query_tx,
+        reactivity_control.query_debounce_duration,
+    );
 
     let (last_resize_tx, mut last_resize_rx) = mpsc::channel::<(u16, u16)>(1);
     let (debounce_resize_tx, debounce_resize_rx) = mpsc::channel(1);
-    let resize_debouncer =
-        spawn_debouncer(debounce_resize_rx, last_resize_tx, resize_debounce_duration);
+    let resize_debouncer = spawn_debouncer(
+        debounce_resize_rx,
+        last_resize_tx,
+        reactivity_control.resize_debounce_duration,
+    );
 
     let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning = spinner_spawner.spawn_spin_task(shared_renderer.clone(), spin_duration);
+    let spinning =
+        spinner_spawner.spawn_spin_task(shared_renderer.clone(), reactivity_control.spin_duration);
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);

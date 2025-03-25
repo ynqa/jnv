@@ -214,9 +214,7 @@ async fn main() -> anyhow::Result<()> {
 
     prompt::run(
         item,
-        config.spin_duration,
-        config.query_debounce_duration,
-        config.resize_debounce_duration,
+        config.reactivity_control,
         provider,
         editor,
         loading_suggestions_task,

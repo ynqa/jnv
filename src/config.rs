@@ -18,7 +18,7 @@ mod text_editor;
 use text_editor::text_editor_mode_serde;
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct EditorConfig {
+pub struct EditorConfig {
     pub theme_on_focus: EditorTheme,
     pub theme_on_defocus: EditorTheme,
     #[serde(with = "text_editor_mode_serde")]
@@ -27,7 +27,7 @@ pub(crate) struct EditorConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct EditorTheme {
+pub struct EditorTheme {
     pub prefix: String,
 
     #[serde(with = "content_style_serde")]
@@ -69,13 +69,13 @@ impl Default for EditorConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct JsonConfig {
+pub struct JsonConfig {
     pub max_streams: Option<usize>,
     pub theme: JsonTheme,
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct JsonTheme {
+pub struct JsonTheme {
     pub indent: usize,
 
     #[serde(with = "content_style_serde")]
@@ -123,7 +123,7 @@ impl Default for JsonConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct CompletionConfig {
+pub struct CompletionConfig {
     pub lines: Option<usize>,
     pub cursor: String,
     pub search_result_chunk_size: usize,
@@ -284,6 +284,28 @@ impl Default for Keybinds {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ReactivityControl {
+    #[serde(with = "duration_serde")]
+    pub query_debounce_duration: Duration,
+
+    #[serde(with = "duration_serde")]
+    pub resize_debounce_duration: Duration,
+
+    #[serde(with = "duration_serde")]
+    pub spin_duration: Duration,
+}
+
+impl Default for ReactivityControl {
+    fn default() -> Self {
+        Self {
+            query_debounce_duration: Duration::from_millis(600),
+            resize_debounce_duration: Duration::from_millis(200),
+            spin_duration: Duration::from_millis(300),
+        }
+    }
+}
+
 /// Note that the config struct and the `.toml` configuration file are
 /// managed separately because the current toml crate
 /// does not readily support the following features:
@@ -300,38 +322,14 @@ impl Default for Keybinds {
 /// The main challenge is that, for nested structs,
 /// it is not able to wrap every leaf field with Option<>.
 /// https://github.com/colin-kiegel/rust-derive-builder/issues/254
-#[derive(Serialize, Deserialize)]
-pub(crate) struct Config {
+#[derive(Default, Serialize, Deserialize)]
+pub struct Config {
     pub no_hint: bool,
-
-    #[serde(with = "duration_serde")]
-    pub query_debounce_duration: Duration,
-
-    #[serde(with = "duration_serde")]
-    pub resize_debounce_duration: Duration,
-
-    #[serde(with = "duration_serde")]
-    pub spin_duration: Duration,
-
+    pub reactivity_control: ReactivityControl,
     pub editor: EditorConfig,
     pub json: JsonConfig,
     pub completion: CompletionConfig,
     pub keybinds: Keybinds,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            no_hint: false,
-            query_debounce_duration: Duration::from_millis(600),
-            resize_debounce_duration: Duration::from_millis(200),
-            spin_duration: Duration::from_millis(300),
-            editor: EditorConfig::default(),
-            json: JsonConfig::default(),
-            completion: CompletionConfig::default(),
-            keybinds: Keybinds::default(),
-        }
-    }
 }
 
 impl Config {
