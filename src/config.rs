@@ -302,6 +302,8 @@ impl Default for Keybinds {
 /// https://github.com/colin-kiegel/rust-derive-builder/issues/254
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Config {
+    pub no_hint: bool,
+
     #[serde(with = "duration_serde")]
     pub query_debounce_duration: Duration,
 
@@ -320,6 +322,7 @@ pub(crate) struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            no_hint: false,
             query_debounce_duration: Duration::from_millis(600),
             resize_debounce_duration: Duration::from_millis(200),
             spin_duration: Duration::from_millis(300),

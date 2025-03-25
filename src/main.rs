@@ -61,17 +61,6 @@ pub struct Args {
     pub input: Option<PathBuf>,
 
     #[arg(
-        short = 'n',
-        long = "no-hint",
-        help = "Disables the display of hints.",
-        long_help = "
-        When this option is enabled, it prevents the display of
-        hints that typically guide or offer suggestions to the user.
-        "
-    )]
-    pub no_hint: bool,
-
-    #[arg(
         short = 'c',
         long = "config",
         help = "Path to the configuration file.",
@@ -231,7 +220,7 @@ async fn main() -> anyhow::Result<()> {
         provider,
         editor,
         loading_suggestions_task,
-        args.no_hint,
+        config.no_hint,
         config.keybinds,
     )
     .await?;
