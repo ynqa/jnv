@@ -30,6 +30,8 @@ use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
 
+static DEFAULT_CONFIG: &str = include_str!("../default.toml");
+
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
 #[command(
@@ -102,7 +104,7 @@ fn parse_input(args: &Args) -> anyhow::Result<String> {
 /// If the file already exists, returns Ok.
 /// If the file doesn't exist, writes the default configuration in TOML format.
 /// Returns an error if file creation fails.
-fn ensure_file_exists(path: &PathBuf, default_config: &Config) -> anyhow::Result<()> {
+fn ensure_file_exists(path: &PathBuf) -> anyhow::Result<()> {
     if path.exists() {
         return Ok(());
     }
@@ -112,7 +114,7 @@ fn ensure_file_exists(path: &PathBuf, default_config: &Config) -> anyhow::Result
             .map_err(|e| anyhow!("Failed to create directory: {}", e))?;
     }
 
-    std::fs::File::create(path)?.write_all(toml::to_string_pretty(default_config)?.as_bytes())?;
+    std::fs::File::create(path)?.write_all(DEFAULT_CONFIG.as_bytes())?;
 
     Ok(())
 }
@@ -123,13 +125,10 @@ fn ensure_file_exists(path: &PathBuf, default_config: &Config) -> anyhow::Result
 ///
 /// If the configuration file does not exist, it will be created.
 /// Returns an error if the file creation fails.
-fn determine_config_file(
-    config_path: Option<PathBuf>,
-    default_config: &Config,
-) -> anyhow::Result<PathBuf> {
+fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     // If a custom path is provided
     if let Some(path) = config_path {
-        ensure_file_exists(&path, default_config)?;
+        ensure_file_exists(&path)?;
         return Ok(path);
     }
 
@@ -139,7 +138,7 @@ fn determine_config_file(
         .join("jnv")
         .join("config.toml");
 
-    ensure_file_exists(&default_path, default_config)?;
+    ensure_file_exists(&default_path)?;
     Ok(default_path)
 }
 
@@ -149,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
     let input = parse_input(&args)?;
 
     let mut config = Config::default();
-    if let Ok(config_file) = determine_config_file(args.config_file, &config) {
+    if let Ok(config_file) = determine_config_file(args.config_file) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)
             .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
