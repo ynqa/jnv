@@ -6,271 +6,122 @@ resize_debounce_duration = "200ms"
 spin_duration = "300ms"
 
 [editor]
-mode = "Insert"
-word_break_chars = [
-    "(",
-    "|",
-    ")",
-    ".",
-    "[",
-    "]",
-]
+mode = Insert
+word_break_chars = ["(", "|", ")", ".", "[", "]"]
+theme_on_focus = { 
+    prefix = "❯❯ ", 
+    prefix_style = { foreground = blue }, 
+    active_char_style = { background = magenta }, 
+    inactive_char_style = {} 
+}
+theme_on_defocus = { 
+    prefix = "▼", 
+    prefix_style = { foreground = blue, attributes = [Dim] }, 
+    active_char_style = { attributes = [Dim] }, 
+    inactive_char_style = { attributes = [Dim] } 
+}
 
-[editor.theme_on_focus]
-prefix = "❯❯ "
-
-[editor.theme_on_focus.prefix_style]
-foreground = "blue"
-
-[editor.theme_on_focus.active_char_style]
-background = "magenta"
-
-[editor.theme_on_focus.inactive_char_style]
-
-[editor.theme_on_defocus]
-prefix = "▼"
-
-[editor.theme_on_defocus.prefix_style]
-foreground = "blue"
-attributes = ["Dim"]
-
-[editor.theme_on_defocus.active_char_style]
-attributes = ["Dim"]
-
-[editor.theme_on_defocus.inactive_char_style]
-attributes = ["Dim"]
-
-[json.theme]
-indent = 2
-
-[json.theme.curly_brackets_style]
-attributes = ["Bold"]
-
-[json.theme.square_brackets_style]
-attributes = ["Bold"]
-
-[json.theme.key_style]
-foreground = "cyan"
-
-[json.theme.string_value_style]
-foreground = "green"
-
-[json.theme.number_value_style]
-
-[json.theme.boolean_value_style]
-
-[json.theme.null_value_style]
-foreground = "grey"
+[json]
+# max_streams = None
+theme = { 
+    indent = 2,
+    curly_brackets_style = { attributes = [Bold] },
+    square_brackets_style = { attributes = [Bold] },
+    key_style = { foreground = cyan },
+    string_value_style = { foreground = green },
+    number_value_style = {},
+    boolean_value_style = {},
+    null_value_style = { foreground = grey }
+}
 
 [completion]
 lines = 3
 cursor = "❯ "
 search_result_chunk_size = 100
 search_load_chunk_size = 50000
-
-[completion.active_item_style]
-foreground = "grey"
-background = "yellow"
-
-[completion.inactive_item_style]
-foreground = "grey"
+active_item_style = { foreground = grey, background = yellow }
+inactive_item_style = { foreground = grey }
 
 [[keybinds.exit]]
-
-[keybinds.exit.Key]
-modifiers = "CONTROL"
-
-[keybinds.exit.Key.code]
-Char = "c"
+Key = { modifiers = CONTROL, code = { Char = "c" } }
 
 [[keybinds.copy_query]]
-
-[keybinds.copy_query.Key]
-modifiers = "CONTROL"
-
-[keybinds.copy_query.Key.code]
-Char = "q"
+Key = { modifiers = CONTROL, code = { Char = "q" } }
 
 [[keybinds.copy_result]]
-
-[keybinds.copy_result.Key]
-modifiers = "CONTROL"
-
-[keybinds.copy_result.Key.code]
-Char = "o"
+Key = { modifiers = CONTROL, code = { Char = "o" } }
 
 [[keybinds.switch_mode]]
-
-[keybinds.switch_mode.Key]
-code = "Down"
-modifiers = "SHIFT"
+Key = { code = Down, modifiers = SHIFT }
 
 [[keybinds.switch_mode]]
-
-[keybinds.switch_mode.Key]
-code = "Up"
-modifiers = "SHIFT"
+Key = { code = Up, modifiers = SHIFT }
 
 [[keybinds.on_editor.backward]]
-
-[keybinds.on_editor.backward.Key]
-code = "Left"
-modifiers = ""
+Key = { code = Left, modifiers = "" }
 
 [[keybinds.on_editor.forward]]
-
-[keybinds.on_editor.forward.Key]
-code = "Right"
-modifiers = ""
+Key = { code = Right, modifiers = "" }
 
 [[keybinds.on_editor.move_to_head]]
-
-[keybinds.on_editor.move_to_head.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_editor.move_to_head.Key.code]
-Char = "a"
+Key = { modifiers = CONTROL, code = { Char = "a" } }
 
 [[keybinds.on_editor.move_to_tail]]
-
-[keybinds.on_editor.move_to_tail.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_editor.move_to_tail.Key.code]
-Char = "e"
+Key = { modifiers = CONTROL, code = { Char = "e" } }
 
 [[keybinds.on_editor.move_to_previous_nearest]]
-
-[keybinds.on_editor.move_to_previous_nearest.Key]
-modifiers = "ALT"
-
-[keybinds.on_editor.move_to_previous_nearest.Key.code]
-Char = "b"
+Key = { modifiers = ALT, code = { Char = "b" } }
 
 [[keybinds.on_editor.move_to_next_nearest]]
-
-[keybinds.on_editor.move_to_next_nearest.Key]
-modifiers = "ALT"
-
-[keybinds.on_editor.move_to_next_nearest.Key.code]
-Char = "f"
+Key = { modifiers = ALT, code = { Char = "f" } }
 
 [[keybinds.on_editor.erase]]
-
-[keybinds.on_editor.erase.Key]
-code = "Backspace"
-modifiers = ""
+Key = { code = Backspace, modifiers = "" }
 
 [[keybinds.on_editor.erase_all]]
-
-[keybinds.on_editor.erase_all.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_editor.erase_all.Key.code]
-Char = "u"
+Key = { modifiers = CONTROL, code = { Char = "u" } }
 
 [[keybinds.on_editor.erase_to_previous_nearest]]
-
-[keybinds.on_editor.erase_to_previous_nearest.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_editor.erase_to_previous_nearest.Key.code]
-Char = "w"
+Key = { modifiers = CONTROL, code = { Char = "w" } }
 
 [[keybinds.on_editor.erase_to_next_nearest]]
-
-[keybinds.on_editor.erase_to_next_nearest.Key]
-modifiers = "ALT"
-
-[keybinds.on_editor.erase_to_next_nearest.Key.code]
-Char = "d"
+Key = { modifiers = ALT, code = { Char = "d" } }
 
 [[keybinds.on_editor.completion]]
-
-[keybinds.on_editor.completion.Key]
-code = "Tab"
-modifiers = ""
+Key = { code = Tab, modifiers = "" }
 
 [[keybinds.on_completion.up]]
-
-[keybinds.on_completion.up.Key]
-code = "Up"
-modifiers = ""
+Key = { code = Up, modifiers = "" }
 
 [[keybinds.on_completion.down]]
-
-[keybinds.on_completion.down.Key]
-code = "Down"
-modifiers = ""
+Key = { code = Down, modifiers = "" }
 
 [[keybinds.on_completion.down]]
-
-[keybinds.on_completion.down.Key]
-code = "Tab"
-modifiers = ""
+Key = { code = Tab, modifiers = "" }
 
 [[keybinds.on_json_viewer.up]]
-
-[keybinds.on_json_viewer.up.Key]
-code = "Up"
-modifiers = ""
+Key = { code = Up, modifiers = "" }
 
 [[keybinds.on_json_viewer.up]]
-
-[keybinds.on_json_viewer.up.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.up.Key.code]
-Char = "k"
+Key = { modifiers = CONTROL, code = { Char = "k" } }
 
 [[keybinds.on_json_viewer.down]]
-
-[keybinds.on_json_viewer.down.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.down.Key.code]
-Char = "j"
+Key = { modifiers = CONTROL, code = { Char = "j" } }
 
 [[keybinds.on_json_viewer.down]]
-
-[keybinds.on_json_viewer.down.Key]
-code = "Down"
-modifiers = ""
+Key = { code = Down, modifiers = "" }
 
 [[keybinds.on_json_viewer.move_to_head]]
-
-[keybinds.on_json_viewer.move_to_head.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.move_to_head.Key.code]
-Char = "l"
+Key = { modifiers = CONTROL, code = { Char = "l" } }
 
 [[keybinds.on_json_viewer.move_to_tail]]
-
-[keybinds.on_json_viewer.move_to_tail.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.move_to_tail.Key.code]
-Char = "h"
+Key = { modifiers = CONTROL, code = { Char = "h" } }
 
 [[keybinds.on_json_viewer.toggle]]
-
-[keybinds.on_json_viewer.toggle.Key]
-code = "Enter"
-modifiers = ""
+Key = { code = Enter, modifiers = "" }
 
 [[keybinds.on_json_viewer.expand]]
-
-[keybinds.on_json_viewer.expand.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.expand.Key.code]
-Char = "p"
+Key = { modifiers = CONTROL, code = { Char = "p" } }
 
 [[keybinds.on_json_viewer.collapse]]
-
-[keybinds.on_json_viewer.collapse.Key]
-modifiers = "CONTROL"
-
-[keybinds.on_json_viewer.collapse.Key.code]
-Char = "n"
+Key = { modifiers = CONTROL, code = { Char = "n" } }
