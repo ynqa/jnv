@@ -1,5 +1,5 @@
 use crossterm::{
-    event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+    event::Event,
     style::{Attribute, Attributes},
 };
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
@@ -14,20 +14,23 @@ use promkit::{
 };
 
 use crate::{
+    config::{event::Matcher, JsonViewerKeybinds},
     processor::{ViewProvider, Visualizer},
     search::SearchProvider,
 };
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Json {
     state: jsonstream::State,
     json: &'static [serde_json::Value],
+    keybinds: JsonViewerKeybinds,
 }
 
 impl Json {
     pub fn new(
         formatter: RowFormatter,
         input_stream: &'static [serde_json::Value],
+        keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             json: input_stream,
@@ -36,88 +39,42 @@ impl Json {
                 formatter,
                 lines: Default::default(),
             },
+            keybinds,
         })
     }
 
     fn operate(&mut self, event: &Event) {
         match event {
             // Move up.
-            Event::Key(KeyEvent {
-                code: KeyCode::Up,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            })
-            | Event::Key(KeyEvent {
-                code: KeyCode::Char('k'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.up.matches(event) => {
                 self.state.stream.up();
             }
 
             // Move down.
-            Event::Key(KeyEvent {
-                code: KeyCode::Down,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            })
-            | Event::Key(KeyEvent {
-                code: KeyCode::Char('j'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.down.matches(event) => {
                 self.state.stream.down();
             }
 
-            // Move to tail
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('h'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
-                self.state.stream.tail();
-            }
-
             // Move to head
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('l'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.move_to_head.matches(event) => {
                 self.state.stream.head();
             }
 
+            // Move to tail
+            event if self.keybinds.move_to_tail.matches(event) => {
+                self.state.stream.tail();
+            }
+
             // Toggle collapse/expand
-            Event::Key(KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::NONE,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.toggle.matches(event) => {
                 self.state.stream.toggle();
             }
 
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('p'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.expand.matches(event) => {
                 self.state.stream.set_nodes_visibility(false);
             }
 
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('n'),
-                modifiers: KeyModifiers::CONTROL,
-                kind: KeyEventKind::Press,
-                state: KeyEventState::NONE,
-            }) => {
+            event if self.keybinds.collapse.matches(event) => {
                 self.state.stream.set_nodes_visibility(true);
             }
 
@@ -242,10 +199,14 @@ impl JsonStreamProvider {
 
 #[async_trait::async_trait]
 impl ViewProvider for JsonStreamProvider {
-    async fn provide(&mut self, item: &'static str) -> anyhow::Result<Json> {
+    async fn provide(
+        &mut self,
+        item: &'static str,
+        keybinds: JsonViewerKeybinds,
+    ) -> anyhow::Result<Json> {
         let stream = self.deserialize_json(item)?;
         let static_stream = Box::leak(stream.into_boxed_slice());
-        Json::new(std::mem::take(&mut self.formatter), static_stream)
+        Json::new(std::mem::take(&mut self.formatter), static_stream, keybinds)
     }
 }
 

@@ -89,6 +89,7 @@ pub struct MouseEventDef {
 }
 
 impl MouseEventDef {
+    #[allow(dead_code)]
     pub fn new(kind: MouseEventKind, modifiers: KeyModifiers) -> Self {
         MouseEventDef { kind, modifiers }
     }

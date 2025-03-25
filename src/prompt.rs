@@ -135,7 +135,13 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
     let initializer = ViewInitializer::new(ctx.clone());
-    let initializing = initializer.initialize(provider, item, size, shared_renderer.clone());
+    let initializing = initializer.initialize(
+        provider,
+        item,
+        size,
+        shared_renderer.clone(),
+        keybinds.on_json_viewer,
+    );
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();

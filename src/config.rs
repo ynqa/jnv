@@ -185,6 +185,7 @@ pub struct CompletionKeybinds {
     pub down: EventDefSet,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct JsonViewerKeybinds {
     pub up: EventDefSet,
     pub down: EventDefSet,
@@ -251,6 +252,33 @@ impl Default for Keybinds {
                     EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
                     EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
                 ]),
+            },
+            on_json_viewer: JsonViewerKeybinds {
+                up: EventDefSet::from_iter([
+                    EventDef::Key(KeyEventDef::new(KeyCode::Char('k'), KeyModifiers::CONTROL)),
+                    EventDef::Key(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
+                ]),
+                down: EventDefSet::from_iter([
+                    EventDef::Key(KeyEventDef::new(KeyCode::Char('j'), KeyModifiers::CONTROL)),
+                    EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
+                ]),
+                move_to_head: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('l'),
+                    KeyModifiers::CONTROL,
+                )),
+                move_to_tail: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('h'),
+                    KeyModifiers::CONTROL,
+                )),
+                toggle: EventDefSet::from(KeyEventDef::new(KeyCode::Enter, KeyModifiers::NONE)),
+                expand: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('p'),
+                    KeyModifiers::CONTROL,
+                )),
+                collapse: EventDefSet::from(KeyEventDef::new(
+                    KeyCode::Char('n'),
+                    KeyModifiers::CONTROL,
+                )),
             },
         }
     }
