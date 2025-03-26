@@ -10,7 +10,7 @@ mode = "Insert"
 
 # Characters considered as word boundaries
 # These are used to define word movement and deletion behavior in the editor
-word_break_chars = ["(", "|", ")", ".", "[", "]"]
+word_break_chars = [".", "|", "(", ")", "[", "]"]
 
 # Theme settings when the editor is focused
 [editor.theme_on_focus]
