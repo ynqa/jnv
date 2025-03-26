@@ -66,9 +66,6 @@ pub struct Args {
         short = 'c',
         long = "config",
         help = "Path to the configuration file.",
-        long_help = "
-        Specifies the path to the configuration file.
-        "
     )]
     pub config_file: Option<PathBuf>,
 }
@@ -151,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(config_file) = determine_config_file(args.config_file) {
         // Note that the configuration file absolutely exists.
         let content = std::fs::read_to_string(&config_file)
+            // TODO: output the message as the initial guide pane.
             .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
         config = Config::load_from(&content)
             .map_err(|e| anyhow!("Failed to deserialize configuration file: {}", e))?;
