@@ -11,7 +11,7 @@ use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
     listbox::{self, Listbox},
-    text_editor,
+    text_editor::{self, TextEditor},
 };
 
 mod editor;
@@ -64,6 +64,16 @@ pub struct Args {
 
     #[arg(short = 'c', long = "config", help = "Path to the configuration file.")]
     pub config_file: Option<PathBuf>,
+
+    #[arg(
+        long = "default-filter",
+        help = "Default jq filter to apply to the input data",
+        long_help = "
+        Sets the default jq filter to apply to the input data.
+        The filter is applied when the interface is first loaded.
+        "
+    )]
+    default_filter: Option<String>,
 }
 
 /// Parses the input based on the provided arguments.
@@ -163,7 +173,11 @@ async fn main() -> anyhow::Result<()> {
         IncrementalSearcher::new(listbox_state, config.completion.search_result_chunk_size);
 
     let text_editor_state = text_editor::State {
-        texteditor: Default::default(),
+        texteditor: if let Some(filter) = args.default_filter {
+            TextEditor::new(filter)
+        } else {
+            Default::default()
+        },
         history: Default::default(),
         prefix: config.editor.theme_on_focus.prefix.clone(),
         mask: Default::default(),
