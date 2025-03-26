@@ -12,6 +12,23 @@ mode = "Insert"
 # These are used to define word movement and deletion behavior in the editor
 word_break_chars = [".", "|", "(", ")", "[", "]"]
 
+# How to configure colors and text attributes
+# 
+# Color specification methods:
+# 1. By name: "black", "red", etc.
+# 2. By RGB value: "rgb_(255,0,0)" or "#ff0000"
+# 3. By ANSI value: "ansi_(16)"
+#
+# Text attribute specification:
+# attributes = ["Bold"], etc.
+#
+# Configuration example:
+# style = { foreground = "blue", background = "magenta", attributes = ["Bold"] }
+#
+# Detailed information:
+# - Color: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Color.html
+# - Attribute: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Attribute.html
+
 # Theme settings when the editor is focused
 [editor.theme_on_focus]
 # Prefix shown before the cursor
