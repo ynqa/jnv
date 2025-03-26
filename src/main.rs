@@ -196,6 +196,9 @@ async fn main() -> anyhow::Result<()> {
     let loading_suggestions_task =
         searcher.spawn_load_task(provider, item, config.completion.search_load_chunk_size);
 
+    // TODO: re-consider put editor_task of prompt::run into Editor construction time.
+    // Overall, there are several cases where it would be sufficient to
+    // launch a background thread during construction.
     let editor = Editor::new(
         text_editor_state,
         searcher,
@@ -205,6 +208,7 @@ async fn main() -> anyhow::Result<()> {
         config.keybinds.on_editor.clone(),
     );
 
+    // TODO: put all logics here.
     prompt::run(
         item,
         config.reactivity_control,
