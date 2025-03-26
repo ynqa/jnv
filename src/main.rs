@@ -62,11 +62,7 @@ pub struct Args {
     /// reads from standard input.
     pub input: Option<PathBuf>,
 
-    #[arg(
-        short = 'c',
-        long = "config",
-        help = "Path to the configuration file.",
-    )]
+    #[arg(short = 'c', long = "config", help = "Path to the configuration file.")]
     pub config_file: Option<PathBuf>,
 }
 
@@ -132,6 +128,7 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
     // Use the default path
     let default_path = dirs::config_dir()
         .ok_or_else(|| anyhow!("Failed to determine the configuration directory"))?
+        // TODO: need versions...?
         .join("jnv")
         .join("config.toml");
 
