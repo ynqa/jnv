@@ -208,7 +208,6 @@ async fn main() -> anyhow::Result<()> {
         config.editor.theme_on_defocus,
         // TODO: remove clones
         config.keybinds.on_editor.clone(),
-        config.keybinds.on_completion.clone(),
     );
 
     prompt::run(

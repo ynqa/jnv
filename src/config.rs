@@ -160,7 +160,6 @@ pub struct Keybinds {
     pub copy_result: EventDefSet,
     pub switch_mode: EventDefSet,
     pub on_editor: EditorKeybinds,
-    pub on_completion: CompletionKeybinds,
     pub on_json_viewer: JsonViewerKeybinds,
 }
 
@@ -177,6 +176,7 @@ pub struct EditorKeybinds {
     pub erase_to_previous_nearest: EventDefSet,
     pub erase_to_next_nearest: EventDefSet,
     pub completion: EventDefSet,
+    pub on_completion: CompletionKeybinds,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -245,13 +245,13 @@ impl Default for Keybinds {
                     KeyModifiers::ALT,
                 )),
                 completion: EventDefSet::from(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
-            },
-            on_completion: CompletionKeybinds {
-                up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
-                down: EventDefSet::from_iter([
-                    EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
-                    EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
-                ]),
+                on_completion: CompletionKeybinds {
+                    up: EventDefSet::from(KeyEventDef::new(KeyCode::Up, KeyModifiers::NONE)),
+                    down: EventDefSet::from_iter([
+                        EventDef::Key(KeyEventDef::new(KeyCode::Tab, KeyModifiers::NONE)),
+                        EventDef::Key(KeyEventDef::new(KeyCode::Down, KeyModifiers::NONE)),
+                    ]),
+                },
             },
             on_json_viewer: JsonViewerKeybinds {
                 up: EventDefSet::from_iter([

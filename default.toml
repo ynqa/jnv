@@ -6,122 +6,120 @@ resize_debounce_duration = "200ms"
 spin_duration = "300ms"
 
 [editor]
-mode = Insert
+mode = "Insert"
 word_break_chars = ["(", "|", ")", ".", "[", "]"]
-theme_on_focus = { 
-    prefix = "❯❯ ", 
-    prefix_style = { foreground = blue }, 
-    active_char_style = { background = magenta }, 
-    inactive_char_style = {} 
-}
-theme_on_defocus = { 
-    prefix = "▼", 
-    prefix_style = { foreground = blue, attributes = [Dim] }, 
-    active_char_style = { attributes = [Dim] }, 
-    inactive_char_style = { attributes = [Dim] } 
-}
+
+[editor.theme_on_focus]
+prefix = "❯❯ "
+prefix_style = { foreground = "blue" }
+active_char_style = { background = "magenta" }
+inactive_char_style = {}
+
+[editor.theme_on_defocus]
+prefix = "▼"
+prefix_style = { foreground = "blue", attributes = ["Dim"] }
+active_char_style = { attributes = ["Dim"] }
+inactive_char_style = { attributes = ["Dim"] }
 
 [json]
 # max_streams = None
-theme = { 
-    indent = 2,
-    curly_brackets_style = { attributes = [Bold] },
-    square_brackets_style = { attributes = [Bold] },
-    key_style = { foreground = cyan },
-    string_value_style = { foreground = green },
-    number_value_style = {},
-    boolean_value_style = {},
-    null_value_style = { foreground = grey }
-}
+
+[json.theme]
+indent = 2
+curly_brackets_style = { attributes = ["Bold"] }
+square_brackets_style = { attributes = ["Bold"] }
+key_style = { foreground = "cyan" }
+string_value_style = { foreground = "green" }
+number_value_style = {}
+boolean_value_style = {}
+null_value_style = { foreground = "grey" }
 
 [completion]
 lines = 3
 cursor = "❯ "
 search_result_chunk_size = 100
 search_load_chunk_size = 50000
-active_item_style = { foreground = grey, background = yellow }
-inactive_item_style = { foreground = grey }
+active_item_style = { foreground = "grey", background = "yellow" }
+inactive_item_style = { foreground = "grey" }
 
-[[keybinds.exit]]
-Key = { modifiers = CONTROL, code = { Char = "c" } }
+[keybinds]
+exit = [
+  { Key = { modifiers = "CONTROL", code = { Char = "c" } } }
+]
+copy_query = [
+  { Key = { modifiers = "CONTROL", code = { Char = "q" } } }
+]
+copy_result = [
+  { Key = { modifiers = "CONTROL", code = { Char = "o" } } }
+]
+switch_mode = [
+  { Key = { code = "Down", modifiers = "SHIFT" } },
+  { Key = { code = "Up", modifiers = "SHIFT" } }
+]
 
-[[keybinds.copy_query]]
-Key = { modifiers = CONTROL, code = { Char = "q" } }
+[keybinds.on_editor]
+backward = [
+  { Key = { code = "Left", modifiers = "" } }
+]
+forward = [
+  { Key = { code = "Right", modifiers = "" } }
+]
+move_to_head = [
+  { Key = { modifiers = "CONTROL", code = { Char = "a" } } }
+]
+move_to_tail = [
+  { Key = { modifiers = "CONTROL", code = { Char = "e" } } }
+]
+move_to_previous_nearest = [
+  { Key = { modifiers = "ALT", code = { Char = "b" } } }
+]
+move_to_next_nearest = [
+  { Key = { modifiers = "ALT", code = { Char = "f" } } }
+]
+erase = [
+  { Key = { code = "Backspace", modifiers = "" } }
+]
+erase_all = [
+  { Key = { modifiers = "CONTROL", code = { Char = "u" } } }
+]
+erase_to_previous_nearest = [
+  { Key = { modifiers = "CONTROL", code = { Char = "w" } } }
+]
+erase_to_next_nearest = [
+  { Key = { modifiers = "ALT", code = { Char = "d" } } }
+]
+completion = [
+  { Key = { code = "Tab", modifiers = "" } }
+]
+on_completion.up = [
+  { Key = { code = "Up", modifiers = "" } }
+]
+on_completion.down = [
+  { Key = { code = "Down", modifiers = "" } },
+  { Key = { code = "Tab", modifiers = "" } }
+]
 
-[[keybinds.copy_result]]
-Key = { modifiers = CONTROL, code = { Char = "o" } }
-
-[[keybinds.switch_mode]]
-Key = { code = Down, modifiers = SHIFT }
-
-[[keybinds.switch_mode]]
-Key = { code = Up, modifiers = SHIFT }
-
-[[keybinds.on_editor.backward]]
-Key = { code = Left, modifiers = "" }
-
-[[keybinds.on_editor.forward]]
-Key = { code = Right, modifiers = "" }
-
-[[keybinds.on_editor.move_to_head]]
-Key = { modifiers = CONTROL, code = { Char = "a" } }
-
-[[keybinds.on_editor.move_to_tail]]
-Key = { modifiers = CONTROL, code = { Char = "e" } }
-
-[[keybinds.on_editor.move_to_previous_nearest]]
-Key = { modifiers = ALT, code = { Char = "b" } }
-
-[[keybinds.on_editor.move_to_next_nearest]]
-Key = { modifiers = ALT, code = { Char = "f" } }
-
-[[keybinds.on_editor.erase]]
-Key = { code = Backspace, modifiers = "" }
-
-[[keybinds.on_editor.erase_all]]
-Key = { modifiers = CONTROL, code = { Char = "u" } }
-
-[[keybinds.on_editor.erase_to_previous_nearest]]
-Key = { modifiers = CONTROL, code = { Char = "w" } }
-
-[[keybinds.on_editor.erase_to_next_nearest]]
-Key = { modifiers = ALT, code = { Char = "d" } }
-
-[[keybinds.on_editor.completion]]
-Key = { code = Tab, modifiers = "" }
-
-[[keybinds.on_completion.up]]
-Key = { code = Up, modifiers = "" }
-
-[[keybinds.on_completion.down]]
-Key = { code = Down, modifiers = "" }
-
-[[keybinds.on_completion.down]]
-Key = { code = Tab, modifiers = "" }
-
-[[keybinds.on_json_viewer.up]]
-Key = { code = Up, modifiers = "" }
-
-[[keybinds.on_json_viewer.up]]
-Key = { modifiers = CONTROL, code = { Char = "k" } }
-
-[[keybinds.on_json_viewer.down]]
-Key = { modifiers = CONTROL, code = { Char = "j" } }
-
-[[keybinds.on_json_viewer.down]]
-Key = { code = Down, modifiers = "" }
-
-[[keybinds.on_json_viewer.move_to_head]]
-Key = { modifiers = CONTROL, code = { Char = "l" } }
-
-[[keybinds.on_json_viewer.move_to_tail]]
-Key = { modifiers = CONTROL, code = { Char = "h" } }
-
-[[keybinds.on_json_viewer.toggle]]
-Key = { code = Enter, modifiers = "" }
-
-[[keybinds.on_json_viewer.expand]]
-Key = { modifiers = CONTROL, code = { Char = "p" } }
-
-[[keybinds.on_json_viewer.collapse]]
-Key = { modifiers = CONTROL, code = { Char = "n" } }
+[keybinds.on_json_viewer]
+up = [
+  { Key = { code = "Up", modifiers = "" } },
+  { Key = { modifiers = "CONTROL", code = { Char = "k" } } }
+]
+down = [
+  { Key = { modifiers = "CONTROL", code = { Char = "j" } } },
+  { Key = { code = "Down", modifiers = "" } }
+]
+move_to_head = [
+  { Key = { modifiers = "CONTROL", code = { Char = "l" } } }
+]
+move_to_tail = [
+  { Key = { modifiers = "CONTROL", code = { Char = "h" } } }
+]
+toggle = [
+  { Key = { code = "Enter", modifiers = "" } }
+]
+expand = [
+  { Key = { modifiers = "CONTROL", code = { Char = "p" } } }
+]
+collapse = [
+  { Key = { modifiers = "CONTROL", code = { Char = "n" } } }
+]

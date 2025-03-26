@@ -7,7 +7,7 @@ use crossterm::{
 use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
 
 use crate::{
-    config::{event::Matcher, CompletionKeybinds, EditorKeybinds, EditorTheme},
+    config::{event::Matcher, EditorKeybinds, EditorTheme},
     search::IncrementalSearcher,
 };
 
@@ -19,7 +19,6 @@ pub struct Editor {
     guide: text::State,
     searcher: IncrementalSearcher,
     editor_keybinds: EditorKeybinds,
-    completion_keybinds: CompletionKeybinds,
 }
 
 impl Editor {
@@ -29,7 +28,6 @@ impl Editor {
         focus_theme: EditorTheme,
         defocus_theme: EditorTheme,
         editor_keybinds: EditorKeybinds,
-        completion_keybinds: CompletionKeybinds,
     ) -> Self {
         Self {
             handler: BOXED_EDITOR_HANDLER,
@@ -42,7 +40,6 @@ impl Editor {
             },
             searcher,
             editor_keybinds,
-            completion_keybinds,
         }
     }
 
@@ -215,7 +212,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
 
 pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Result<()> {
     match event {
-        key if editor.completion_keybinds.down.matches(key) => {
+        key if editor.editor_keybinds.on_completion.down.matches(key) => {
             editor.searcher.down_with_load();
             editor
                 .state
@@ -223,7 +220,7 @@ pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Res
                 .replace(&editor.searcher.get_current_item());
         }
 
-        key if editor.completion_keybinds.up.matches(key) => {
+        key if editor.editor_keybinds.on_completion.up.matches(key) => {
             editor.searcher.up();
             editor
                 .state
