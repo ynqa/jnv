@@ -1,125 +1,205 @@
+# Whether to hide hint messages
 no_hint = false
 
-[reactivity_control]
-query_debounce_duration = "600ms"
-resize_debounce_duration = "200ms"
-spin_duration = "300ms"
-
+# Editor settings
 [editor]
+# Editor mode
+# "Insert": Insert characters at the cursor position
+# "Overwrite": Replace characters at the cursor position with new ones
 mode = "Insert"
+
+# Characters considered as word boundaries
+# These are used to define word movement and deletion behavior in the editor
 word_break_chars = ["(", "|", ")", ".", "[", "]"]
 
+# Theme settings when the editor is focused
 [editor.theme_on_focus]
+# Prefix shown before the cursor
 prefix = "❯❯ "
+# Style for the prefix
 prefix_style = { foreground = "blue" }
+# Style for the character under the cursor
 active_char_style = { background = "magenta" }
+# Style for all other characters
 inactive_char_style = {}
 
+# Theme settings when the editor is unfocused
 [editor.theme_on_defocus]
-prefix = "▼"
+# Prefix shown when focus is lost
+prefix = "▼ "
+# Style for the prefix when unfocused
 prefix_style = { foreground = "blue", attributes = ["Dim"] }
+# Style for the character under the cursor when unfocused
 active_char_style = { attributes = ["Dim"] }
+# Style for all other characters when unfocused
 inactive_char_style = { attributes = ["Dim"] }
 
+# JSON display settings
 [json]
-# max_streams = None
+# Maximum number of JSON objects to read from streams (e.g., JSON Lines format)
+# Limits how many objects are processed to reduce memory usage when handling large data streams
+# No limit if unset
+# max_streams =
 
+# JSON display theme
 [json.theme]
+# Number of spaces to use for indentation
 indent = 2
+# Style for curly brackets {}
 curly_brackets_style = { attributes = ["Bold"] }
+# Style for square brackets []
 square_brackets_style = { attributes = ["Bold"] }
+# Style for JSON keys
 key_style = { foreground = "cyan" }
+# Style for string values
 string_value_style = { foreground = "green" }
+# Style for number values
 number_value_style = {}
+# Style for boolean values
 boolean_value_style = {}
+# Style for null values
 null_value_style = { foreground = "grey" }
 
+# Completion feature settings
 [completion]
+# Number of lines to display for completion candidates
 lines = 3
+# Cursor character shown before the selected candidate
 cursor = "❯ "
-search_result_chunk_size = 100
-search_load_chunk_size = 50000
+# Style for the selected candidate
 active_item_style = { foreground = "grey", background = "yellow" }
+# Style for unselected candidates
 inactive_item_style = { foreground = "grey" }
 
+# Settings for background loading of completion candidates
+#
+# Number of candidates loaded per chunk for search results
+# A larger value displays results faster but uses more memory
+search_result_chunk_size = 100
+
+# Number of items loaded per batch during background loading
+# A larger value finishes loading sooner but uses more memory temporarily
+search_load_chunk_size = 50000
+
+# Keybinding settings
 [keybinds]
+# Key to exit the application
 exit = [
   { Key = { modifiers = "CONTROL", code = { Char = "c" } } }
 ]
+# Key to copy the query to the clipboard
 copy_query = [
   { Key = { modifiers = "CONTROL", code = { Char = "q" } } }
 ]
+# Key to copy the result to the clipboard
 copy_result = [
   { Key = { modifiers = "CONTROL", code = { Char = "o" } } }
 ]
+# Keys to switch focus between editor and JSON viewer
 switch_mode = [
   { Key = { code = "Down", modifiers = "SHIFT" } },
   { Key = { code = "Up", modifiers = "SHIFT" } }
 ]
 
+# Keybindings for editor operations
 [keybinds.on_editor]
+# Move cursor left
 backward = [
   { Key = { code = "Left", modifiers = "" } }
 ]
+# Move cursor right
 forward = [
   { Key = { code = "Right", modifiers = "" } }
 ]
+# Move cursor to beginning of line
 move_to_head = [
   { Key = { modifiers = "CONTROL", code = { Char = "a" } } }
 ]
+# Move cursor to end of line
 move_to_tail = [
   { Key = { modifiers = "CONTROL", code = { Char = "e" } } }
 ]
+# Move cursor to previous word boundary
 move_to_previous_nearest = [
   { Key = { modifiers = "ALT", code = { Char = "b" } } }
 ]
+# Move cursor to next word boundary
 move_to_next_nearest = [
   { Key = { modifiers = "ALT", code = { Char = "f" } } }
 ]
+# Delete character at the cursor
 erase = [
   { Key = { code = "Backspace", modifiers = "" } }
 ]
+# Delete all input
 erase_all = [
   { Key = { modifiers = "CONTROL", code = { Char = "u" } } }
 ]
+# Delete from cursor to previous word boundary
 erase_to_previous_nearest = [
   { Key = { modifiers = "CONTROL", code = { Char = "w" } } }
 ]
+# Delete from cursor to next word boundary
 erase_to_next_nearest = [
   { Key = { modifiers = "ALT", code = { Char = "d" } } }
 ]
+# Trigger completion
 completion = [
   { Key = { code = "Tab", modifiers = "" } }
 ]
+# Move up in the completion list
 on_completion.up = [
   { Key = { code = "Up", modifiers = "" } }
 ]
+# Move down in the completion list
 on_completion.down = [
   { Key = { code = "Down", modifiers = "" } },
   { Key = { code = "Tab", modifiers = "" } }
 ]
 
+# Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
+# Move up in JSON viewer
 up = [
   { Key = { code = "Up", modifiers = "" } },
   { Key = { modifiers = "CONTROL", code = { Char = "k" } } }
 ]
+# Move down in JSON viewer
 down = [
   { Key = { modifiers = "CONTROL", code = { Char = "j" } } },
   { Key = { code = "Down", modifiers = "" } }
 ]
+# Move to the top of JSON viewer
 move_to_head = [
   { Key = { modifiers = "CONTROL", code = { Char = "l" } } }
 ]
+# Move to the bottom of JSON viewer
 move_to_tail = [
   { Key = { modifiers = "CONTROL", code = { Char = "h" } } }
 ]
+# Toggle expand/collapse of JSON nodes
 toggle = [
   { Key = { code = "Enter", modifiers = "" } }
 ]
+# Expand all JSON nodes
 expand = [
   { Key = { modifiers = "CONTROL", code = { Char = "p" } } }
 ]
+# Collapse all JSON nodes
 collapse = [
   { Key = { modifiers = "CONTROL", code = { Char = "n" } } }
 ]
+
+# Application reactivity settings
+[reactivity_control]
+# Delay before processing query input
+# Prevents excessive updates while user is typing
+query_debounce_duration = "600ms"
+
+# Delay before redrawing after window resize
+# Prevents frequent redraws during continuous resizing
+resize_debounce_duration = "200ms"
+
+# Interval for spinner animation updates
+# Controls the speed of the loading spinner
+spin_duration = "300ms"

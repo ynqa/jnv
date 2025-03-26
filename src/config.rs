@@ -50,7 +50,7 @@ impl Default for EditorConfig {
                 inactive_char_style: StyleBuilder::new().build(),
             },
             theme_on_defocus: EditorTheme {
-                prefix: String::from("▼"),
+                prefix: String::from("▼ "),
                 prefix_style: StyleBuilder::new()
                     .fgc(Color::Blue)
                     .attrs(Attributes::from(Attribute::Dim))
