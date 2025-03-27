@@ -19,7 +19,6 @@ derive_builder = "0.20.2"
 crossterm = { version = "0.28.1", features = ["use-dev-tty", "event-stream", "libc", "serde"] }
 dirs = "6.0.0"
 futures = "0.3.30"
-futures-timer = "3.0.3"
 jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
