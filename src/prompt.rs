@@ -10,16 +10,16 @@ use crossterm::{
 };
 use futures::StreamExt;
 use futures_timer::Delay;
-use promkit::{listbox, style::StyleBuilder, text, text_editor, PaneFactory};
+use promkit::{style::StyleBuilder, text, PaneFactory};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
 };
 
 use crate::{
-    Context, ContextMonitor, Editor, EditorTheme, IncrementalSearcher, PaneIndex, Processor,
-    Renderer, SearchProvider, SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer,
-    EMPTY_PANE,
+    config::{event::Matcher, Keybinds, ReactivityControl},
+    Context, ContextMonitor, Editor, PaneIndex, Processor, Renderer, SearchProvider,
+    SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -81,31 +81,17 @@ enum Focus {
 #[allow(clippy::too_many_arguments)]
 pub async fn run<T: ViewProvider + SearchProvider>(
     item: &'static str,
-    spin_duration: Duration,
-    query_debounce_duration: Duration,
-    resize_debounce_duration: Duration,
+    reactivity_control: ReactivityControl,
     provider: &mut T,
-    text_editor_state: text_editor::State,
-    editor_focus_theme: EditorTheme,
-    editor_defocus_theme: EditorTheme,
-    listbox_state: listbox::State,
-    search_result_chunk_size: usize,
-    search_load_chunk_size: usize,
+    editor: Editor,
+    loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
+    keybinds: Keybinds,
 ) -> anyhow::Result<()> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
 
     let size = terminal::size()?;
-
-    let searcher = IncrementalSearcher::new(listbox_state, search_result_chunk_size);
-    let loading_suggestions_task = searcher.spawn_load_task(provider, item, search_load_chunk_size);
-    let editor = Editor::new(
-        text_editor_state,
-        searcher,
-        editor_focus_theme,
-        editor_defocus_theme,
-    );
 
     let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
         [
@@ -122,16 +108,23 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
-    let query_debouncer =
-        spawn_debouncer(debounce_query_rx, last_query_tx, query_debounce_duration);
+    let query_debouncer = spawn_debouncer(
+        debounce_query_rx,
+        last_query_tx,
+        reactivity_control.query_debounce_duration,
+    );
 
     let (last_resize_tx, mut last_resize_rx) = mpsc::channel::<(u16, u16)>(1);
     let (debounce_resize_tx, debounce_resize_rx) = mpsc::channel(1);
-    let resize_debouncer =
-        spawn_debouncer(debounce_resize_rx, last_resize_tx, resize_debounce_duration);
+    let resize_debouncer = spawn_debouncer(
+        debounce_resize_rx,
+        last_resize_tx,
+        reactivity_control.resize_debounce_duration,
+    );
 
     let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning = spinner_spawner.spawn_spin_task(shared_renderer.clone(), spin_duration);
+    let spinning =
+        spinner_spawner.spawn_spin_task(shared_renderer.clone(), reactivity_control.spin_duration);
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
@@ -147,7 +140,13 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
     let initializer = ViewInitializer::new(ctx.clone());
-    let initializing = initializer.initialize(provider, item, size, shared_renderer.clone());
+    let initializing = initializer.initialize(
+        provider,
+        item,
+        size,
+        shared_renderer.clone(),
+        keybinds.on_json_viewer,
+    );
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
@@ -160,12 +159,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('c'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.exit.matches(&event) => {
                                 break 'main
                             },
                             Event::Key(KeyEvent {

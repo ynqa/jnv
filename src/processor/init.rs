@@ -4,11 +4,15 @@ use async_trait::async_trait;
 use tokio::sync::Mutex;
 
 use super::{Context, State, Visualizer};
-use crate::{PaneIndex, Renderer};
+use crate::{config::JsonViewerKeybinds, PaneIndex, Renderer};
 
 #[async_trait]
 pub trait ViewProvider {
-    async fn provide(&mut self, item: &'static str) -> anyhow::Result<impl Visualizer>;
+    async fn provide(
+        &mut self,
+        item: &'static str,
+        keybinds: JsonViewerKeybinds,
+    ) -> anyhow::Result<impl Visualizer>;
 }
 
 pub struct ViewInitializer {
@@ -26,6 +30,7 @@ impl ViewInitializer {
         item: &'static str,
         area: (u16, u16),
         shared_renderer: Arc<Mutex<Renderer>>,
+        keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<impl Visualizer + 'a> {
         {
             let mut shared_state = self.shared.lock().await;
@@ -35,7 +40,7 @@ impl ViewInitializer {
             shared_state.state = State::Loading;
         }
 
-        let mut visualizer = provider.provide(item).await?;
+        let mut visualizer = provider.provide(item, keybinds).await?;
         let pane = visualizer.create_init_pane(area).await;
 
         // Set state to Idle to prevent overwriting by spinner frames in terminal.

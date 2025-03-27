@@ -1,23 +1,22 @@
 use std::{
-    collections::HashSet,
     fs::File,
-    io::{self, Read},
+    io::{self, Read, Write},
     path::PathBuf,
-    time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use clap::Parser;
-use crossterm::style::{Attribute, Attributes, Color};
+use config::Config;
+use crossterm::style::Attribute;
 use promkit::{
     jsonz::format::RowFormatter,
     listbox::{self, Listbox},
-    style::StyleBuilder,
     text_editor,
 };
 
 mod editor;
-use editor::{Editor, EditorTheme};
+use editor::Editor;
+mod config;
 mod json;
 use json::JsonStreamProvider;
 mod processor;
@@ -30,6 +29,8 @@ mod render;
 use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
+
+static DEFAULT_CONFIG: &str = include_str!("../default.toml");
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -61,74 +62,8 @@ pub struct Args {
     /// reads from standard input.
     pub input: Option<PathBuf>,
 
-    #[arg(
-        short = 'e',
-        long = "edit-mode",
-        default_value = "insert",
-        value_parser = edit_mode_validator,
-        help = "Edit mode for the interface ('insert' or 'overwrite').",
-        long_help = r#"
-        Specifies the edit mode for the interface.
-        Acceptable values are "insert" or "overwrite".
-        - "insert" inserts a new input at the cursor's position.
-        - "overwrite" mode replaces existing characters with new input at the cursor's position.
-        "#,
-    )]
-    pub edit_mode: text_editor::Mode,
-
-    #[arg(
-        short = 'i',
-        long = "indent",
-        default_value = "2",
-        help = "Number of spaces used for indentation in the visualized data.",
-        long_help = "
-        Affect the formatting of the displayed JSON,
-        making it more readable by adjusting the indentation level.
-        "
-    )]
-    pub indent: usize,
-
-    #[arg(
-        short = 'n',
-        long = "no-hint",
-        help = "Disables the display of hints.",
-        long_help = "
-        When this option is enabled, it prevents the display of
-        hints that typically guide or offer suggestions to the user.
-        "
-    )]
-    pub no_hint: bool,
-
-    #[arg(
-        long = "max-streams",
-        help = "Maximum number of JSON streams to display",
-        long_help = "
-        Sets the maximum number of JSON streams to load and display.
-        Limiting this value improves performance for large datasets.
-        If not set, all streams will be displayed.
-        "
-    )]
-    pub max_streams: Option<usize>,
-
-    #[arg(
-        long = "suggestions",
-        default_value = "3",
-        help = "Number of autocomplete suggestions to show",
-        long_help = "
-        Sets the number of autocomplete suggestions displayed during incremental search.
-        Higher values show more suggestions but may occupy more screen space.
-        Adjust this value based on your screen size and preference.
-        "
-    )]
-    pub suggestions: usize,
-}
-
-fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
-    match val {
-        "insert" | "" => Ok(text_editor::Mode::Insert),
-        "overwrite" => Ok(text_editor::Mode::Overwrite),
-        _ => Err(anyhow!("edit-mode must be 'insert' or 'overwrite'")),
-    }
+    #[arg(short = 'c', long = "config", help = "Path to the configuration file.")]
+    pub config_file: Option<PathBuf>,
 }
 
 /// Parses the input based on the provided arguments.
@@ -138,7 +73,7 @@ fn edit_mode_validator(val: &str) -> Result<text_editor::Mode> {
 /// that equals "-", data is read from standard input.
 /// Otherwise, the function attempts to open and
 /// read from the file specified in the `input` argument.
-fn parse_input(args: &Args) -> Result<String> {
+fn parse_input(args: &Args) -> anyhow::Result<String> {
     let mut ret = String::new();
 
     match &args.input {
@@ -157,81 +92,131 @@ fn parse_input(args: &Args) -> Result<String> {
     Ok(ret)
 }
 
+/// Ensures the configuration file exists, creating it with default settings if it doesn't
+///
+/// If the file already exists, returns Ok.
+/// If the file doesn't exist, writes the default configuration in TOML format.
+/// Returns an error if file creation fails.
+fn ensure_file_exists(path: &PathBuf) -> anyhow::Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow!("Failed to create directory: {}", e))?;
+    }
+
+    std::fs::File::create(path)?.write_all(DEFAULT_CONFIG.as_bytes())?;
+
+    Ok(())
+}
+
+/// Determines the configuration file path with the following precedence:
+/// 1. The provided `config_path` argument, if it exists.
+/// 2. The default configuration file path in the user's configuration directory.
+///
+/// If the configuration file does not exist, it will be created.
+/// Returns an error if the file creation fails.
+fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    // If a custom path is provided
+    if let Some(path) = config_path {
+        ensure_file_exists(&path)?;
+        return Ok(path);
+    }
+
+    // Use the default path
+    let default_path = dirs::config_dir()
+        .ok_or_else(|| anyhow!("Failed to determine the configuration directory"))?
+        // TODO: need versions...?
+        .join("jnv")
+        .join("config.toml");
+
+    ensure_file_exists(&default_path)?;
+    Ok(default_path)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
+    let mut config = Config::default();
+    if let Ok(config_file) = determine_config_file(args.config_file) {
+        // Note that the configuration file absolutely exists.
+        let content = std::fs::read_to_string(&config_file)
+            // TODO: output the message as the initial guide pane.
+            .map_err(|e| anyhow!("Failed to read configuration file: {}", e))?;
+        config = Config::load_from(&content)
+            .map_err(|e| anyhow!("Failed to deserialize configuration file: {}", e))?;
+    }
+
+    let listbox_state = listbox::State {
+        listbox: Listbox::default(),
+        cursor: config.completion.cursor,
+        active_item_style: Some(config.completion.active_item_style),
+        inactive_item_style: Some(config.completion.inactive_item_style),
+        lines: config.completion.lines,
+    };
+
+    let searcher =
+        IncrementalSearcher::new(listbox_state, config.completion.search_result_chunk_size);
+
+    let text_editor_state = text_editor::State {
+        texteditor: Default::default(),
+        history: Default::default(),
+        prefix: config.editor.theme_on_focus.prefix.clone(),
+        mask: Default::default(),
+        prefix_style: config.editor.theme_on_focus.prefix_style,
+        active_char_style: config.editor.theme_on_focus.active_char_style,
+        inactive_char_style: config.editor.theme_on_focus.inactive_char_style,
+        edit_mode: config.editor.mode,
+        word_break_chars: config.editor.word_break_chars,
+        lines: Default::default(),
+    };
+
+    let provider = &mut JsonStreamProvider::new(
+        RowFormatter {
+            curly_brackets_style: config.json.theme.curly_brackets_style,
+            square_brackets_style: config.json.theme.square_brackets_style,
+            key_style: config.json.theme.key_style,
+            string_value_style: config.json.theme.string_value_style,
+            number_value_style: config.json.theme.number_value_style,
+            boolean_value_style: config.json.theme.boolean_value_style,
+            null_value_style: config.json.theme.null_value_style,
+            active_item_attribute: Attribute::Bold,
+            inactive_item_attribute: Attribute::Dim,
+            indent: config.json.theme.indent,
+        },
+        config.json.max_streams,
+    );
+
+    let item = Box::leak(input.into_boxed_str());
+
+    let loading_suggestions_task =
+        searcher.spawn_load_task(provider, item, config.completion.search_load_chunk_size);
+
+    // TODO: re-consider put editor_task of prompt::run into Editor construction time.
+    // Overall, there are several cases where it would be sufficient to
+    // launch a background thread during construction.
+    let editor = Editor::new(
+        text_editor_state,
+        searcher,
+        config.editor.theme_on_focus,
+        config.editor.theme_on_defocus,
+        // TODO: remove clones
+        config.keybinds.on_editor.clone(),
+    );
+
+    // TODO: put all logics here.
     prompt::run(
-        Box::leak(input.into_boxed_str()),
-        Duration::from_millis(300),
-        Duration::from_millis(600),
-        Duration::from_millis(200),
-        &mut JsonStreamProvider::new(
-            RowFormatter {
-                curly_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                square_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                number_value_style: StyleBuilder::new().build(),
-                boolean_value_style: StyleBuilder::new().build(),
-                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
-                active_item_attribute: Attribute::Bold,
-                inactive_item_attribute: Attribute::Dim,
-                indent: args.indent,
-            },
-            args.max_streams,
-        ),
-        text_editor::State {
-            texteditor: Default::default(),
-            history: Default::default(),
-            prefix: String::from("❯❯ "),
-            mask: Default::default(),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-            edit_mode: args.edit_mode,
-            word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
-            lines: Default::default(),
-        },
-        EditorTheme {
-            prefix: String::from("❯❯ "),
-            prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-            active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-            inactive_char_style: StyleBuilder::new().build(),
-        },
-        EditorTheme {
-            prefix: String::from("▼"),
-            prefix_style: StyleBuilder::new()
-                .fgc(Color::Blue)
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            active_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-            inactive_char_style: StyleBuilder::new()
-                .attrs(Attributes::from(Attribute::Dim))
-                .build(),
-        },
-        listbox::State {
-            listbox: Listbox::from_displayable(Vec::<String>::new()),
-            cursor: String::from("❯ "),
-            active_item_style: Some(
-                StyleBuilder::new()
-                    .fgc(Color::Grey)
-                    .bgc(Color::Yellow)
-                    .build(),
-            ),
-            inactive_item_style: Some(StyleBuilder::new().fgc(Color::Grey).build()),
-            lines: Some(args.suggestions),
-        },
-        100,
-        50000,
-        args.no_hint,
+        item,
+        config.reactivity_control,
+        provider,
+        editor,
+        loading_suggestions_task,
+        config.no_hint,
+        config.keybinds,
     )
     .await?;
 
