@@ -9,7 +9,11 @@ use crossterm::{
     terminal::{self, disable_raw_mode, enable_raw_mode},
 };
 use futures::StreamExt;
-use promkit::{style::StyleBuilder, text, PaneFactory};
+use promkit::{
+    style::StyleBuilder,
+    text::{self, Text},
+    PaneFactory,
+};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
@@ -52,20 +56,23 @@ fn copy_to_clipboard(content: &str) -> text::State {
     match Clipboard::new() {
         Ok(mut clipboard) => match clipboard.set_text(content) {
             Ok(_) => text::State {
-                text: "Copied to clipboard".to_string(),
+                text: Text::from("Copied to clipboard"),
                 style: StyleBuilder::new().fgc(Color::Green).build(),
+                ..Default::default()
             },
             Err(e) => text::State {
-                text: format!("Failed to copy to clipboard: {}", e),
+                text: Text::from(format!("Failed to copy to clipboard: {}", e)),
                 style: StyleBuilder::new().fgc(Color::Red).build(),
+                ..Default::default()
             },
         },
         // arboard fails (in the specific environment like linux?) on Clipboard::new()
         // suppress the errors (but still show them) not to break the prompt
         // https://github.com/1Password/arboard/issues/153
         Err(e) => text::State {
-            text: format!("Failed to setup clipboard: {}", e),
+            text: Text::from(format!("Failed to setup clipboard: {}", e)),
             style: StyleBuilder::new().fgc(Color::Red).build(),
+            ..Default::default()
         },
     }
 }
@@ -179,8 +186,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                 } else {
                                     let size = terminal::size()?;
                                     pane = text::State {
-                                        text: "Failed to copy while rendering is in progress.".to_string(),
+                                        text: Text::from("Failed to copy while rendering is in progress.".to_string()),
                                         style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                        ..Default::default()
                                     }.create_pane(size.0, size.1);
                                 }
                                 {
@@ -209,8 +217,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                         } else {
                                             let size = terminal::size()?;
                                             pane = text::State {
-                                                text: "Failed to switch pane while rendering is in progress.".to_string(),
+                                                text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
                                                 style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                                ..Default::default()
                                             }.create_pane(size.0, size.1);
                                         }
                                         {
