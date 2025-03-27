@@ -19,7 +19,14 @@ and [jiq](https://github.com/fiatjaf/jiq).
 - Interactive JSON viewer and `jq` filter editor
   - Syntax highlighting for JSON
   - Use [jaq](https://github.com/01mf02/jaq) to apply `jq` filter
-    - This eliminates the need for users to prepare `jq` on their own.
+    - This eliminates the need for users to prepare `jq` on their own
+- Configurable features via TOML configuration
+  - Toggle hint message display
+  - Adjust UI reactivity (debounce times and animation speed)
+  - Editor appearance and behavior
+  - JSON viewer styling
+  - Adjust completion feature display and behavior
+  - Keybinds
 - Capable of accommodating various format
   - Input: File, stdin
   - Data: A JSON or multiple JSON structures
