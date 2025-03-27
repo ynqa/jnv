@@ -42,6 +42,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
 
 ## Installation
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/jnv.svg)](https://repology.org/project/jnv/versions)
+
 ### Homebrew
 
 See [here](https://formulae.brew.sh/formula/jnv) for more info.
