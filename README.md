@@ -20,22 +20,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
   - Syntax highlighting for JSON
   - Use [jaq](https://github.com/01mf02/jaq) to apply `jq` filter
     - This eliminates the need for users to prepare `jq` on their own.
-
-> [!IMPORTANT]
-> Starting from v0.3.0, the transition from libjq Rust binding
-> [j9](https://github.com/ynqa/j9) to jq clone
-> [jaq](https://github.com/01mf02/jaq) was made.
->
-> This change eliminated the need to manage C-related dependencies
-> that include external tools like autoconf, thus simplifying the build process.
-> However, please note that some filters are not yet supported by jaq.
-> For more details, refer to GitHub issue
-> [#24](https://github.com/ynqa/jnv/issues/24).
->
-> Please continue to provide feedback regarding this transition.
-
 - Capable of accommodating various format
-  - Input: File, Stdin
+  - Input: File, stdin
   - Data: A JSON or multiple JSON structures
     that can be deserialized with 
     [StreamDeserializer](https://docs.rs/serde_json/latest/serde_json/struct.StreamDeserializer.html),
@@ -169,7 +155,7 @@ jnv data.json
 ## Usage
 
 ```bash
-SON navigator and interactive filter leveraging jq
+JSON navigator and interactive filter leveraging jq
 
 Usage: jnv [OPTIONS] [INPUT]
 
@@ -184,13 +170,10 @@ Arguments:
   [INPUT]  Optional path to a JSON file. If not provided or if "-" is specified, reads from standard input
 
 Options:
-  -e, --edit-mode <EDIT_MODE>      Edit mode for the interface ('insert' or 'overwrite'). [default: insert]
-  -i, --indent <INDENT>            Number of spaces used for indentation in the visualized data. [default: 2]
-  -n, --no-hint                    Disables the display of hints.
-      --max-streams <MAX_STREAMS>  Maximum number of JSON streams to display
-      --suggestions <SUGGESTIONS>  Number of autocomplete suggestions to show [default: 3]
-  -h, --help                       Print help (see more with '--help')
-  -V, --version                    Print version
+  -c, --config <CONFIG_FILE>             Path to the configuration file.
+      --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
+  -h, --help                             Print help (see more with '--help')
+  -V, --version                          Print version
 ```
 
 ## Stargazers over time
