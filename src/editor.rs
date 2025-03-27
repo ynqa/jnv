@@ -4,7 +4,12 @@ use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
     style::Color,
 };
-use promkit::{pane::Pane, style::StyleBuilder, text, text_editor, PaneFactory};
+use promkit::{
+    pane::Pane,
+    style::StyleBuilder,
+    text::{self, Text},
+    text_editor, PaneFactory,
+};
 
 use crate::{
     config::{event::Matcher, EditorKeybinds, EditorTheme},
@@ -34,10 +39,7 @@ impl Editor {
             state,
             focus_theme,
             defocus_theme,
-            guide: text::State {
-                text: Default::default(),
-                style: Default::default(),
-            },
+            guide: text::State::default(),
             searcher,
             editor_keybinds,
         }
@@ -107,28 +109,29 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                 Ok(result) => match result.head_item {
                     Some(head) => {
                         if result.load_state.loaded {
-                            editor.guide.text = format!(
+                            editor.guide.text = Text::from(format!(
                                 "Loaded all ({}) suggestions",
                                 result.load_state.loaded_item_len
-                            );
+                            ));
                             editor.guide.style = StyleBuilder::new().fgc(Color::Green).build();
                         } else {
-                            editor.guide.text = format!(
+                            editor.guide.text = Text::from(format!(
                                 "Loaded partially ({}) suggestions",
                                 result.load_state.loaded_item_len
-                            );
+                            ));
                             editor.guide.style = StyleBuilder::new().fgc(Color::Green).build();
                         }
                         editor.state.texteditor.replace(&head);
                         editor.handler = BOXED_SEARCHER_HANDLER;
                     }
                     None => {
-                        editor.guide.text = format!("No suggestion found for '{}'", prefix);
+                        editor.guide.text =
+                            Text::from(format!("No suggestion found for '{}'", prefix));
                         editor.guide.style = StyleBuilder::new().fgc(Color::Yellow).build();
                     }
                 },
                 Err(e) => {
-                    editor.guide.text = format!("Failed to lookup suggestions: {}", e);
+                    editor.guide.text = Text::from(format!("Failed to lookup suggestions: {}", e));
                     editor.guide.style = StyleBuilder::new().fgc(Color::Yellow).build();
                 }
             }

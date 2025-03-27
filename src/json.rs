@@ -10,7 +10,8 @@ use promkit::{
     pane::Pane,
     serde_json::{self, Deserializer, Value},
     style::StyleBuilder,
-    text, PaneFactory,
+    text::{self, Text},
+    PaneFactory,
 };
 
 use crate::{
@@ -110,11 +111,12 @@ impl Visualizer for Json {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
                     guide = Some(text::State {
-                        text: format!("jq returned 'null', which may indicate a typo or incorrect filter: `{}`", input),
+                        text: Text::from(format!("jq returned 'null', which may indicate a typo or incorrect filter: `{}`", input)),
                         style: StyleBuilder::new()
                             .fgc(Color::Yellow)
                             .attrs(Attributes::from(Attribute::Bold))
                             .build(),
+                        ..Default::default()
                     }.create_pane(area.0, area.1));
                 }
 
@@ -125,11 +127,12 @@ impl Visualizer for Json {
             Err(e) => (
                 Some(
                     text::State {
-                        text: format!("jq failed: `{}`", e),
+                        text: Text::from(format!("jq failed: `{}`", e)),
                         style: StyleBuilder::new()
                             .fgc(Color::Red)
                             .attrs(Attributes::from(Attribute::Bold))
                             .build(),
+                        ..Default::default()
                     }
                     .create_pane(area.0, area.1),
                 ),
