@@ -117,6 +117,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         last_query_tx,
         reactivity_control.query_debounce_duration,
     );
+    if !editor.text().is_empty() {
+        debounce_query_tx.send(editor.text()).await?;
+    }
 
     let (last_resize_tx, mut last_resize_rx) = mpsc::channel::<(u16, u16)>(1);
     let (debounce_resize_tx, debounce_resize_rx) = mpsc::channel(1);
