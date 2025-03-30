@@ -2,11 +2,8 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use promkit::{
-    listbox::{self, Listbox},
-    pane::Pane,
-    PaneFactory,
-};
+use promkit_core::{pane::Pane, PaneFactory};
+use promkit_widgets::listbox::{self, Listbox};
 use tokio::{
     sync::{Mutex, RwLock},
     task::JoinHandle,

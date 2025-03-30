@@ -7,9 +7,9 @@ use std::{
 use anyhow::anyhow;
 use clap::Parser;
 use config::Config;
-use crossterm::style::Attribute;
-use promkit::{
-    jsonz::format::RowFormatter,
+use promkit_core::crossterm::style::Attribute;
+use promkit_widgets::{
+    jsonstream::format::RowFormatter,
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
 };

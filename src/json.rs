@@ -1,17 +1,17 @@
-use crossterm::{
-    event::Event,
-    style::{Attribute, Attributes},
-};
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
-use promkit::{
-    crossterm::style::Color,
-    jsonstream::{self, JsonStream},
-    jsonz::{self, format::RowFormatter},
+use promkit_core::{
+    crossterm::{
+        event::Event,
+        style::{Attribute, Attributes, Color, ContentStyle},
+    },
     pane::Pane,
-    serde_json::{self, Deserializer, Value},
-    style::StyleBuilder,
-    text::{self, Text},
     PaneFactory,
+};
+
+use promkit_widgets::{
+    jsonstream::{self, format::RowFormatter, jsonz, JsonStream},
+    serde_json::{self, Deserializer, Value},
+    text::{self, Text},
 };
 
 use crate::{
@@ -112,10 +112,11 @@ impl Visualizer for Json {
                 if ret.iter().all(|val| *val == Value::Null) {
                     guide = Some(text::State {
                         text: Text::from(format!("jq returned 'null', which may indicate a typo or incorrect filter: `{}`", input)),
-                        style: StyleBuilder::new()
-                            .fgc(Color::Yellow)
-                            .attrs(Attributes::from(Attribute::Bold))
-                            .build(),
+                        style: ContentStyle {
+                            foreground_color: Some(Color::Yellow),
+                            attributes: Attributes::from(Attribute::Bold),
+                            ..Default::default()
+                        },
                         ..Default::default()
                     }.create_pane(area.0, area.1));
                 }
@@ -128,10 +129,11 @@ impl Visualizer for Json {
                 Some(
                     text::State {
                         text: Text::from(format!("jq failed: `{}`", e)),
-                        style: StyleBuilder::new()
-                            .fgc(Color::Red)
-                            .attrs(Attributes::from(Attribute::Bold))
-                            .build(),
+                        style: ContentStyle {
+                            foreground_color: Some(Color::Red),
+                            attributes: Attributes::from(Attribute::Bold),
+                            ..Default::default()
+                        },
                         ..Default::default()
                     }
                     .create_pane(area.0, area.1),

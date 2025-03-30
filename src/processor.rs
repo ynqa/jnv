@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use crossterm::event::Event;
-use promkit::pane::Pane;
+use promkit_core::{crossterm::event::Event, pane::Pane};
 use tokio::{sync::Mutex, task::JoinHandle};
 
 use crate::{PaneIndex, Renderer, EMPTY_PANE};

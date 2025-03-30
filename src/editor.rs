@@ -1,14 +1,15 @@
 use std::{future::Future, pin::Pin};
 
-use crossterm::{
-    event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-    style::Color,
+use promkit_core::{
+    crossterm::{
+        event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+        style::Color,
+    },
+    Pane, PaneFactory,
 };
-use promkit::{
-    pane::Pane,
-    style::StyleBuilder,
+use promkit_widgets::{
     text::{self, Text},
-    text_editor, PaneFactory,
+    text_editor,
 };
 
 use crate::{

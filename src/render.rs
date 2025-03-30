@@ -1,7 +1,6 @@
 use std::sync::LazyLock;
 
-use crossterm::{self, cursor};
-use promkit::{pane::Pane, terminal::Terminal};
+use promkit_core::{crossterm::cursor, pane::Pane, terminal::Terminal};
 
 // TODO: One Guide is sufficient.
 #[derive(Debug, PartialEq)]

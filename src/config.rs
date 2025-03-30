@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use crossterm::{
+use promkit_core::crossterm::{
     event::{KeyCode, KeyModifiers},
     style::{Attribute, Attributes, Color, ContentStyle},
 };
-use promkit::{style::StyleBuilder, text_editor::Mode};
+use promkit_widgets::text_editor::Mode;
 use serde::{Deserialize, Serialize};
 use tokio::time::Duration;
 

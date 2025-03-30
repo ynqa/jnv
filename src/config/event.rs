@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use promkit_core::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind,
+};
 use serde::{Deserialize, Serialize};
 
 pub trait Matcher<T> {
