@@ -3,7 +3,6 @@
   <img alt="Text describing the image" src="assets/jnv-light.svg">
 </picture>
 
-
 [![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)
 
 *jnv* is designed for navigating JSON,
@@ -184,6 +183,120 @@ Options:
   -h, --help                             Print help (see more with '--help')
   -V, --version                          Print version
 ```
+
+## Configuration
+
+jnv uses a TOML format configuration file to customize various features. 
+The configuration file is loaded in the following order of priority:
+
+1. Path specified on the command line (`-c` or `--config` option)
+2. Default configuration file path
+
+### Default Configuration File Location
+
+Following the `dirs` crate,
+the default configuration file location for each platform is as follows:
+
+- **Linux**: `~/.config/jnv/config.toml`
+- **macOS**: `~/Library/Application Support/jnv/config.toml`
+- **Windows**: `C:\Users\{Username}\AppData\Roaming\jnv\config.toml`
+
+If the configuration file does not exist,
+it will be automatically created on first run.
+
+### Configuration Options
+
+The following settings are available in `config.toml`:
+
+```toml
+# Whether to hide the hint message
+no_hint = false
+
+# Editor settings
+[editor]
+# Editor mode ("Insert" or "Overwrite")
+mode = "Insert"
+# Word break characters
+word_break_chars = [".", "|", "(", ")", "[", "]"]
+
+# Theme when editor is focused
+[editor.theme_on_focus]
+prefix = "❯❯ "
+prefix_style = { foreground = "blue" }
+active_char_style = { background = "magenta" }
+inactive_char_style = {}
+
+# Theme when editor is not focused
+[editor.theme_on_defocus]
+prefix = "▼ "
+prefix_style = { foreground = "blue", attributes = ["Dim"] }
+active_char_style = { attributes = ["Dim"] }
+inactive_char_style = { attributes = ["Dim"] }
+
+# JSON display settings
+[json]
+# Maximum number of JSON objects to read from stream
+# max_streams = 
+
+# JSON theme settings
+[json.theme]
+indent = 2
+curly_brackets_style = { attributes = ["Bold"] }
+square_brackets_style = { attributes = ["Bold"] }
+key_style = { foreground = "cyan" }
+string_value_style = { foreground = "green" }
+number_value_style = {}
+boolean_value_style = {}
+null_value_style = { foreground = "grey" }
+
+# Completion feature settings
+[completion]
+lines = 3
+cursor = "❯ "
+active_item_style = { foreground = "grey", background = "yellow" }
+inactive_item_style = { foreground = "grey" }
+search_result_chunk_size = 100
+search_load_chunk_size = 50000
+
+# Keybind settings
+[keybinds]
+# Application exit key
+exit = [{ Key = { modifiers = "CONTROL", code = { Char = "c" } } }]
+# Copy query to clipboard key
+copy_query = [{ Key = { modifiers = "CONTROL", code = { Char = "q" } } }]
+# Copy result to clipboard key
+copy_result = [{ Key = { modifiers = "CONTROL", code = { Char = "o" } } }]
+# Mode switch keys
+switch_mode = [
+  { Key = { code = "Down", modifiers = "SHIFT" } },
+  { Key = { code = "Up", modifiers = "SHIFT" } }
+]
+
+# Editor operation keybinds
+[keybinds.on_editor]
+# (Details omitted)
+
+# JSON viewer keybinds
+[keybinds.on_json_viewer]
+# (Details omitted)
+
+# Application reactivity settings
+[reactivity_control]
+# Delay time after query input
+query_debounce_duration = "600ms"
+# Redraw delay time after window resize
+resize_debounce_duration = "200ms"
+# Spinner animation update interval
+spin_duration = "300ms"
+```
+
+For more details on configuration, please refer to [default.toml](./default.toml)
+
+> [!CAUTION]
+> Depending on the type of terminal and environment,
+> characters and styles may not be displayed properly.
+> Specific key bindings and decorative characters may not
+> display or function correctly in certain terminal emulators.
 
 ## Stargazers over time
 [![Stargazers over time](https://starchart.cc/ynqa/jnv.svg?variant=adaptive)](https://starchart.cc/ynqa/jnv)
