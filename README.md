@@ -292,7 +292,7 @@ spin_duration = "300ms"
 
 For more details on configuration, please refer to [default.toml](./default.toml)
 
-> [!CAUTION]
+> [!WARNING]
 > Depending on the type of terminal and environment,
 > characters and styles may not be displayed properly.
 > Specific key bindings and decorative characters may not
