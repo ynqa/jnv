@@ -45,22 +45,31 @@ impl Default for EditorConfig {
         Self {
             theme_on_focus: EditorTheme {
                 prefix: String::from("❯❯ "),
-                prefix_style: StyleBuilder::new().fgc(Color::Blue).build(),
-                active_char_style: StyleBuilder::new().bgc(Color::Magenta).build(),
-                inactive_char_style: StyleBuilder::new().build(),
+                prefix_style: ContentStyle {
+                    foreground_color: Some(Color::Blue),
+                    ..Default::default()
+                },
+                active_char_style: ContentStyle {
+                    background_color: Some(Color::Magenta),
+                    ..Default::default()
+                },
+                inactive_char_style: ContentStyle::default(),
             },
             theme_on_defocus: EditorTheme {
                 prefix: String::from("▼ "),
-                prefix_style: StyleBuilder::new()
-                    .fgc(Color::Blue)
-                    .attrs(Attributes::from(Attribute::Dim))
-                    .build(),
-                active_char_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Dim))
-                    .build(),
-                inactive_char_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Dim))
-                    .build(),
+                prefix_style: ContentStyle {
+                    foreground_color: Some(Color::Blue),
+                    attributes: Attributes::from(Attribute::Dim),
+                    ..Default::default()
+                },
+                active_char_style: ContentStyle {
+                    attributes: Attributes::from(Attribute::Dim),
+                    ..Default::default()
+                },
+                inactive_char_style: ContentStyle {
+                    attributes: Attributes::from(Attribute::Dim),
+                    ..Default::default()
+                },
             },
             mode: Mode::Insert,
             word_break_chars: HashSet::from(['.', '|', '(', ')', '[', ']']),
@@ -106,17 +115,28 @@ impl Default for JsonConfig {
             max_streams: None,
             theme: JsonTheme {
                 indent: 2,
-                curly_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                square_brackets_style: StyleBuilder::new()
-                    .attrs(Attributes::from(Attribute::Bold))
-                    .build(),
-                key_style: StyleBuilder::new().fgc(Color::Cyan).build(),
-                string_value_style: StyleBuilder::new().fgc(Color::Green).build(),
-                number_value_style: StyleBuilder::new().build(),
-                boolean_value_style: StyleBuilder::new().build(),
-                null_value_style: StyleBuilder::new().fgc(Color::Grey).build(),
+                curly_brackets_style: ContentStyle {
+                    attributes: Attributes::from(Attribute::Bold),
+                    ..Default::default()
+                },
+                square_brackets_style: ContentStyle {
+                    attributes: Attributes::from(Attribute::Bold),
+                    ..Default::default()
+                },
+                key_style: ContentStyle {
+                    foreground_color: Some(Color::Cyan),
+                    ..Default::default()
+                },
+                string_value_style: ContentStyle {
+                    foreground_color: Some(Color::Green),
+                    ..Default::default()
+                },
+                number_value_style: ContentStyle::default(),
+                boolean_value_style: ContentStyle::default(),
+                null_value_style: ContentStyle {
+                    foreground_color: Some(Color::Grey),
+                    ..Default::default()
+                },
             },
         }
     }
@@ -143,11 +163,15 @@ impl Default for CompletionConfig {
             cursor: String::from("❯ "),
             search_result_chunk_size: 100,
             search_load_chunk_size: 50000,
-            active_item_style: StyleBuilder::new()
-                .fgc(Color::Grey)
-                .bgc(Color::Yellow)
-                .build(),
-            inactive_item_style: StyleBuilder::new().fgc(Color::Grey).build(),
+            active_item_style: ContentStyle {
+                foreground_color: Some(Color::Grey),
+                background_color: Some(Color::Yellow),
+                ..Default::default()
+            },
+            inactive_item_style: ContentStyle {
+                foreground_color: Some(Color::Grey),
+                ..Default::default()
+            },
         }
     }
 }

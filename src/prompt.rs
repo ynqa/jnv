@@ -76,7 +76,10 @@ fn copy_to_clipboard(content: &str) -> text::State {
         // https://github.com/1Password/arboard/issues/153
         Err(e) => text::State {
             text: Text::from(format!("Failed to setup clipboard: {}", e)),
-            style: StyleBuilder::new().fgc(Color::Red).build(),
+            style: ContentStyle {
+                foreground_color: Some(Color::Red),
+                ..Default::default()
+            },
             ..Default::default()
         },
     }
@@ -195,7 +198,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     let size = terminal::size()?;
                                     pane = text::State {
                                         text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                        style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                        style: ContentStyle {
+                                            foreground_color: Some(Color::Yellow),
+                                            ..Default::default()
+                                        },
                                         ..Default::default()
                                     }.create_pane(size.0, size.1);
                                 }
@@ -226,7 +232,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             let size = terminal::size()?;
                                             pane = text::State {
                                                 text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                                style: ContentStyle {
+                                                    foreground_color: Some(Color::Yellow),
+                                                    ..Default::default()
+                                                },
                                                 ..Default::default()
                                             }.create_pane(size.0, size.1);
                                         }
