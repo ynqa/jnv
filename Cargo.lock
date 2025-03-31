@@ -1141,6 +1141,8 @@ dependencies = [
 [[package]]
 name = "promkit-core"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afdf9ca2b84218bffc62938a4755eb2c84c3015ed1eb98f2a4833701c9301a52"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -1150,6 +1152,8 @@ dependencies = [
 [[package]]
 name = "promkit-widgets"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "528fb688a78893954d5b37e9b98ab98b669f9ec997ce6dc285e850b92e4ad257"
 dependencies = [
  "anyhow",
  "promkit-core",

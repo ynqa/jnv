@@ -21,8 +21,8 @@ jaq-core = "1.2.1"
 jaq-interpret = "1.2.1"
 jaq-parse = "1.0.2"
 jaq-std = "1.2.1"
-promkit-core = { path = "../promkit/promkit-core", version = "0.1.0" }
-promkit-widgets = { path = "../promkit/promkit-widgets", version = "0.1.0", features = ["jsonstream", "listbox", "text", "texteditor"] }
+promkit-core = "0.1.0"
+promkit-widgets = { version = "0.1.0", features = ["jsonstream", "listbox", "text", "texteditor"] }
 serde = "1.0.219"
 tokio = { version = "1.44.1", features = ["full"] }
 tokio-stream = "0.1.16"
