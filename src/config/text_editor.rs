@@ -1,4 +1,4 @@
-use promkit::text_editor::Mode;
+use promkit_widgets::text_editor::Mode;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub mod text_editor_mode_serde {

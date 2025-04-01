@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use promkit::pane::Pane;
+use promkit_core::{grapheme::StyledGraphemes, Pane};
 use tokio::{sync::Mutex, task::JoinHandle, time::Duration};
 
 use super::{Context, State};
@@ -38,12 +38,7 @@ impl SpinnerSpawner {
 
                 frame_index = (frame_index + 1) % LOADING_FRAMES.len();
 
-                let pane = Pane::new(
-                    vec![promkit::grapheme::StyledGraphemes::from(
-                        LOADING_FRAMES[frame_index],
-                    )],
-                    0,
-                );
+                let pane = Pane::new(vec![StyledGraphemes::from(LOADING_FRAMES[frame_index])], 0);
                 {
                     // TODO: error handling
                     let _ = shared_renderer

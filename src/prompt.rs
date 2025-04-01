@@ -1,19 +1,18 @@
 use std::{io, sync::Arc, time::Duration};
 
 use arboard::Clipboard;
-use crossterm::{
-    self, cursor,
-    event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-    execute,
-    style::Color,
-    terminal::{self, disable_raw_mode, enable_raw_mode},
-};
 use futures::StreamExt;
-use promkit::{
-    style::StyleBuilder,
-    text::{self, Text},
+use promkit_core::{
+    crossterm::{
+        cursor,
+        event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+        execute,
+        style::{Color, ContentStyle},
+        terminal::{self, disable_raw_mode, enable_raw_mode},
+    },
     PaneFactory,
 };
+use promkit_widgets::text::{self, Text};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
@@ -57,12 +56,18 @@ fn copy_to_clipboard(content: &str) -> text::State {
         Ok(mut clipboard) => match clipboard.set_text(content) {
             Ok(_) => text::State {
                 text: Text::from("Copied to clipboard"),
-                style: StyleBuilder::new().fgc(Color::Green).build(),
+                style: ContentStyle {
+                    foreground_color: Some(Color::Green),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             Err(e) => text::State {
                 text: Text::from(format!("Failed to copy to clipboard: {}", e)),
-                style: StyleBuilder::new().fgc(Color::Red).build(),
+                style: ContentStyle {
+                    foreground_color: Some(Color::Red),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         },
@@ -71,7 +76,10 @@ fn copy_to_clipboard(content: &str) -> text::State {
         // https://github.com/1Password/arboard/issues/153
         Err(e) => text::State {
             text: Text::from(format!("Failed to setup clipboard: {}", e)),
-            style: StyleBuilder::new().fgc(Color::Red).build(),
+            style: ContentStyle {
+                foreground_color: Some(Color::Red),
+                ..Default::default()
+            },
             ..Default::default()
         },
     }
@@ -190,7 +198,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     let size = terminal::size()?;
                                     pane = text::State {
                                         text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                        style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                        style: ContentStyle {
+                                            foreground_color: Some(Color::Yellow),
+                                            ..Default::default()
+                                        },
                                         ..Default::default()
                                     }.create_pane(size.0, size.1);
                                 }
@@ -221,7 +232,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             let size = terminal::size()?;
                                             pane = text::State {
                                                 text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                style: StyleBuilder::new().fgc(Color::Yellow).build(),
+                                                style: ContentStyle {
+                                                    foreground_color: Some(Color::Yellow),
+                                                    ..Default::default()
+                                                },
                                                 ..Default::default()
                                             }.create_pane(size.0, size.1);
                                         }
