@@ -111,7 +111,6 @@ pub async fn run<T: ViewProvider + SearchProvider>(
             EMPTY_PANE.to_owned(),
             EMPTY_PANE.to_owned(),
             EMPTY_PANE.to_owned(),
-            EMPTY_PANE.to_owned(),
         ],
         no_hint,
     )?));

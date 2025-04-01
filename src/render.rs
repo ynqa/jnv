@@ -7,9 +7,8 @@ use promkit_core::{crossterm::cursor, pane::Pane, terminal::Terminal};
 pub enum PaneIndex {
     Editor = 0,
     Guide = 1,
-    ProcessorGuide = 2,
-    Search = 3,
-    Processor = 4,
+    Search = 2,
+    Processor = 3,
 }
 
 pub static EMPTY_PANE: LazyLock<Pane> = LazyLock::new(|| Pane::new(vec![], 0));
@@ -39,7 +38,7 @@ impl Renderer {
         iter: I,
     ) -> anyhow::Result<()> {
         for (index, pane) in iter {
-            if self.no_hint && (index == PaneIndex::Guide || index == PaneIndex::ProcessorGuide) {
+            if self.no_hint && index == PaneIndex::Guide {
                 continue;
             }
             self.panes[index as usize] = pane;

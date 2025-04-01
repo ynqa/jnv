@@ -85,7 +85,7 @@ impl Processor {
                 // TODO: error handling
                 let _ = shared_renderer.lock().await.update_and_draw([
                     (
-                        PaneIndex::ProcessorGuide,
+                        PaneIndex::Guide,
                         maybe_guide.unwrap_or(EMPTY_PANE.to_owned()),
                     ),
                     (
