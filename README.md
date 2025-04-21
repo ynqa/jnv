@@ -3,7 +3,7 @@
   <img alt="Text describing the image" src="assets/jnv-light.svg">
 </picture>
 
-[![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)
+[![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)[![🧪 Snap Builds](https://github.com/ynqa/jnv/workflows/%F0%9F%A7%AA%20Snap%20Builds/badge.svg)]
 
 *jnv* is designed for navigating JSON,
 offering an interactive JSON viewer and `jq` filter editor.
@@ -99,6 +99,12 @@ And Run
 
 ```bash
 docker run -it --rm -v $(pwd)/debug.json:/jnv/debug.json jnv /jnv/debug.json
+```
+
+
+### Snap [![jnv](https://snapcraft.io//jnv/badge.svg)](https://snapcraft.io/jnv)
+```bash
+sudo snap install jnv
 ```
 
 ### Cargo

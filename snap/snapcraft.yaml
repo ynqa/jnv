@@ -1,0 +1,60 @@
+name: jnv
+title: jnv
+summary: Interactive JSON viewer and jq filter
+adopt-info: jnv 
+description: |
+  jnv is designed for navigating JSON, offering an interactive JSON viewer and jq filter editor.
+  Learn more at: https://github.com/ynqa/jnv
+  
+  JSON navigator and interactive filter leveraging jq
+
+  Usage: jnv [OPTIONS] [INPUT]
+
+  Examples:
+    - Read from a file:
+        jnv data.json
+
+    - Read from standard input:
+        cat data.json | jnv
+
+  Arguments:
+    [INPUT]  Optional path to a JSON file. If not provided or if "-" is specified, reads from standard input
+
+  Options:
+    -c, --config <CONFIG_FILE>             Path to the configuration file.
+        --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
+    -h, --help                             Print help (see more with '--help')
+    -V, --version                          Print version
+
+license: MIT
+base: core24
+grade: stable
+confinement: strict
+compression: lzo
+
+website: https://github.com/ynqa/jnv
+contact: https://github.com/ynqa/jnv
+issues: https://github.com/ynqa/jnv/issues
+source-code: https://github.com/ynqa/jnv
+
+
+apps:
+  jnv:
+    command: bin/jnv
+    
+parts:
+  jnv:
+    source: https://github.com/ynqa/jnv
+    source-type: git
+    plugin: rust
+    
+    override-pull: |
+      craftctl default
+      craftctl set version="$(git describe --tags | sed 's/^v//' | cut -d "-" -f1)"
+
+    build-packages:
+      - cargo
+      - rustc
+      - pkg-config
+      - librust-openssl-sys-dev
+  
