@@ -51,10 +51,4 @@ parts:
     override-pull: |
       craftctl default
       craftctl set version="$(git describe --tags | sed 's/^v//' | cut -d "-" -f1)"
-
-    build-packages:
-      - cargo
-      - rustc
-      - pkg-config
-      - librust-openssl-sys-dev
   
