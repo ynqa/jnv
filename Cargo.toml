@@ -10,7 +10,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.97"
-arboard = { version = "3.4.1", features =  ["wayland-data-control"] }
+arboard = { version = "3.6.0", features =  ["wayland-data-control"] }
 async-trait = "0.1.88"
 clap = { version = "4.5.41", features = ["derive"] }
 duration-string = { version = "0.5.2", features = ["serde"] }
