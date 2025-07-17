@@ -1,14 +1,14 @@
 use jaq_interpret::{Ctx, FilterT, ParseCtx, RcIter, Val};
-use promkit_core::{
-    crossterm::{
-        event::Event,
-        style::{Attribute, Attributes, Color, ContentStyle},
-    },
-    pane::Pane,
-    PaneFactory,
-};
 
 use promkit_widgets::{
+    core::{
+        crossterm::{
+            event::Event,
+            style::{Attribute, Attributes, Color, ContentStyle},
+        },
+        pane::Pane,
+        PaneFactory,
+    },
     jsonstream::{self, format::RowFormatter, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
     text::{self, Text},

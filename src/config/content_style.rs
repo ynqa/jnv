@@ -1,4 +1,4 @@
-use promkit_core::crossterm::style::{Attribute, Attributes, Color, ContentStyle};
+use promkit_widgets::core::crossterm::style::{Attribute, Attributes, Color, ContentStyle};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

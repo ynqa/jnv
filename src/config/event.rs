@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use promkit_core::crossterm::event::{
+use promkit_widgets::core::crossterm::event::{
     Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind,
 };
 use serde::{Deserialize, Serialize};

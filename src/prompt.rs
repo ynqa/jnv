@@ -2,17 +2,23 @@ use std::{io, sync::Arc, time::Duration};
 
 use arboard::Clipboard;
 use futures::StreamExt;
-use promkit_core::{
-    crossterm::{
-        cursor,
-        event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-        execute,
-        style::{Color, ContentStyle},
-        terminal::{self, disable_raw_mode, enable_raw_mode},
+use promkit_widgets::{
+    core::{
+        crossterm::{
+            cursor,
+            event::{
+                Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
+            },
+            execute,
+            style::{Color, ContentStyle},
+            terminal::{self, disable_raw_mode, enable_raw_mode},
+        },
+        pane::EMPTY_PANE,
+        render::{Renderer, SharedRenderer},
+        PaneFactory,
     },
-    PaneFactory,
+    text::{self, Text},
 };
-use promkit_widgets::text::{self, Text};
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
@@ -20,8 +26,8 @@ use tokio::{
 
 use crate::{
     config::{event::Matcher, Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, PaneIndex, Processor, Renderer, SearchProvider,
-    SpinnerSpawner, ViewInitializer, ViewProvider, Visualizer, EMPTY_PANE,
+    Context, ContextMonitor, Editor, Processor, SearchProvider, SpinnerSpawner, ViewInitializer,
+    ViewProvider, Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -90,6 +96,14 @@ enum Focus {
     Processor,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Index {
+    Editor = 0,
+    Guide = 1,
+    Search = 2,
+    Processor = 3,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn run<T: ViewProvider + SearchProvider>(
     item: &'static str,
@@ -105,15 +119,19 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     let size = terminal::size()?;
 
-    let shared_renderer = Arc::new(Mutex::new(Renderer::try_init_draw(
-        [
-            editor.create_editor_pane(size.0, size.1),
-            EMPTY_PANE.to_owned(),
-            EMPTY_PANE.to_owned(),
-            EMPTY_PANE.to_owned(),
-        ],
-        no_hint,
-    )?));
+    let shared_renderer = SharedRenderer::new(
+        Renderer::try_new_with_panes(
+            [
+                (Index::Editor, editor.create_editor_pane(size.0, size.1)),
+                (Index::Guide, EMPTY_PANE.to_owned()),
+                (Index::Search, EMPTY_PANE.to_owned()),
+                (Index::Processor, EMPTY_PANE.to_owned()),
+            ]
+            .into_iter(),
+            true,
+        )
+        .await?,
+    );
 
     let ctx = Arc::new(Mutex::new(Context::new(size)));
 
@@ -190,24 +208,23 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                 kind: KeyEventKind::Press,
                                 state: KeyEventState::NONE,
                             }) => {
-                                let mut pane = EMPTY_PANE.to_owned();
                                 if context_monitor.is_idle().await {
                                     processor_copy_tx.send(()).await?;
-                                } else {
+                                } else if !no_hint{
                                     let size = terminal::size()?;
-                                    pane = text::State {
-                                        text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                        style: ContentStyle {
-                                            foreground_color: Some(Color::Yellow),
-                                            ..Default::default()
-                                        },
-                                        ..Default::default()
-                                    }.create_pane(size.0, size.1);
-                                }
-                                {
-                                    shared_renderer.lock().await.update_and_draw([
-                                        (PaneIndex::Guide, pane),
-                                    ])?;
+                                    shared_renderer.update([
+                                        (
+                                            Index::Guide,
+                                            text::State {
+                                                text: Text::from("Failed to copy while rendering is in progress.".to_string()),
+                                                style: ContentStyle {
+                                                    foreground_color: Some(Color::Yellow),
+                                                    ..Default::default()
+                                                },
+                                                ..Default::default()
+                                            }.create_pane(size.0, size.1),
+                                        ),
+                                    ]).render().await?;
                                 }
                             },
                             Event::Key(KeyEvent {
@@ -223,25 +240,23 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             }) => {
                                 match focus {
                                     Focus::Editor => {
-                                        let mut pane = EMPTY_PANE.to_owned();
                                         if context_monitor.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
-                                        } else {
+                                        } else if !no_hint{
                                             let size = terminal::size()?;
-                                            pane = text::State {
-                                                text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                style: ContentStyle {
-                                                    foreground_color: Some(Color::Yellow),
-                                                    ..Default::default()
-                                                },
-                                                ..Default::default()
-                                            }.create_pane(size.0, size.1);
-                                        }
-                                        {
-                                            shared_renderer.lock().await.update_and_draw([
-                                                (PaneIndex::Guide, pane),
-                                            ])?;
+                                            shared_renderer.update([
+                                                (
+                                                    Index::Guide,
+                                                    text::State {
+                                                        text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
+                                                        style: ContentStyle {
+                                                            foreground_color: Some(Color::Yellow),
+                                                            ..Default::default()
+                                                        },
+                                                        ..Default::default()
+                                                    }.create_pane(size.0, size.1)),
+                                            ]).render().await?;
                                         }
                                     },
                                     Focus::Processor => {
@@ -290,25 +305,23 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                 editor.create_guide_pane(size.0, size.1),
                             )
                         };
-                        {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Editor, editor_pane),
-                                (PaneIndex::Guide, guide_pane),
-                            ])?;
-                        }
+                        shared_renderer.update([
+                            (Index::Editor, editor_pane),
+                            (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                        ]).render().await?;
                     }
                     Some(()) = editor_copy_rx.recv() => {
                         let text = {
-                            let editor = shared_editor.write().await;
+                            let editor = shared_editor.read().await;
                             editor.text()
                         };
                         let guide = copy_to_clipboard(&text);
-                        let size = terminal::size()?;
-                        let pane = guide.create_pane(size.0, size.1);
-                        {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Guide, pane),
-                            ])?;
+                        if !no_hint {
+                            let size = terminal::size()?;
+                            let pane = guide.create_pane(size.0, size.1);
+                            shared_renderer.update([
+                                (Index::Guide, pane),
+                            ]).render().await?;
                         }
                     }
                     Some(event) = editor_event_rx.recv() => {
@@ -331,11 +344,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             )
                         };
                         {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Editor, editor_pane),
-                                (PaneIndex::Guide, guide_pane),
-                                (PaneIndex::Search, searcher_pane),
-                            ])?;
+                            shared_renderer.update([
+                                (Index::Editor, editor_pane),
+                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Search, searcher_pane),
+                            ]).render().await?;
                         }
                     }
                     else => {
@@ -358,12 +371,12 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                     Some(()) = processor_copy_rx.recv() => {
                         let visualizer = shared_visualizer.lock().await;
                         let guide = copy_to_clipboard(&visualizer.content_to_copy().await);
-                        let size = terminal::size()?;
-                        let pane = guide.create_pane(size.0, size.1);
-                        {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Guide, pane),
-                            ])?;
+                        if !no_hint {
+                            let size = terminal::size()?;
+                            let pane = guide.create_pane(size.0, size.1);
+                            shared_renderer.update([
+                                (Index::Guide, pane),
+                            ]).render().await?;
                         }
                     }
                     Some(event) = processor_event_rx.recv() => {
@@ -372,9 +385,9 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             visualizer.create_pane_from_event((size.0, size.1), &event).await
                         };
                         {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Processor, pane),
-                            ])?;
+                            shared_renderer.update([
+                                (Index::Processor, pane),
+                            ]).render().await?;
                         }
                     }
                     Some(query) = last_query_rx.recv() => {
@@ -394,11 +407,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             )
                         };
                         {
-                            shared_renderer.lock().await.update_and_draw([
-                                (PaneIndex::Editor, editor_pane),
-                                (PaneIndex::Guide, guide_pane),
-                                (PaneIndex::Search, searcher_pane),
-                            ])?;
+                            shared_renderer.update([
+                                (Index::Editor, editor_pane),
+                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Search, searcher_pane),
+                            ]).render().await?;
                         }
                         let text = {
                             let editor = shared_editor.read().await;

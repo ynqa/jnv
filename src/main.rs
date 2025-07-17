@@ -7,8 +7,8 @@ use std::{
 use anyhow::anyhow;
 use clap::Parser;
 use config::Config;
-use promkit_core::crossterm::style::Attribute;
 use promkit_widgets::{
+    core::crossterm::style::Attribute,
     jsonstream::format::RowFormatter,
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
@@ -25,8 +25,6 @@ use processor::{
     ViewProvider, Visualizer,
 };
 mod prompt;
-mod render;
-use render::{PaneIndex, Renderer, EMPTY_PANE};
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
 
