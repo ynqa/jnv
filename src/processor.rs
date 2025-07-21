@@ -1,12 +1,17 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use promkit_core::{crossterm::event::Event, pane::Pane};
+use promkit_widgets::core::{
+    crossterm::event::Event,
+    pane::{Pane, EMPTY_PANE},
+    render::SharedRenderer,
+};
 use tokio::{sync::Mutex, task::JoinHandle};
 
-use crate::{PaneIndex, Renderer, EMPTY_PANE};
 pub mod init;
 pub use init::ViewProvider;
+
+use crate::prompt::Index;
 pub mod monitor;
 pub mod spinner;
 
@@ -58,7 +63,7 @@ impl Processor {
         &self,
         query: String,
         shared_visualizer: Arc<Mutex<impl Visualizer>>,
-        shared_renderer: Arc<Mutex<Renderer>>,
+        shared_renderer: SharedRenderer<Index>,
     ) -> JoinHandle<()> {
         let shared = self.shared.clone();
         tokio::spawn(async move {
@@ -83,16 +88,16 @@ impl Processor {
             }
             {
                 // TODO: error handling
-                let _ = shared_renderer.lock().await.update_and_draw([
-                    (
-                        PaneIndex::Guide,
-                        maybe_guide.unwrap_or(EMPTY_PANE.to_owned()),
-                    ),
-                    (
-                        PaneIndex::Processor,
-                        maybe_resp.unwrap_or(EMPTY_PANE.to_owned()),
-                    ),
-                ]);
+                let _ = shared_renderer
+                    .update([
+                        (Index::Guide, maybe_guide.unwrap_or(EMPTY_PANE.to_owned())),
+                        (
+                            Index::Processor,
+                            maybe_resp.unwrap_or(EMPTY_PANE.to_owned()),
+                        ),
+                    ])
+                    .render()
+                    .await;
             }
         })
     }
@@ -102,7 +107,7 @@ impl Processor {
         shared_visualizer: Arc<Mutex<impl Visualizer>>,
         area: (u16, u16),
         query: String,
-        shared_renderer: Arc<Mutex<Renderer>>,
+        shared_renderer: SharedRenderer<Index>,
     ) {
         {
             let mut shared_state = self.shared.lock().await;
@@ -124,7 +129,7 @@ impl Processor {
         &self,
         shared_visualizer: Arc<Mutex<impl Visualizer>>,
         query: String,
-        shared_renderer: Arc<Mutex<Renderer>>,
+        shared_renderer: SharedRenderer<Index>,
     ) {
         {
             let mut shared_state = self.shared.lock().await;

@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use promkit_widgets::core::render::SharedRenderer;
 use tokio::sync::Mutex;
 
 use super::{Context, State, Visualizer};
-use crate::{config::JsonViewerKeybinds, PaneIndex, Renderer};
+use crate::{config::JsonViewerKeybinds, prompt::Index};
 
 #[async_trait]
 pub trait ViewProvider {
@@ -29,7 +30,7 @@ impl ViewInitializer {
         provider: &'a mut T,
         item: &'static str,
         area: (u16, u16),
-        shared_renderer: Arc<Mutex<Renderer>>,
+        shared_renderer: SharedRenderer<Index>,
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<impl Visualizer + 'a> {
         {
@@ -51,9 +52,9 @@ impl ViewInitializer {
         {
             // TODO: error handling
             let _ = shared_renderer
-                .lock()
-                .await
-                .update_and_draw([(PaneIndex::Processor, pane)]);
+                .update([(Index::Processor, pane)])
+                .render()
+                .await;
         }
 
         Ok(visualizer)
