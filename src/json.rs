@@ -27,6 +27,7 @@ use crate::{
 // #[derive(Clone)]
 pub struct Json {
     state: jsonstream::State,
+    cached_state: jsonstream::State,
     json: &'static [serde_json::Value],
     keybinds: JsonViewerKeybinds,
 }
@@ -37,13 +38,16 @@ impl Json {
         input_stream: &'static [serde_json::Value],
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
+        let state = jsonstream::State {
+            stream: JsonStream::new(input_stream.iter()),
+            formatter,
+            lines: Default::default(),
+        };
+
         Ok(Self {
             json: input_stream,
-            state: jsonstream::State {
-                stream: JsonStream::new(input_stream.iter()),
-                formatter,
-                lines: Default::default(),
-            },
+            cached_state: state.clone(),
+            state,
             keybinds,
         })
     }
@@ -123,27 +127,33 @@ impl Visualizer for Json {
                         },
                         ..Default::default()
                     }.create_pane(area.0, area.1));
+
+                    return (guide, Some(self.cached_state.create_pane(area.0, area.1)));
                 }
 
                 self.state.stream = JsonStream::new(ret.iter());
 
                 (guide, Some(self.state.create_pane(area.0, area.1)))
             }
-            Err(e) => (
-                Some(
-                    text::State {
-                        text: Text::from(format!("jq failed: `{e}`")),
-                        style: ContentStyle {
-                            foreground_color: Some(Color::Red),
-                            attributes: Attributes::from(Attribute::Bold),
+            Err(e) => {
+                self.state.stream = self.cached_state.stream.clone();
+
+                (
+                    Some(
+                        text::State {
+                            text: Text::from(format!("jq failed: `{e}`")),
+                            style: ContentStyle {
+                                foreground_color: Some(Color::Red),
+                                attributes: Attributes::from(Attribute::Bold),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        },
-                        ..Default::default()
-                    }
-                    .create_pane(area.0, area.1),
-                ),
-                None,
-            ),
+                        }
+                        .create_pane(area.0, area.1),
+                    ),
+                    Some(self.cached_state.create_pane(area.0, area.1)),
+                )
+            }
         }
     }
 }
