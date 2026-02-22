@@ -27,7 +27,6 @@ use crate::{
 // #[derive(Clone)]
 pub struct Json {
     state: jsonstream::State,
-    init_stream: JsonStream,
     json: &'static [serde_json::Value],
     keybinds: JsonViewerKeybinds,
 }
@@ -38,17 +37,14 @@ impl Json {
         input_stream: &'static [serde_json::Value],
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
-        let init_stream = JsonStream::new(input_stream.iter());
-
         let state = jsonstream::State {
-            stream: init_stream.clone(),
+            stream: JsonStream::new(input_stream.iter()),
             formatter,
             lines: Default::default(),
         };
 
         Ok(Self {
             json: input_stream,
-            init_stream,
             state,
             keybinds,
         })
@@ -130,7 +126,7 @@ impl Visualizer for Json {
                         ..Default::default()
                     }.create_pane(area.0, area.1));
 
-                    self.state.stream = self.init_stream.clone();
+                    self.state.stream = JsonStream::new(self.json.iter());
                 } else {
                     self.state.stream = JsonStream::new(ret.iter());
                 }
@@ -138,7 +134,7 @@ impl Visualizer for Json {
                 (guide, Some(self.state.create_pane(area.0, area.1)))
             }
             Err(e) => {
-                self.state.stream = self.init_stream.clone();
+                self.state.stream = JsonStream::new(self.json.iter());
 
                 (
                     Some(
