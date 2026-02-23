@@ -1,10 +1,7 @@
-use std::{collections::HashSet, hash::Hash};
+use std::collections::HashSet;
 
 use promkit_widgets::{
-    core::crossterm::{
-        event::{Event, KeyCode, KeyModifiers},
-        style::{Attribute, Attributes, Color, ContentStyle},
-    },
+    core::crossterm::{event::Event, style::ContentStyle},
     text_editor::Mode,
 };
 use serde::{Deserialize, Serialize};

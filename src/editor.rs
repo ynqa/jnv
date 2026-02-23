@@ -13,7 +13,7 @@ use promkit_widgets::{
 };
 
 use crate::{
-    config::{event::Matcher, EditorKeybinds, EditorTheme},
+    config::{EditorKeybinds, EditorTheme},
     search::IncrementalSearcher,
 };
 
@@ -104,7 +104,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
     editor.guide.text = Default::default();
 
     match event {
-        key if editor.editor_keybinds.completion.matches(key) => {
+        key if editor.editor_keybinds.completion.contains(key) => {
             let prefix = editor.state.texteditor.text_without_cursor().to_string();
             match editor.searcher.start_search(&prefix) {
                 Ok(result) => match result.head_item {
@@ -151,27 +151,31 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         }
 
         // Move cursor.
-        key if editor.editor_keybinds.backward.matches(key) => {
+        key if editor.editor_keybinds.backward.contains(key) => {
             editor.state.texteditor.backward();
         }
-        key if editor.editor_keybinds.forward.matches(key) => {
+        key if editor.editor_keybinds.forward.contains(key) => {
             editor.state.texteditor.forward();
         }
-        key if editor.editor_keybinds.move_to_head.matches(key) => {
+        key if editor.editor_keybinds.move_to_head.contains(key) => {
             editor.state.texteditor.move_to_head();
         }
-        key if editor.editor_keybinds.move_to_tail.matches(key) => {
+        key if editor.editor_keybinds.move_to_tail.contains(key) => {
             editor.state.texteditor.move_to_tail();
         }
 
         // Move cursor to the nearest character.
-        key if editor.editor_keybinds.move_to_previous_nearest.matches(key) => {
+        key if editor
+            .editor_keybinds
+            .move_to_previous_nearest
+            .contains(key) =>
+        {
             editor
                 .state
                 .texteditor
                 .move_to_previous_nearest(&editor.state.word_break_chars);
         }
-        key if editor.editor_keybinds.move_to_next_nearest.matches(key) => {
+        key if editor.editor_keybinds.move_to_next_nearest.contains(key) => {
             editor
                 .state
                 .texteditor
@@ -179,10 +183,10 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         }
 
         // Erase char(s).
-        key if editor.editor_keybinds.erase.matches(key) => {
+        key if editor.editor_keybinds.erase.contains(key) => {
             editor.state.texteditor.erase();
         }
-        key if editor.editor_keybinds.erase_all.matches(key) => {
+        key if editor.editor_keybinds.erase_all.contains(key) => {
             editor.state.texteditor.erase_all();
         }
 
@@ -190,14 +194,14 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
         key if editor
             .editor_keybinds
             .erase_to_previous_nearest
-            .matches(key) =>
+            .contains(key) =>
         {
             editor
                 .state
                 .texteditor
                 .erase_to_previous_nearest(&editor.state.word_break_chars);
         }
-        key if editor.editor_keybinds.erase_to_next_nearest.matches(key) => {
+        key if editor.editor_keybinds.erase_to_next_nearest.contains(key) => {
             editor
                 .state
                 .texteditor
@@ -228,7 +232,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
 
 pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Result<()> {
     match event {
-        key if editor.editor_keybinds.on_completion.down.matches(key) => {
+        key if editor.editor_keybinds.on_completion.down.contains(key) => {
             editor.searcher.down_with_load();
             editor
                 .state
@@ -236,7 +240,7 @@ pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Res
                 .replace(&editor.searcher.get_current_item());
         }
 
-        key if editor.editor_keybinds.on_completion.up.matches(key) => {
+        key if editor.editor_keybinds.on_completion.up.contains(key) => {
             editor.searcher.up();
             editor
                 .state
