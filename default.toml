@@ -34,22 +34,22 @@ word_break_chars = [".", "|", "(", ")", "[", "]"]
 # Prefix shown before the cursor
 prefix = "❯❯ "
 # Style for the prefix
-prefix_style = { foreground = "blue" }
+prefix_style = "fg=blue"
 # Style for the character under the cursor
-active_char_style = { background = "magenta" }
+active_char_style = "bg=magenta"
 # Style for all other characters
-inactive_char_style = {}
+inactive_char_style = ""
 
 # Theme settings when the editor is unfocused
 [editor.theme_on_defocus]
 # Prefix shown when focus is lost
 prefix = "▼ "
 # Style for the prefix when unfocused
-prefix_style = { foreground = "blue", attributes = ["Dim"] }
+prefix_style = "fg=blue,attr=dim"
 # Style for the character under the cursor when unfocused
-active_char_style = { attributes = ["Dim"] }
+active_char_style = "attr=dim"
 # Style for all other characters when unfocused
-inactive_char_style = { attributes = ["Dim"] }
+inactive_char_style = "attr=dim"
 
 # JSON display settings
 [json]
@@ -63,19 +63,19 @@ inactive_char_style = { attributes = ["Dim"] }
 # Number of spaces to use for indentation
 indent = 2
 # Style for curly brackets {}
-curly_brackets_style = { attributes = ["Bold"] }
+curly_brackets_style = "attr=bold"
 # Style for square brackets []
-square_brackets_style = { attributes = ["Bold"] }
+square_brackets_style = "attr=bold"
 # Style for JSON keys
-key_style = { foreground = "cyan" }
+key_style = "fg=cyan"
 # Style for string values
-string_value_style = { foreground = "green" }
+string_value_style = "fg=green"
 # Style for number values
-number_value_style = {}
+number_value_style = ""
 # Style for boolean values
-boolean_value_style = {}
+boolean_value_style = ""
 # Style for null values
-null_value_style = { foreground = "grey" }
+null_value_style = "fg=grey"
 
 # Completion feature settings
 [completion]
@@ -84,9 +84,9 @@ lines = 3
 # Cursor character shown before the selected candidate
 cursor = "❯ "
 # Style for the selected candidate
-active_item_style = { foreground = "grey", background = "yellow" }
+active_item_style = "fg=grey,bg=yellow"
 # Style for unselected candidates
-inactive_item_style = { foreground = "grey" }
+inactive_item_style = "fg=grey"
 
 # Settings for background loading of completion candidates
 #
@@ -101,111 +101,63 @@ search_load_chunk_size = 50000
 # Keybinding settings
 [keybinds]
 # Key to exit the application
-exit = [
-  { Key = { modifiers = "CONTROL", code = { Char = "c" } } }
-]
+exit = ["Ctrl+C"]
 # Key to copy the query to the clipboard
-copy_query = [
-  { Key = { modifiers = "CONTROL", code = { Char = "q" } } }
-]
+copy_query = ["Ctrl+Q"]
 # Key to copy the result to the clipboard
-copy_result = [
-  { Key = { modifiers = "CONTROL", code = { Char = "o" } } }
-]
+copy_result = ["Ctrl+O"]
 # Keys to switch focus between editor and JSON viewer
-switch_mode = [
-  { Key = { code = "Down", modifiers = "SHIFT" } },
-  { Key = { code = "Up", modifiers = "SHIFT" } }
-]
+switch_mode = ["Shift+Down", "Shift+Up"]
 
 # Keybindings for editor operations
 [keybinds.on_editor]
 # Move cursor left
-backward = [
-  { Key = { code = "Left", modifiers = "" } }
-]
+backward = ["Left"]
+
 # Move cursor right
-forward = [
-  { Key = { code = "Right", modifiers = "" } }
-]
+forward = ["Right"]
+
 # Move cursor to beginning of line
-move_to_head = [
-  { Key = { modifiers = "CONTROL", code = { Char = "a" } } }
-]
+move_to_head = ["Ctrl+A"]
 # Move cursor to end of line
-move_to_tail = [
-  { Key = { modifiers = "CONTROL", code = { Char = "e" } } }
-]
+move_to_tail = ["Ctrl+E"]
 # Move cursor to previous word boundary
-move_to_previous_nearest = [
-  { Key = { modifiers = "ALT", code = { Char = "b" } } }
-]
+move_to_previous_nearest = ["Alt+B"]
 # Move cursor to next word boundary
-move_to_next_nearest = [
-  { Key = { modifiers = "ALT", code = { Char = "f" } } }
-]
+move_to_next_nearest = ["Alt+F"]
 # Delete character at the cursor
-erase = [
-  { Key = { code = "Backspace", modifiers = "" } }
-]
+erase = ["Backspace"]
+
 # Delete all input
-erase_all = [
-  { Key = { modifiers = "CONTROL", code = { Char = "u" } } }
-]
+erase_all = ["Ctrl+U"]
+
 # Delete from cursor to previous word boundary
-erase_to_previous_nearest = [
-  { Key = { modifiers = "CONTROL", code = { Char = "w" } } }
-]
+erase_to_previous_nearest = ["Ctrl+W"]
 # Delete from cursor to next word boundary
-erase_to_next_nearest = [
-  { Key = { modifiers = "ALT", code = { Char = "d" } } }
-]
+erase_to_next_nearest = ["Alt+D"]
 # Trigger completion
-completion = [
-  { Key = { code = "Tab", modifiers = "" } }
-]
+completion = ["Tab"]
 # Move up in the completion list
-on_completion.up = [
-  { Key = { code = "Up", modifiers = "" } }
-]
+on_completion.up = ["Up"]
 # Move down in the completion list
-on_completion.down = [
-  { Key = { code = "Down", modifiers = "" } },
-  { Key = { code = "Tab", modifiers = "" } }
-]
+on_completion.down = ["Down", "Tab"]
 
 # Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
 # Move up in JSON viewer
-up = [
-  { Key = { code = "Up", modifiers = "" } },
-  { Key = { modifiers = "CONTROL", code = { Char = "k" } } }
-]
+up = ["Up", "Ctrl+K"]
 # Move down in JSON viewer
-down = [
-  { Key = { modifiers = "CONTROL", code = { Char = "j" } } },
-  { Key = { code = "Down", modifiers = "" } }
-]
+down = ["Down", "Ctrl+J"]
 # Move to the top of JSON viewer
-move_to_head = [
-  { Key = { modifiers = "CONTROL", code = { Char = "l" } } }
-]
+move_to_head = ["Ctrl+L"]
 # Move to the bottom of JSON viewer
-move_to_tail = [
-  { Key = { modifiers = "CONTROL", code = { Char = "h" } } }
-]
+move_to_tail = ["Ctrl+H"]
 # Toggle expand/collapse of JSON nodes
-toggle = [
-  { Key = { code = "Enter", modifiers = "" } }
-]
+toggle = ["Enter"]
 # Expand all JSON nodes
-expand = [
-  { Key = { modifiers = "CONTROL", code = { Char = "p" } } }
-]
+expand = ["Ctrl+P"]
 # Collapse all JSON nodes
-collapse = [
-  { Key = { modifiers = "CONTROL", code = { Char = "n" } } }
-]
+collapse = ["Ctrl+N"]
 
 # Application reactivity settings
 [reactivity_control]
