@@ -28,7 +28,7 @@ mod prompt;
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
 
-static DEFAULT_CONFIG: &str = include_str!("../default.toml");
+use crate::config::DEFAULT_CONFIG;
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -148,15 +148,15 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let mut config = Config::default();
-    if let Ok(config_file) = determine_config_file(args.config_file) {
-        // Note that the configuration file absolutely exists.
-        let content = std::fs::read_to_string(&config_file)
-            // TODO: output the message as the initial guide pane.
-            .map_err(|e| anyhow!("Failed to read configuration file: {e}"))?;
-        config = Config::load_from(&content)
-            .map_err(|e| anyhow!("Failed to deserialize configuration file: {e}"))?;
-    }
+    let config = determine_config_file(args.config_file)
+        .and_then(|config_file| {
+            std::fs::read_to_string(&config_file)
+                .map_err(|e| anyhow!("Failed to read configuration file: {e}"))
+        })
+        .and_then(|content| Config::load_from(&content))
+        .unwrap_or_else(|e| {
+            Config::load_from(DEFAULT_CONFIG).expect("Failed to load default configuration")
+        });
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
