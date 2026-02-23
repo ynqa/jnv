@@ -858,6 +858,7 @@ dependencies = [
  "jaq-std",
  "promkit-widgets",
  "serde",
+ "termcfg",
  "tokio",
  "tokio-stream",
  "toml",
@@ -1432,6 +1433,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "termcfg"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
