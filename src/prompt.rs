@@ -62,16 +62,22 @@ fn copy_to_clipboard(content: &str) -> text::State {
         Ok(mut clipboard) => match clipboard.set_text(content) {
             Ok(_) => text::State {
                 text: Text::from("Copied to clipboard"),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Green),
+                config: text::Config {
+                    style: Some(ContentStyle {
+                        foreground_color: Some(Color::Green),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 },
                 ..Default::default()
             },
             Err(e) => text::State {
                 text: Text::from(format!("Failed to copy to clipboard: {e}")),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Red),
+                config: text::Config {
+                    style: Some(ContentStyle {
+                        foreground_color: Some(Color::Red),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -82,8 +88,11 @@ fn copy_to_clipboard(content: &str) -> text::State {
         // https://github.com/1Password/arboard/issues/153
         Err(e) => text::State {
             text: Text::from(format!("Failed to setup clipboard: {e}")),
-            style: ContentStyle {
-                foreground_color: Some(Color::Red),
+            config: text::Config {
+                style: Some(ContentStyle {
+                    foreground_color: Some(Color::Red),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -217,8 +226,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             Index::Guide,
                                             text::State {
                                                 text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                                style: ContentStyle {
-                                                    foreground_color: Some(Color::Yellow),
+                                                config: text::Config {
+                                                    style: Some(ContentStyle {
+                                                        foreground_color: Some(Color::Yellow),
+                                                        ..Default::default()
+                                                    }),
                                                     ..Default::default()
                                                 },
                                                 ..Default::default()
@@ -250,8 +262,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                                     Index::Guide,
                                                     text::State {
                                                         text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                        style: ContentStyle {
-                                                            foreground_color: Some(Color::Yellow),
+                                                        config: text::Config {
+                                                            style: Some(ContentStyle {
+                                                                foreground_color: Some(Color::Yellow),
+                                                                ..Default::default()
+                                                            }),
                                                             ..Default::default()
                                                         },
                                                         ..Default::default()

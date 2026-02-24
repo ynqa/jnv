@@ -8,8 +8,6 @@ use anyhow::anyhow;
 use clap::Parser;
 use config::Config;
 use promkit_widgets::{
-    core::crossterm::style::Attribute,
-    jsonstream::format::RowFormatter,
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
 };
@@ -160,10 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
-        cursor: config.completion.cursor,
-        active_item_style: Some(config.completion.active_item_style),
-        inactive_item_style: Some(config.completion.inactive_item_style),
-        lines: config.completion.lines,
+        config: config.completion.listbox.clone(),
     };
 
     let searcher =
@@ -176,31 +171,11 @@ async fn main() -> anyhow::Result<()> {
             Default::default()
         },
         history: Default::default(),
-        prefix: config.editor.theme_on_focus.prefix.clone(),
-        mask: Default::default(),
-        prefix_style: config.editor.theme_on_focus.prefix_style,
-        active_char_style: config.editor.theme_on_focus.active_char_style,
-        inactive_char_style: config.editor.theme_on_focus.inactive_char_style,
-        edit_mode: config.editor.mode,
-        word_break_chars: config.editor.word_break_chars,
-        lines: Default::default(),
+        config: config.editor.on_focus.clone(),
     };
 
-    let provider = &mut JsonStreamProvider::new(
-        RowFormatter {
-            curly_brackets_style: config.json.theme.curly_brackets_style,
-            square_brackets_style: config.json.theme.square_brackets_style,
-            key_style: config.json.theme.key_style,
-            string_value_style: config.json.theme.string_value_style,
-            number_value_style: config.json.theme.number_value_style,
-            boolean_value_style: config.json.theme.boolean_value_style,
-            null_value_style: config.json.theme.null_value_style,
-            active_item_attribute: Attribute::Bold,
-            inactive_item_attribute: Attribute::Dim,
-            indent: config.json.theme.indent,
-        },
-        config.json.max_streams,
-    );
+    let provider =
+        &mut JsonStreamProvider::new(config.json.stream.clone(), config.json.max_streams);
 
     let item = Box::leak(input.into_boxed_str());
 
@@ -213,8 +188,8 @@ async fn main() -> anyhow::Result<()> {
     let editor = Editor::new(
         text_editor_state,
         searcher,
-        config.editor.theme_on_focus,
-        config.editor.theme_on_defocus,
+        config.editor.on_focus,
+        config.editor.on_defocus,
         // TODO: remove clones
         config.keybinds.on_editor.clone(),
     );

@@ -12,16 +12,13 @@ use promkit_widgets::{
     text_editor,
 };
 
-use crate::{
-    config::{EditorKeybinds, EditorTheme},
-    search::IncrementalSearcher,
-};
+use crate::{config::EditorKeybinds, search::IncrementalSearcher};
 
 pub struct Editor {
     handler: Handler,
     state: text_editor::State,
-    focus_theme: EditorTheme,
-    defocus_theme: EditorTheme,
+    focus_config: text_editor::Config,
+    defocus_config: text_editor::Config,
     guide: text::State,
     searcher: IncrementalSearcher,
     editor_keybinds: EditorKeybinds,
@@ -31,15 +28,15 @@ impl Editor {
     pub fn new(
         state: text_editor::State,
         searcher: IncrementalSearcher,
-        focus_theme: EditorTheme,
-        defocus_theme: EditorTheme,
+        focus_config: text_editor::Config,
+        defocus_config: text_editor::Config,
         editor_keybinds: EditorKeybinds,
     ) -> Self {
         Self {
             handler: BOXED_EDITOR_HANDLER,
             state,
-            focus_theme,
-            defocus_theme,
+            focus_config,
+            defocus_config,
             guide: text::State::default(),
             searcher,
             editor_keybinds,
@@ -47,17 +44,11 @@ impl Editor {
     }
 
     pub fn focus(&mut self) {
-        self.state.prefix = self.focus_theme.prefix.clone();
-        self.state.prefix_style = self.focus_theme.prefix_style;
-        self.state.inactive_char_style = self.focus_theme.inactive_char_style;
-        self.state.active_char_style = self.focus_theme.active_char_style;
+        self.state.config = self.focus_config.clone();
     }
 
     pub fn defocus(&mut self) {
-        self.state.prefix = self.defocus_theme.prefix.clone();
-        self.state.prefix_style = self.defocus_theme.prefix_style;
-        self.state.inactive_char_style = self.defocus_theme.inactive_char_style;
-        self.state.active_char_style = self.defocus_theme.active_char_style;
+        self.state.config = self.defocus_config.clone();
 
         self.searcher.leave_search();
         self.handler = BOXED_EDITOR_HANDLER;
@@ -114,19 +105,19 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                                 "Loaded all ({}) suggestions",
                                 result.load_state.loaded_item_len
                             ));
-                            editor.guide.style = ContentStyle {
+                            editor.guide.config.style = Some(ContentStyle {
                                 foreground_color: Some(Color::Green),
                                 ..Default::default()
-                            };
+                            });
                         } else {
                             editor.guide.text = Text::from(format!(
                                 "Loaded partially ({}) suggestions",
                                 result.load_state.loaded_item_len
                             ));
-                            editor.guide.style = ContentStyle {
+                            editor.guide.config.style = Some(ContentStyle {
                                 foreground_color: Some(Color::Green),
                                 ..Default::default()
-                            };
+                            });
                         }
                         editor.state.texteditor.replace(&head);
                         editor.handler = BOXED_SEARCHER_HANDLER;
@@ -134,18 +125,18 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                     None => {
                         editor.guide.text =
                             Text::from(format!("No suggestion found for '{prefix}'"));
-                        editor.guide.style = ContentStyle {
+                        editor.guide.config.style = Some(ContentStyle {
                             foreground_color: Some(Color::Yellow),
                             ..Default::default()
-                        };
+                        });
                     }
                 },
                 Err(e) => {
                     editor.guide.text = Text::from(format!("Failed to lookup suggestions: {e}"));
-                    editor.guide.style = ContentStyle {
+                    editor.guide.config.style = Some(ContentStyle {
                         foreground_color: Some(Color::Yellow),
                         ..Default::default()
-                    };
+                    });
                 }
             }
         }
@@ -173,13 +164,13 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
             editor
                 .state
                 .texteditor
-                .move_to_previous_nearest(&editor.state.word_break_chars);
+                .move_to_previous_nearest(&editor.state.config.word_break_chars);
         }
         key if editor.editor_keybinds.move_to_next_nearest.contains(key) => {
             editor
                 .state
                 .texteditor
-                .move_to_next_nearest(&editor.state.word_break_chars);
+                .move_to_next_nearest(&editor.state.config.word_break_chars);
         }
 
         // Erase char(s).
@@ -199,13 +190,13 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
             editor
                 .state
                 .texteditor
-                .erase_to_previous_nearest(&editor.state.word_break_chars);
+                .erase_to_previous_nearest(&editor.state.config.word_break_chars);
         }
         key if editor.editor_keybinds.erase_to_next_nearest.contains(key) => {
             editor
                 .state
                 .texteditor
-                .erase_to_next_nearest(&editor.state.word_break_chars);
+                .erase_to_next_nearest(&editor.state.config.word_break_chars);
         }
 
         // Input char.
@@ -220,7 +211,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
             modifiers: KeyModifiers::SHIFT,
             kind: KeyEventKind::Press,
             state: KeyEventState::NONE,
-        }) => match editor.state.edit_mode {
+        }) => match editor.state.config.edit_mode {
             text_editor::Mode::Insert => editor.state.texteditor.insert(*ch),
             text_editor::Mode::Overwrite => editor.state.texteditor.overwrite(*ch),
         },
