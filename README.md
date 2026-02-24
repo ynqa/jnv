@@ -214,42 +214,55 @@ it will be automatically created on first run.
 > Please manually replace/update your local
 > `config.toml` to match the new syntax.
 
-The following settings are available in `config.toml`:
+> [!WARNING]
+> Depending on the type of terminal and environment,
+> characters and styles may not be displayed properly.
+> Specific key bindings and decorative characters may not
+> display or function correctly in certain terminal emulators.
+
+<details>
+<summary>The following settings are available in config.toml</summary>
 
 ```toml
 # Whether to hide hint messages
 no_hint = false
 
 # Editor settings
-[editor]
+# Uses promkit_widgets::text_editor::Config directly
+[editor.on_focus]
+
 # Editor mode
 # "Insert": Insert characters at the cursor position
 # "Overwrite": Replace characters at the cursor position with new ones
-mode = "Insert"
+edit_mode = "Insert"
 
 # Characters considered as word boundaries
 # These are used to define word movement and deletion behavior in the editor
 word_break_chars = [".", "|", "(", ")", "[", "]"]
 
-# How to configure colors and text attributes
-# 
-# Color specification methods:
-# 1. By name: "black", "red", etc.
-# 2. By RGB value: "rgb_(255,0,0)" or "#ff0000"
-# 3. By ANSI value: "ansi_(16)"
+# Style notation (termcfg)
+# Format: "fg=<color>,bg=<color>,ul=<color>,attr=<token|token...>"
+# Examples:
+# - "fg=blue"
+# - "fg=#00FF00,bg=black,attr=bold|underlined"
+# - "attr=dim"
 #
-# Text attribute specification:
-# attributes = ["Bold"], etc.
+# Color tokens:
+# - reset, black, red, green, yellow, blue, magenta, cyan, white
+# - darkgrey, darkred, darkgreen, darkyellow, darkblue, darkmagenta, darkcyan, grey
+# - #RRGGBB
 #
-# Configuration example:
-# style = { foreground = "blue", background = "magenta", attributes = ["Bold"] }
+# Attribute tokens (examples):
+# - bold, italic, underlined, dim, reverse, crossedout, nounderline, nobold
 #
-# Detailed information:
-# - Color: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Color.html
-# - Attribute: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Attribute.html
+# Notes:
+# - ANSI 256-color index tokens (0..255, e.g. "200") are currently out of notation scope.
+# - See termcfg notation reference for full token list.
+#
+# References:
+# - https://github.com/ynqa/termcfg/blob/main/Notations.md
+# - https://github.com/ynqa/termcfg
 
-# Theme settings when the editor is focused
-[editor.theme_on_focus]
 # Prefix shown before the cursor
 prefix = "❯❯ "
 # Style for the prefix
@@ -260,7 +273,7 @@ active_char_style = "bg=magenta"
 inactive_char_style = ""
 
 # Theme settings when the editor is unfocused
-[editor.theme_on_defocus]
+[editor.on_defocus]
 # Prefix shown when focus is lost
 prefix = "▼ "
 # Style for the prefix when unfocused
@@ -277,8 +290,9 @@ inactive_char_style = "attr=dim"
 # No limit if unset
 # max_streams =
 
-# JSON display theme
-[json.theme]
+# JSON display settings
+# Uses promkit_widgets::jsonstream::Config directly
+[json.stream]
 # Number of spaces to use for indentation
 indent = 2
 # Style for curly brackets {}
@@ -295,18 +309,13 @@ number_value_style = ""
 boolean_value_style = ""
 # Style for null values
 null_value_style = "fg=grey"
+# Attribute for the selected row and unselected rows
+active_item_attribute = "bold"
+# Attribute for unselected rows
+inactive_item_attribute = "dim"
 
 # Completion feature settings
 [completion]
-# Number of lines to display for completion candidates
-lines = 3
-# Cursor character shown before the selected candidate
-cursor = "❯ "
-# Style for the selected candidate
-active_item_style = "fg=grey,bg=yellow"
-# Style for unselected candidates
-inactive_item_style = "fg=grey"
-
 # Settings for background loading of completion candidates
 #
 # Number of candidates loaded per chunk for search results
@@ -316,6 +325,18 @@ search_result_chunk_size = 100
 # Number of items loaded per batch during background loading
 # A larger value finishes loading sooner but uses more memory temporarily
 search_load_chunk_size = 50000
+
+# Completion UI settings
+# Uses promkit_widgets::listbox::Config directly
+[completion.listbox]
+# Number of lines to display for completion candidates
+lines = 3
+# Cursor character shown before the selected candidate
+cursor = "❯ "
+# Style for the selected candidate
+active_item_style = "fg=grey,bg=yellow"
+# Style for unselected candidates
+inactive_item_style = "fg=grey"
 
 # Keybinding settings
 [keybinds]
@@ -393,13 +414,8 @@ resize_debounce_duration = "200ms"
 spin_duration = "300ms"
 ```
 
-For more details on configuration, please refer to [default.toml](./default.toml)
-
-> [!WARNING]
-> Depending on the type of terminal and environment,
-> characters and styles may not be displayed properly.
-> Specific key bindings and decorative characters may not
-> display or function correctly in certain terminal emulators.
+</details>
 
 ## Stargazers over time
+
 [![Stargazers over time](https://starchart.cc/ynqa/jnv.svg?variant=adaptive)](https://starchart.cc/ynqa/jnv)

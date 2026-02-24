@@ -14,22 +14,28 @@ edit_mode = "Insert"
 # These are used to define word movement and deletion behavior in the editor
 word_break_chars = [".", "|", "(", ")", "[", "]"]
 
-# How to configure colors and text attributes
-# 
-# Color specification methods:
-# 1. By name: "black", "red", etc.
-# 2. By RGB value: "rgb_(255,0,0)" or "#ff0000"
-# 3. By ANSI value: "ansi_(16)"
+# Style notation (termcfg)
+# Format: "fg=<color>,bg=<color>,ul=<color>,attr=<token|token...>"
+# Examples:
+# - "fg=blue"
+# - "fg=#00FF00,bg=black,attr=bold|underlined"
+# - "attr=dim"
 #
-# Text attribute specification:
-# attributes = ["Bold"], etc.
+# Color tokens:
+# - reset, black, red, green, yellow, blue, magenta, cyan, white
+# - darkgrey, darkred, darkgreen, darkyellow, darkblue, darkmagenta, darkcyan, grey
+# - #RRGGBB
 #
-# Configuration example:
-# style = { foreground = "blue", background = "magenta", attributes = ["Bold"] }
+# Attribute tokens (examples):
+# - bold, italic, underlined, dim, reverse, crossedout, nounderline, nobold
 #
-# Detailed information:
-# - Color: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Color.html
-# - Attribute: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Attribute.html
+# Notes:
+# - ANSI 256-color index tokens (0..255, e.g. "200") are currently out of notation scope.
+# - See termcfg notation reference for full token list.
+#
+# References:
+# - https://github.com/ynqa/termcfg/blob/main/Notations.md
+# - https://github.com/ynqa/termcfg
 
 # Prefix shown before the cursor
 prefix = "❯❯ "
