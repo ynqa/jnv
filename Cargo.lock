@@ -858,7 +858,7 @@ dependencies = [
  "jaq-std",
  "promkit-widgets",
  "serde",
- "termcfg",
+ "termcfg 0.1.0",
  "tokio",
  "tokio-stream",
  "toml",
@@ -1157,8 +1157,6 @@ dependencies = [
 [[package]]
 name = "promkit-core"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed89f85398b2590095afe8fb4852c177d09f568836c206a9bed823bf1e70a051"
 dependencies = [
  "anyhow",
  "crossbeam-skiplist",
@@ -1169,15 +1167,14 @@ dependencies = [
 
 [[package]]
 name = "promkit-widgets"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7ef81079760b198d5dde773c78b94a72edc2ebd057be386382c379e0d854fb6"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "promkit-core",
  "rayon",
  "serde",
  "serde_json",
+ "termcfg 0.2.0",
  "tokio",
 ]
 
@@ -1440,6 +1437,15 @@ name = "termcfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b8c057661e9a795bc9cb18a7d2924b00d0aa3c5a9e61dfe7de32cea8a1d8fe7"
+dependencies = [
+ "crossterm",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "termcfg"
+version = "0.2.0"
 dependencies = [
  "crossterm",
  "serde",
