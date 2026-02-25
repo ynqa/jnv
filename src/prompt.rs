@@ -6,7 +6,10 @@ use promkit_widgets::{
     core::{
         crossterm::{
             cursor,
-            event::{Event, EventStream},
+            event::{
+                DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
+                MouseEventKind,
+            },
             execute,
             style::{Color, ContentStyle},
             terminal::{self, disable_raw_mode, enable_raw_mode},
@@ -194,6 +197,25 @@ pub async fn run<T: ViewProvider + SearchProvider>(
             'main: loop {
                 tokio::select! {
                     Some(Ok(event)) = stream.next() => {
+                        // Note: `HashSet<Event>::contains` compares full mouse events (including `column`/`row`),
+                        // so wheel events are normalized to `(0, 0)` to match configured `ScrollUp`/`ScrollDown` bindings.
+                        let event = match event {
+                            Event::Mouse(mouse)
+                                if matches!(
+                                    mouse.kind,
+                                    MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                                ) =>
+                            {
+                                Event::Mouse(MouseEvent {
+                                    kind: mouse.kind,
+                                    column: 0,
+                                    row: 0,
+                                    modifiers: mouse.modifiers,
+                                })
+                            }
+                            other => other,
+                        };
+
                         match event {
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
@@ -233,6 +255,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                         if context_monitor.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
+                                            execute!(
+                                                io::stdout(),
+                                                terminal::EnterAlternateScreen,
+                                                EnableMouseCapture,
+                                            )?;
                                         } else if !no_hint{
                                             let size = terminal::size()?;
                                             shared_renderer.update([
@@ -255,6 +282,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     Focus::Processor => {
                                         focus = Focus::Editor;
                                         editor_focus_tx.send(true).await?;
+                                        execute!(
+                                            io::stdout(),
+                                            terminal::LeaveAlternateScreen,
+                                            DisableMouseCapture,
+                                        )?;
                                     },
                                 }
                             },
@@ -435,7 +467,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     editor_task.abort();
     processor_task.abort();
 
-    execute!(io::stdout(), cursor::Show)?;
+    execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;
     disable_raw_mode()?;
 
     Ok(())
