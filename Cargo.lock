@@ -858,7 +858,7 @@ dependencies = [
  "jaq-std",
  "promkit-widgets",
  "serde",
- "termcfg 0.1.0",
+ "termcfg",
  "tokio",
  "tokio-stream",
  "toml",
@@ -1178,7 +1178,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
- "termcfg 0.2.0",
+ "termcfg",
 ]
 
 [[package]]
@@ -1433,17 +1433,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "termcfg"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b8c057661e9a795bc9cb18a7d2924b00d0aa3c5a9e61dfe7de32cea8a1d8fe7"
-dependencies = [
- "crossterm",
- "serde",
- "thiserror 2.0.18",
 ]
 
 [[package]]

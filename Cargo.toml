@@ -18,7 +18,7 @@ derive_builder = "0.20.2"
 dirs = "6.0.0"
 futures = "0.3.32"
 serde = "1.0.228"
-termcfg = { version = "0.1.0", features = ["crossterm_0_29_0"] }
+termcfg = { version = "0.2.0", features = ["crossterm_0_29_0"] }
 tokio = { version = "1.49.0", features = ["full"] }
 tokio-stream = "0.1.18"
 toml = "0.9.8"
