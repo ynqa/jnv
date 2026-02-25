@@ -27,6 +27,13 @@ use std::os::fd::OwnedFd;
 ///
 /// After restore, writing to `io::stdout()` again goes to the original pipe
 /// (for example `pbcopy`) so the final JSON can be emitted there.
+///
+/// Note:
+/// `stdout` is file descriptor 1 (FD 1), not the screen itself.
+/// Its destination is chosen by the shell when the process starts:
+/// terminal (`cmd`), file (`cmd > out.txt`), or pipe (`cmd | next`).
+/// Therefore, we cannot just write to `stdout` for TUI rendering when it's piped.
+/// Instead, we must write directly to the terminal device (`/dev/tty` on Unix).
 pub struct StdoutRedirect {
     #[cfg(unix)]
     saved_stdout: Option<OwnedFd>,
