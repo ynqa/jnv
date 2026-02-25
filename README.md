@@ -313,6 +313,10 @@ null_value_style = "fg=grey"
 active_item_attribute = "bold"
 # Attribute for unselected rows
 inactive_item_attribute = "dim"
+# Behavior when JSON content exceeds the available width
+# "Wrap": Wrap content to the next line
+# "Truncate": Truncate content with an ellipsis (...)
+overflow_mode = "Wrap"
 
 # Completion feature settings
 [completion]

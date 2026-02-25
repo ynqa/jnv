@@ -37,7 +37,6 @@ impl Json {
         input_stream: &'static [serde_json::Value],
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
-
         Ok(Self {
             json: input_stream,
             state: jsonstream::State {
@@ -146,7 +145,7 @@ impl Visualizer for Json {
                                     ..Default::default()
                                 }),
                                 ..Default::default()
-                            }
+                            },
                         }
                         .create_pane(area.0, area.1),
                     ),
