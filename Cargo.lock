@@ -1446,6 +1446,8 @@ dependencies = [
 [[package]]
 name = "termcfg"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e444ec0de07571e26f31f6ac5006c03540b61d35bec105031e82c6d6cbb5fab"
 dependencies = [
  "crossterm",
  "serde",
