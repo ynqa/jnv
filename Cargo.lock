@@ -1157,6 +1157,8 @@ dependencies = [
 [[package]]
 name = "promkit-core"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed89f85398b2590095afe8fb4852c177d09f568836c206a9bed823bf1e70a051"
 dependencies = [
  "anyhow",
  "crossbeam-skiplist",
@@ -1168,6 +1170,8 @@ dependencies = [
 [[package]]
 name = "promkit-widgets"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b665ae2f09cfe22290386f73e642922980cb6a5edd83188989dcb1e914dc4a7b"
 dependencies = [
  "anyhow",
  "promkit-core",
@@ -1175,7 +1179,6 @@ dependencies = [
  "serde",
  "serde_json",
  "termcfg 0.2.0",
- "tokio",
 ]
 
 [[package]]
