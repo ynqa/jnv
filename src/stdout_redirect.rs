@@ -1,7 +1,4 @@
-use std::{
-    fs::File,
-    io::{self, IsTerminal},
-};
+use std::io::{self, IsTerminal};
 
 use anyhow::anyhow;
 
@@ -11,7 +8,25 @@ use rustix::{
     stdio::{dup2_stdout, stdout},
 };
 #[cfg(unix)]
+use std::fs::File;
+#[cfg(unix)]
 use std::os::fd::OwnedFd;
+#[cfg(windows)]
+use std::{
+    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    ptr,
+};
+#[cfg(windows)]
+use windows_sys::Win32::{
+    Foundation::{DuplicateHandle, GENERIC_READ, GENERIC_WRITE, INVALID_HANDLE_VALUE},
+    Storage::FileSystem::{
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    },
+    System::{
+        Console::{GetStdHandle, SetStdHandle, STD_OUTPUT_HANDLE},
+        Threading::GetCurrentProcess,
+    },
+};
 
 /// Redirects `stdout` to the controlling TTY while the TUI is running.
 ///
@@ -33,10 +48,15 @@ use std::os::fd::OwnedFd;
 /// Its destination is chosen by the shell when the process starts:
 /// terminal (`cmd`), file (`cmd > out.txt`), or pipe (`cmd | next`).
 /// Therefore, we cannot just write to `stdout` for TUI rendering when it's piped.
-/// Instead, we must write directly to the terminal device (`/dev/tty` on Unix).
+/// Instead, we must write directly to the terminal device (`/dev/tty` on Unix,
+/// `CONOUT$` on Windows).
 pub struct StdoutRedirect {
     #[cfg(unix)]
     saved_stdout: Option<OwnedFd>,
+    #[cfg(windows)]
+    saved_stdout: Option<OwnedHandle>,
+    #[cfg(windows)]
+    tty_stdout: Option<OwnedHandle>,
 }
 
 impl StdoutRedirect {
@@ -45,6 +65,10 @@ impl StdoutRedirect {
             return Ok(Self {
                 #[cfg(unix)]
                 saved_stdout: None,
+                #[cfg(windows)]
+                saved_stdout: None,
+                #[cfg(windows)]
+                tty_stdout: None,
             });
         }
 
@@ -61,10 +85,28 @@ impl StdoutRedirect {
 
             Ok(Self {
                 saved_stdout: Some(saved_fd),
+                #[cfg(windows)]
+                tty_stdout: None,
             })
         }
 
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            let saved_stdout = duplicate_stdout_handle()
+                .map_err(|e| anyhow!("Failed to duplicate stdout: {e}"))?;
+            let tty_stdout = open_conout()
+                .map_err(|e| anyhow!("Failed to open CONOUT$ for TUI rendering: {e}"))?;
+
+            set_process_stdout(&tty_stdout)
+                .map_err(|e| anyhow!("Failed to redirect stdout to CONOUT$: {e}"))?;
+
+            Ok(Self {
+                saved_stdout: Some(saved_stdout),
+                tty_stdout: Some(tty_stdout),
+            })
+        }
+
+        #[cfg(not(any(unix, windows)))]
         {
             Err(anyhow!(
                 "`--write-to-stdout` with piped stdout is not supported on this platform"
@@ -77,6 +119,12 @@ impl StdoutRedirect {
         if let Some(saved_stdout) = self.saved_stdout.take() {
             dup2_stdout(&saved_stdout).map_err(|e| anyhow!("Failed to restore stdout: {e}"))?;
         }
+        #[cfg(windows)]
+        if let Some(saved_stdout) = self.saved_stdout.take() {
+            set_process_stdout(&saved_stdout)
+                .map_err(|e| anyhow!("Failed to restore stdout: {e}"))?;
+            self.tty_stdout.take();
+        }
 
         Ok(())
     }
@@ -86,4 +134,65 @@ impl Drop for StdoutRedirect {
     fn drop(&mut self) {
         let _ = self.restore();
     }
+}
+
+#[cfg(windows)]
+fn duplicate_stdout_handle() -> io::Result<OwnedHandle> {
+    unsafe {
+        let source = GetStdHandle(STD_OUTPUT_HANDLE);
+        if source == 0 || source == INVALID_HANDLE_VALUE {
+            return Err(io::Error::last_os_error());
+        }
+
+        let process = GetCurrentProcess();
+        let mut duplicated = 0;
+        let ok = DuplicateHandle(
+            process,
+            source,
+            process,
+            &mut duplicated,
+            0,
+            0,
+            windows_sys::Win32::Foundation::DUPLICATE_SAME_ACCESS,
+        );
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(OwnedHandle::from_raw_handle(duplicated as _))
+    }
+}
+
+#[cfg(windows)]
+fn open_conout() -> io::Result<OwnedHandle> {
+    let mut conout: Vec<u16> = "CONOUT$".encode_utf16().collect();
+    conout.push(0);
+
+    unsafe {
+        let handle = CreateFileW(
+            conout.as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            ptr::null(),
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            ptr::null_mut(),
+        );
+        if handle == INVALID_HANDLE_VALUE {
+            return Err(io::Error::last_os_error());
+        }
+
+        Ok(OwnedHandle::from_raw_handle(handle as _))
+    }
+}
+
+#[cfg(windows)]
+fn set_process_stdout(handle: &OwnedHandle) -> io::Result<()> {
+    unsafe {
+        let ok = SetStdHandle(STD_OUTPUT_HANDLE, handle.as_raw_handle() as _);
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
 }

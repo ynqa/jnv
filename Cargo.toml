@@ -34,6 +34,14 @@ version = "0.3.0"
 features = ["jsonstream", "listbox", "serde", "text", "texteditor"]
 default-features = false
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Threading",
+] }
+
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
