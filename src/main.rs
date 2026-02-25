@@ -1,5 +1,3 @@
-#[cfg(unix)]
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::{
     fs::File,
     io::{self, IsTerminal, Read, Write},
@@ -12,6 +10,14 @@ use config::Config;
 use promkit_widgets::{
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
+};
+
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+#[cfg(unix)]
+use rustix::{
+    io::dup,
+    stdio::{dup2_stdout, stdout},
 };
 
 mod editor;
@@ -171,25 +177,11 @@ impl StdoutRedirect {
                 .open("/dev/tty")
                 .map_err(|e| anyhow!("Failed to open /dev/tty for TUI rendering: {e}"))?;
 
-            let saved_fd = unsafe { libc::dup(libc::STDOUT_FILENO) };
-            if saved_fd < 0 {
-                return Err(anyhow!(
-                    "Failed to duplicate stdout: {}",
-                    io::Error::last_os_error()
-                ));
-            }
-
-            let redirected = unsafe { libc::dup2(tty.as_raw_fd(), libc::STDOUT_FILENO) };
-            if redirected < 0 {
-                let _ = unsafe { libc::close(saved_fd) };
-                return Err(anyhow!(
-                    "Failed to redirect stdout to /dev/tty: {}",
-                    io::Error::last_os_error()
-                ));
-            }
+            let saved_fd = dup(stdout()).map_err(|e| anyhow!("Failed to duplicate stdout: {e}"))?;
+            dup2_stdout(&tty).map_err(|e| anyhow!("Failed to redirect stdout to /dev/tty: {e}"))?;
 
             Ok(Self {
-                saved_stdout: Some(unsafe { OwnedFd::from_raw_fd(saved_fd) }),
+                saved_stdout: Some(saved_fd),
             })
         }
 
@@ -204,13 +196,7 @@ impl StdoutRedirect {
     fn restore(&mut self) -> anyhow::Result<()> {
         #[cfg(unix)]
         if let Some(saved_stdout) = self.saved_stdout.take() {
-            let restored = unsafe { libc::dup2(saved_stdout.as_raw_fd(), libc::STDOUT_FILENO) };
-            if restored < 0 {
-                return Err(anyhow!(
-                    "Failed to restore stdout: {}",
-                    io::Error::last_os_error()
-                ));
-            }
+            dup2_stdout(&saved_stdout).map_err(|e| anyhow!("Failed to restore stdout: {e}"))?;
         }
 
         Ok(())
