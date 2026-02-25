@@ -25,7 +25,7 @@ use tokio::{
 };
 
 use crate::{
-    config::{event::Matcher, Keybinds, ReactivityControl},
+    config::{Keybinds, ReactivityControl},
     Context, ContextMonitor, Editor, Processor, SearchProvider, SpinnerSpawner, ViewInitializer,
     ViewProvider, Visualizer,
 };
@@ -191,7 +191,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
                             },
-                            event if keybinds.exit.matches(&event) => {
+                            event if keybinds.exit.contains(&event) => {
                                 break 'main
                             },
                             Event::Key(KeyEvent {

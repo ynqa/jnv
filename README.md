@@ -206,87 +206,190 @@ it will be automatically created on first run.
 
 ### Configuration Options
 
+> [!IMPORTANT]
+> The syntax in TOML configurations
+> like [default.toml](./default.toml) was revamped in v0.8.0,
+> and the configuration shown below reflects the new format.
+> A migration tool is not provided for this change.
+> Please manually replace/update your local
+> `config.toml` to match the new syntax.
+
 The following settings are available in `config.toml`:
 
 ```toml
-# Whether to hide the hint message
+# Whether to hide hint messages
 no_hint = false
 
 # Editor settings
 [editor]
-# Editor mode ("Insert" or "Overwrite")
+# Editor mode
+# "Insert": Insert characters at the cursor position
+# "Overwrite": Replace characters at the cursor position with new ones
 mode = "Insert"
-# Word break characters
+
+# Characters considered as word boundaries
+# These are used to define word movement and deletion behavior in the editor
 word_break_chars = [".", "|", "(", ")", "[", "]"]
 
-# Theme when editor is focused
-[editor.theme_on_focus]
-prefix = "❯❯ "
-prefix_style = { foreground = "blue" }
-active_char_style = { background = "magenta" }
-inactive_char_style = {}
+# How to configure colors and text attributes
+# 
+# Color specification methods:
+# 1. By name: "black", "red", etc.
+# 2. By RGB value: "rgb_(255,0,0)" or "#ff0000"
+# 3. By ANSI value: "ansi_(16)"
+#
+# Text attribute specification:
+# attributes = ["Bold"], etc.
+#
+# Configuration example:
+# style = { foreground = "blue", background = "magenta", attributes = ["Bold"] }
+#
+# Detailed information:
+# - Color: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Color.html
+# - Attribute: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Attribute.html
 
-# Theme when editor is not focused
+# Theme settings when the editor is focused
+[editor.theme_on_focus]
+# Prefix shown before the cursor
+prefix = "❯❯ "
+# Style for the prefix
+prefix_style = "fg=blue"
+# Style for the character under the cursor
+active_char_style = "bg=magenta"
+# Style for all other characters
+inactive_char_style = ""
+
+# Theme settings when the editor is unfocused
 [editor.theme_on_defocus]
+# Prefix shown when focus is lost
 prefix = "▼ "
-prefix_style = { foreground = "blue", attributes = ["Dim"] }
-active_char_style = { attributes = ["Dim"] }
-inactive_char_style = { attributes = ["Dim"] }
+# Style for the prefix when unfocused
+prefix_style = "fg=blue,attr=dim"
+# Style for the character under the cursor when unfocused
+active_char_style = "attr=dim"
+# Style for all other characters when unfocused
+inactive_char_style = "attr=dim"
 
 # JSON display settings
 [json]
-# Maximum number of JSON objects to read from stream
-# max_streams = 
+# Maximum number of JSON objects to read from streams (e.g., JSON Lines format)
+# Limits how many objects are processed to reduce memory usage when handling large data streams
+# No limit if unset
+# max_streams =
 
-# JSON theme settings
+# JSON display theme
 [json.theme]
+# Number of spaces to use for indentation
 indent = 2
-curly_brackets_style = { attributes = ["Bold"] }
-square_brackets_style = { attributes = ["Bold"] }
-key_style = { foreground = "cyan" }
-string_value_style = { foreground = "green" }
-number_value_style = {}
-boolean_value_style = {}
-null_value_style = { foreground = "grey" }
+# Style for curly brackets {}
+curly_brackets_style = "attr=bold"
+# Style for square brackets []
+square_brackets_style = "attr=bold"
+# Style for JSON keys
+key_style = "fg=cyan"
+# Style for string values
+string_value_style = "fg=green"
+# Style for number values
+number_value_style = ""
+# Style for boolean values
+boolean_value_style = ""
+# Style for null values
+null_value_style = "fg=grey"
 
 # Completion feature settings
 [completion]
+# Number of lines to display for completion candidates
 lines = 3
+# Cursor character shown before the selected candidate
 cursor = "❯ "
-active_item_style = { foreground = "grey", background = "yellow" }
-inactive_item_style = { foreground = "grey" }
+# Style for the selected candidate
+active_item_style = "fg=grey,bg=yellow"
+# Style for unselected candidates
+inactive_item_style = "fg=grey"
+
+# Settings for background loading of completion candidates
+#
+# Number of candidates loaded per chunk for search results
+# A larger value displays results faster but uses more memory
 search_result_chunk_size = 100
+
+# Number of items loaded per batch during background loading
+# A larger value finishes loading sooner but uses more memory temporarily
 search_load_chunk_size = 50000
 
-# Keybind settings
+# Keybinding settings
 [keybinds]
-# Application exit key
-exit = [{ Key = { modifiers = "CONTROL", code = { Char = "c" } } }]
-# Copy query to clipboard key
-copy_query = [{ Key = { modifiers = "CONTROL", code = { Char = "q" } } }]
-# Copy result to clipboard key
-copy_result = [{ Key = { modifiers = "CONTROL", code = { Char = "o" } } }]
-# Mode switch keys
-switch_mode = [
-  { Key = { code = "Down", modifiers = "SHIFT" } },
-  { Key = { code = "Up", modifiers = "SHIFT" } }
-]
+# Key to exit the application
+exit = ["Ctrl+C"]
+# Key to copy the query to the clipboard
+copy_query = ["Ctrl+Q"]
+# Key to copy the result to the clipboard
+copy_result = ["Ctrl+O"]
+# Keys to switch focus between editor and JSON viewer
+switch_mode = ["Shift+Down", "Shift+Up"]
 
-# Editor operation keybinds
+# Keybindings for editor operations
 [keybinds.on_editor]
-# (Details omitted)
+# Move cursor left
+backward = ["Left"]
 
-# JSON viewer keybinds
+# Move cursor right
+forward = ["Right"]
+
+# Move cursor to beginning of line
+move_to_head = ["Ctrl+A"]
+# Move cursor to end of line
+move_to_tail = ["Ctrl+E"]
+# Move cursor to previous word boundary
+move_to_previous_nearest = ["Alt+B"]
+# Move cursor to next word boundary
+move_to_next_nearest = ["Alt+F"]
+# Delete character at the cursor
+erase = ["Backspace"]
+
+# Delete all input
+erase_all = ["Ctrl+U"]
+
+# Delete from cursor to previous word boundary
+erase_to_previous_nearest = ["Ctrl+W"]
+# Delete from cursor to next word boundary
+erase_to_next_nearest = ["Alt+D"]
+# Trigger completion
+completion = ["Tab"]
+# Move up in the completion list
+on_completion.up = ["Up"]
+# Move down in the completion list
+on_completion.down = ["Down", "Tab"]
+
+# Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
-# (Details omitted)
+# Move up in JSON viewer
+up = ["Up", "Ctrl+K"]
+# Move down in JSON viewer
+down = ["Down", "Ctrl+J"]
+# Move to the top of JSON viewer
+move_to_head = ["Ctrl+L"]
+# Move to the bottom of JSON viewer
+move_to_tail = ["Ctrl+H"]
+# Toggle expand/collapse of JSON nodes
+toggle = ["Enter"]
+# Expand all JSON nodes
+expand = ["Ctrl+P"]
+# Collapse all JSON nodes
+collapse = ["Ctrl+N"]
 
 # Application reactivity settings
 [reactivity_control]
-# Delay time after query input
+# Delay before processing query input
+# Prevents excessive updates while user is typing
 query_debounce_duration = "600ms"
-# Redraw delay time after window resize
+
+# Delay before redrawing after window resize
+# Prevents frequent redraws during continuous resizing
 resize_debounce_duration = "200ms"
-# Spinner animation update interval
+
+# Interval for spinner animation updates
+# Controls the speed of the loading spinner
 spin_duration = "300ms"
 ```
 

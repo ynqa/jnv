@@ -19,7 +19,7 @@ use promkit_widgets::{
 };
 
 use crate::{
-    config::{event::Matcher, JsonViewerKeybinds},
+    config::JsonViewerKeybinds,
     processor::{ViewProvider, Visualizer},
     search::SearchProvider,
 };
@@ -53,35 +53,35 @@ impl Json {
     fn operate(&mut self, event: &Event) {
         match event {
             // Move up.
-            event if self.keybinds.up.matches(event) => {
+            event if self.keybinds.up.contains(event) => {
                 self.state.stream.up();
             }
 
             // Move down.
-            event if self.keybinds.down.matches(event) => {
+            event if self.keybinds.down.contains(event) => {
                 self.state.stream.down();
             }
 
             // Move to head
-            event if self.keybinds.move_to_head.matches(event) => {
+            event if self.keybinds.move_to_head.contains(event) => {
                 self.state.stream.head();
             }
 
             // Move to tail
-            event if self.keybinds.move_to_tail.matches(event) => {
+            event if self.keybinds.move_to_tail.contains(event) => {
                 self.state.stream.tail();
             }
 
             // Toggle collapse/expand
-            event if self.keybinds.toggle.matches(event) => {
+            event if self.keybinds.toggle.contains(event) => {
                 self.state.stream.toggle();
             }
 
-            event if self.keybinds.expand.matches(event) => {
+            event if self.keybinds.expand.contains(event) => {
                 self.state.stream.set_nodes_visibility(false);
             }
 
-            event if self.keybinds.collapse.matches(event) => {
+            event if self.keybinds.collapse.contains(event) => {
                 self.state.stream.set_nodes_visibility(true);
             }
 
