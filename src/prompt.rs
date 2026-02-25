@@ -6,9 +6,7 @@ use promkit_widgets::{
     core::{
         crossterm::{
             cursor,
-            event::{
-                Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
-            },
+            event::{Event, EventStream},
             execute,
             style::{Color, ContentStyle},
             terminal::{self, disable_raw_mode, enable_raw_mode},
@@ -203,20 +201,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             event if keybinds.exit.contains(&event) => {
                                 break 'main
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('q'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_query.contains(&event) => {
                                 editor_copy_tx.send(()).await?;
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('o'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_result.contains(&event) => {
                                 if context_monitor.is_idle().await {
                                     processor_copy_tx.send(()).await?;
                                 } else if !no_hint{
@@ -239,17 +227,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     ]).render().await?;
                                 }
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Down,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) | Event::Key(KeyEvent {
-                                code: KeyCode::Up,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.switch_mode.contains(&event) => {
                                 match focus {
                                     Focus::Editor => {
                                         if context_monitor.is_idle().await {
