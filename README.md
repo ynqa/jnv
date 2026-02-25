@@ -208,7 +208,7 @@ it will be automatically created on first run.
 
 > [!IMPORTANT]
 > The syntax in TOML configurations
-> like [default.toml](./default.toml) was revamped in v0.8.0,
+> like [default.toml](./default.toml) was revamped in v0.7.0,
 > and the configuration shown below reflects the new format.
 > A migration tool is not provided for this change.
 > Please manually replace/update your local
