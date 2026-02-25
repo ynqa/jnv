@@ -1,6 +1,8 @@
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::{
     fs::File,
-    io::{self, Read, Write},
+    io::{self, IsTerminal, Read, Write},
     path::PathBuf,
 };
 
@@ -70,6 +72,12 @@ pub struct Args {
         "
     )]
     default_filter: Option<String>,
+
+    #[arg(
+        long = "write-to-stdout",
+        help = "Write the current JSON result to stdout when exiting"
+    )]
+    write_to_stdout: bool,
 }
 
 /// Parses the input based on the provided arguments.
@@ -141,6 +149,80 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
     Ok(default_path)
 }
 
+struct StdoutRedirect {
+    #[cfg(unix)]
+    saved_stdout: Option<OwnedFd>,
+}
+
+impl StdoutRedirect {
+    fn for_tui(write_to_stdout: bool) -> anyhow::Result<Self> {
+        if !write_to_stdout || io::stdout().is_terminal() {
+            return Ok(Self {
+                #[cfg(unix)]
+                saved_stdout: None,
+            });
+        }
+
+        #[cfg(unix)]
+        {
+            let tty = File::options()
+                .read(true)
+                .write(true)
+                .open("/dev/tty")
+                .map_err(|e| anyhow!("Failed to open /dev/tty for TUI rendering: {e}"))?;
+
+            let saved_fd = unsafe { libc::dup(libc::STDOUT_FILENO) };
+            if saved_fd < 0 {
+                return Err(anyhow!(
+                    "Failed to duplicate stdout: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+
+            let redirected = unsafe { libc::dup2(tty.as_raw_fd(), libc::STDOUT_FILENO) };
+            if redirected < 0 {
+                let _ = unsafe { libc::close(saved_fd) };
+                return Err(anyhow!(
+                    "Failed to redirect stdout to /dev/tty: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+
+            Ok(Self {
+                saved_stdout: Some(unsafe { OwnedFd::from_raw_fd(saved_fd) }),
+            })
+        }
+
+        #[cfg(not(unix))]
+        {
+            Err(anyhow!(
+                "`--write-to-stdout` with piped stdout is not supported on this platform"
+            ))
+        }
+    }
+
+    fn restore(&mut self) -> anyhow::Result<()> {
+        #[cfg(unix)]
+        if let Some(saved_stdout) = self.saved_stdout.take() {
+            let restored = unsafe { libc::dup2(saved_stdout.as_raw_fd(), libc::STDOUT_FILENO) };
+            if restored < 0 {
+                return Err(anyhow!(
+                    "Failed to restore stdout: {}",
+                    io::Error::last_os_error()
+                ));
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for StdoutRedirect {
+    fn drop(&mut self) {
+        let _ = self.restore();
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -194,8 +276,10 @@ async fn main() -> anyhow::Result<()> {
         config.keybinds.on_editor.clone(),
     );
 
+    let mut stdout_redirect = StdoutRedirect::for_tui(args.write_to_stdout)?;
+
     // TODO: put all logics here.
-    prompt::run(
+    let maybe_output = prompt::run(
         item,
         config.reactivity_control,
         provider,
@@ -203,8 +287,20 @@ async fn main() -> anyhow::Result<()> {
         loading_suggestions_task,
         config.no_hint,
         config.keybinds,
+        args.write_to_stdout,
     )
-    .await?;
+    .await;
+
+    stdout_redirect.restore()?;
+    let maybe_output = maybe_output?;
+
+    if let Some(output) = maybe_output {
+        let mut stdout = io::stdout();
+        stdout.write_all(output.as_bytes())?;
+        if !output.ends_with('\n') {
+            stdout.write_all(b"\n")?;
+        }
+    }
 
     Ok(())
 }

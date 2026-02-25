@@ -856,6 +856,7 @@ dependencies = [
  "jaq-core",
  "jaq-json",
  "jaq-std",
+ "libc",
  "promkit-widgets",
  "serde",
  "termcfg",

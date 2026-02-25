@@ -111,8 +111,12 @@ cargo install jnv
 
 ```bash
 cat data.json | jnv
+
 # or
 jnv data.json
+
+# or write current result to stdout on exit (UNIX only)
+cat data.json | jnv --write-to-stdout | some-command
 ```
 
 ## Keymap
@@ -180,6 +184,7 @@ Arguments:
 Options:
   -c, --config <CONFIG_FILE>             Path to the configuration file.
       --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
+      --write-to-stdout                  Write the current JSON result to stdout when exiting
   -h, --help                             Print help (see more with '--help')
   -V, --version                          Print version
 ```
