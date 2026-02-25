@@ -117,6 +117,8 @@ jnv data.json
 
 # or write current result to stdout on exit (UNIX only)
 cat data.json | jnv --write-to-stdout | some-command
+# and also output to file
+cat data.json | jnv -- --write-to-stdout > result.json
 ```
 
 ## Keymap

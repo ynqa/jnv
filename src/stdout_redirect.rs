@@ -27,13 +27,13 @@ use std::os::fd::OwnedFd;
 ///
 /// After restore, writing to `io::stdout()` again goes to the original pipe
 /// (for example `pbcopy`) so the final JSON can be emitted there.
-pub(crate) struct StdoutRedirect {
+pub struct StdoutRedirect {
     #[cfg(unix)]
     saved_stdout: Option<OwnedFd>,
 }
 
 impl StdoutRedirect {
-    pub(crate) fn try_new_for_tui(write_to_stdout: bool) -> anyhow::Result<Self> {
+    pub fn try_new_for_tui(write_to_stdout: bool) -> anyhow::Result<Self> {
         if !write_to_stdout || io::stdout().is_terminal() {
             return Ok(Self {
                 #[cfg(unix)]
@@ -65,7 +65,7 @@ impl StdoutRedirect {
         }
     }
 
-    pub(crate) fn restore(&mut self) -> anyhow::Result<()> {
+    pub fn restore(&mut self) -> anyhow::Result<()> {
         #[cfg(unix)]
         if let Some(saved_stdout) = self.saved_stdout.take() {
             dup2_stdout(&saved_stdout).map_err(|e| anyhow!("Failed to restore stdout: {e}"))?;
