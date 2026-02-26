@@ -2,35 +2,41 @@
 no_hint = false
 
 # Editor settings
-[editor]
+# Uses promkit_widgets::text_editor::Config directly
+[editor.on_focus]
+
 # Editor mode
 # "Insert": Insert characters at the cursor position
 # "Overwrite": Replace characters at the cursor position with new ones
-mode = "Insert"
+edit_mode = "Insert"
 
 # Characters considered as word boundaries
 # These are used to define word movement and deletion behavior in the editor
 word_break_chars = [".", "|", "(", ")", "[", "]"]
 
-# How to configure colors and text attributes
-# 
-# Color specification methods:
-# 1. By name: "black", "red", etc.
-# 2. By RGB value: "rgb_(255,0,0)" or "#ff0000"
-# 3. By ANSI value: "ansi_(16)"
+# Style notation (termcfg)
+# Format: "fg=<color>,bg=<color>,ul=<color>,attr=<token|token...>"
+# Examples:
+# - "fg=blue"
+# - "fg=#00FF00,bg=black,attr=bold|underlined"
+# - "attr=dim"
 #
-# Text attribute specification:
-# attributes = ["Bold"], etc.
+# Color tokens:
+# - reset, black, red, green, yellow, blue, magenta, cyan, white
+# - darkgrey, darkred, darkgreen, darkyellow, darkblue, darkmagenta, darkcyan, grey
+# - #RRGGBB
 #
-# Configuration example:
-# style = { foreground = "blue", background = "magenta", attributes = ["Bold"] }
+# Attribute tokens (examples):
+# - bold, italic, underlined, dim, reverse, crossedout, nounderline, nobold
 #
-# Detailed information:
-# - Color: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Color.html
-# - Attribute: https://docs.rs/crossterm/0.28.1/crossterm/style/enum.Attribute.html
+# Notes:
+# - ANSI 256-color index tokens (0..255, e.g. "200") are currently out of notation scope.
+# - See termcfg notation reference for full token list.
+#
+# References:
+# - https://github.com/ynqa/termcfg/blob/main/Notations.md
+# - https://github.com/ynqa/termcfg
 
-# Theme settings when the editor is focused
-[editor.theme_on_focus]
 # Prefix shown before the cursor
 prefix = "❯❯ "
 # Style for the prefix
@@ -41,7 +47,7 @@ active_char_style = "bg=magenta"
 inactive_char_style = ""
 
 # Theme settings when the editor is unfocused
-[editor.theme_on_defocus]
+[editor.on_defocus]
 # Prefix shown when focus is lost
 prefix = "▼ "
 # Style for the prefix when unfocused
@@ -58,8 +64,9 @@ inactive_char_style = "attr=dim"
 # No limit if unset
 # max_streams =
 
-# JSON display theme
-[json.theme]
+# JSON display settings
+# Uses promkit_widgets::jsonstream::Config directly
+[json.stream]
 # Number of spaces to use for indentation
 indent = 2
 # Style for curly brackets {}
@@ -76,18 +83,17 @@ number_value_style = ""
 boolean_value_style = ""
 # Style for null values
 null_value_style = "fg=grey"
+# Attribute for the selected row and unselected rows
+active_item_attribute = "bold"
+# Attribute for unselected rows
+inactive_item_attribute = "dim"
+# Behavior when JSON content exceeds the available width
+# "Wrap": Wrap content to the next line
+# "Truncate": Truncate content with an ellipsis (...)
+overflow_mode = "Wrap"
 
 # Completion feature settings
 [completion]
-# Number of lines to display for completion candidates
-lines = 3
-# Cursor character shown before the selected candidate
-cursor = "❯ "
-# Style for the selected candidate
-active_item_style = "fg=grey,bg=yellow"
-# Style for unselected candidates
-inactive_item_style = "fg=grey"
-
 # Settings for background loading of completion candidates
 #
 # Number of candidates loaded per chunk for search results
@@ -97,6 +103,18 @@ search_result_chunk_size = 100
 # Number of items loaded per batch during background loading
 # A larger value finishes loading sooner but uses more memory temporarily
 search_load_chunk_size = 50000
+
+# Completion UI settings
+# Uses promkit_widgets::listbox::Config directly
+[completion.listbox]
+# Number of lines to display for completion candidates
+lines = 3
+# Cursor character shown before the selected candidate
+cursor = "❯ "
+# Style for the selected candidate
+active_item_style = "fg=grey,bg=yellow"
+# Style for unselected candidates
+inactive_item_style = "fg=grey"
 
 # Keybinding settings
 [keybinds]
@@ -145,9 +163,9 @@ on_completion.down = ["Down", "Tab"]
 # Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
 # Move up in JSON viewer
-up = ["Up", "Ctrl+K"]
+up = ["Up", "Ctrl+K", "ScrollUp"]
 # Move down in JSON viewer
-down = ["Down", "Ctrl+J"]
+down = ["Down", "Ctrl+J", "ScrollDown"]
 # Move to the top of JSON viewer
 move_to_head = ["Ctrl+L"]
 # Move to the bottom of JSON viewer

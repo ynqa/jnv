@@ -13,7 +13,7 @@ use promkit_widgets::{
         pane::Pane,
         PaneFactory,
     },
-    jsonstream::{self, format::RowFormatter, jsonz, JsonStream},
+    jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
     text::{self, Text},
 };
@@ -33,19 +33,16 @@ pub struct Json {
 
 impl Json {
     pub fn new(
-        formatter: RowFormatter,
+        formatter: JsonStreamConfig,
         input_stream: &'static [serde_json::Value],
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
-        let state = jsonstream::State {
-            stream: JsonStream::new(input_stream.iter()),
-            formatter,
-            lines: Default::default(),
-        };
-
         Ok(Self {
             json: input_stream,
-            state,
+            state: jsonstream::State {
+                stream: JsonStream::new(input_stream.iter()),
+                config: formatter,
+            },
             keybinds,
         })
     }
@@ -93,9 +90,7 @@ impl Json {
 #[async_trait::async_trait]
 impl Visualizer for Json {
     async fn content_to_copy(&self) -> String {
-        self.state
-            .formatter
-            .format_raw_json(self.state.stream.rows())
+        self.state.config.format_raw_json(self.state.stream.rows())
     }
 
     async fn create_init_pane(&mut self, area: (u16, u16)) -> Pane {
@@ -118,9 +113,12 @@ impl Visualizer for Json {
                 if ret.iter().all(|val| *val == Value::Null) {
                     guide = Some(text::State {
                         text: Text::from(format!("jq returned 'null', which may indicate a typo or incorrect filter: `{input}`")),
-                        style: ContentStyle {
-                            foreground_color: Some(Color::Yellow),
-                            attributes: Attributes::from(Attribute::Bold),
+                        config: text::Config {
+                            style: Some(ContentStyle {
+                                foreground_color: Some(Color::Yellow),
+                                attributes: Attributes::from(Attribute::Bold),
+                                ..Default::default()
+                            }),
                             ..Default::default()
                         },
                         ..Default::default()
@@ -140,12 +138,14 @@ impl Visualizer for Json {
                     Some(
                         text::State {
                             text: Text::from(format!("jq failed: `{e}`")),
-                            style: ContentStyle {
-                                foreground_color: Some(Color::Red),
-                                attributes: Attributes::from(Attribute::Bold),
+                            config: text::Config {
+                                style: Some(ContentStyle {
+                                    foreground_color: Some(Color::Red),
+                                    attributes: Attributes::from(Attribute::Bold),
+                                    ..Default::default()
+                                }),
                                 ..Default::default()
                             },
-                            ..Default::default()
                         }
                         .create_pane(area.0, area.1),
                     ),
@@ -194,12 +194,12 @@ fn run_jaq(
 
 #[derive(Clone)]
 pub struct JsonStreamProvider {
-    formatter: RowFormatter,
+    formatter: JsonStreamConfig,
     max_streams: Option<usize>,
 }
 
 impl JsonStreamProvider {
-    pub fn new(formatter: RowFormatter, max_streams: Option<usize>) -> Self {
+    pub fn new(formatter: JsonStreamConfig, max_streams: Option<usize>) -> Self {
         Self {
             formatter,
             max_streams,

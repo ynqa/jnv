@@ -7,7 +7,8 @@ use promkit_widgets::{
         crossterm::{
             cursor,
             event::{
-                Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
+                DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
+                MouseEventKind,
             },
             execute,
             style::{Color, ContentStyle},
@@ -62,16 +63,22 @@ fn copy_to_clipboard(content: &str) -> text::State {
         Ok(mut clipboard) => match clipboard.set_text(content) {
             Ok(_) => text::State {
                 text: Text::from("Copied to clipboard"),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Green),
+                config: text::Config {
+                    style: Some(ContentStyle {
+                        foreground_color: Some(Color::Green),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 },
                 ..Default::default()
             },
             Err(e) => text::State {
                 text: Text::from(format!("Failed to copy to clipboard: {e}")),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Red),
+                config: text::Config {
+                    style: Some(ContentStyle {
+                        foreground_color: Some(Color::Red),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -82,8 +89,11 @@ fn copy_to_clipboard(content: &str) -> text::State {
         // https://github.com/1Password/arboard/issues/153
         Err(e) => text::State {
             text: Text::from(format!("Failed to setup clipboard: {e}")),
-            style: ContentStyle {
-                foreground_color: Some(Color::Red),
+            config: text::Config {
+                style: Some(ContentStyle {
+                    foreground_color: Some(Color::Red),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -187,6 +197,25 @@ pub async fn run<T: ViewProvider + SearchProvider>(
             'main: loop {
                 tokio::select! {
                     Some(Ok(event)) = stream.next() => {
+                        // Note: `HashSet<Event>::contains` compares full mouse events (including `column`/`row`),
+                        // so wheel events are normalized to `(0, 0)` to match configured `ScrollUp`/`ScrollDown` bindings.
+                        let event = match event {
+                            Event::Mouse(mouse)
+                                if matches!(
+                                    mouse.kind,
+                                    MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                                ) =>
+                            {
+                                Event::Mouse(MouseEvent {
+                                    kind: mouse.kind,
+                                    column: 0,
+                                    row: 0,
+                                    modifiers: mouse.modifiers,
+                                })
+                            }
+                            other => other,
+                        };
+
                         match event {
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
@@ -194,20 +223,10 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                             event if keybinds.exit.contains(&event) => {
                                 break 'main
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('q'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_query.contains(&event) => {
                                 editor_copy_tx.send(()).await?;
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('o'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_result.contains(&event) => {
                                 if context_monitor.is_idle().await {
                                     processor_copy_tx.send(()).await?;
                                 } else if !no_hint{
@@ -217,8 +236,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             Index::Guide,
                                             text::State {
                                                 text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                                style: ContentStyle {
-                                                    foreground_color: Some(Color::Yellow),
+                                                config: text::Config {
+                                                    style: Some(ContentStyle {
+                                                        foreground_color: Some(Color::Yellow),
+                                                        ..Default::default()
+                                                    }),
                                                     ..Default::default()
                                                 },
                                                 ..Default::default()
@@ -227,22 +249,17 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     ]).render().await?;
                                 }
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Down,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) | Event::Key(KeyEvent {
-                                code: KeyCode::Up,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.switch_mode.contains(&event) => {
                                 match focus {
                                     Focus::Editor => {
                                         if context_monitor.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
+                                            execute!(
+                                                io::stdout(),
+                                                terminal::EnterAlternateScreen,
+                                                EnableMouseCapture,
+                                            )?;
                                         } else if !no_hint{
                                             let size = terminal::size()?;
                                             shared_renderer.update([
@@ -250,8 +267,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                                     Index::Guide,
                                                     text::State {
                                                         text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                        style: ContentStyle {
-                                                            foreground_color: Some(Color::Yellow),
+                                                        config: text::Config {
+                                                            style: Some(ContentStyle {
+                                                                foreground_color: Some(Color::Yellow),
+                                                                ..Default::default()
+                                                            }),
                                                             ..Default::default()
                                                         },
                                                         ..Default::default()
@@ -262,6 +282,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     Focus::Processor => {
                                         focus = Focus::Editor;
                                         editor_focus_tx.send(true).await?;
+                                        execute!(
+                                            io::stdout(),
+                                            terminal::LeaveAlternateScreen,
+                                            DisableMouseCapture,
+                                        )?;
                                     },
                                 }
                             },
@@ -442,7 +467,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     editor_task.abort();
     processor_task.abort();
 
-    execute!(io::stdout(), cursor::Show)?;
+    execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;
     disable_raw_mode()?;
 
     Ok(())

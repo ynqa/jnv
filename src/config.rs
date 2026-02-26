@@ -1,85 +1,30 @@
 use std::collections::HashSet;
 
-use promkit_widgets::{
-    core::crossterm::{event::Event, style::ContentStyle},
-    text_editor::Mode,
-};
+use promkit_widgets::{core::crossterm::event::Event, jsonstream, listbox, text_editor};
 use serde::{Deserialize, Serialize};
-use termcfg::crossterm_config::{content_style_serde, event_set_serde};
+use termcfg::crossterm_config::event_set_serde;
 use tokio::time::Duration;
 
 mod duration;
 use duration::duration_serde;
-mod text_editor;
-use text_editor::text_editor_mode_serde;
 
 #[derive(Serialize, Deserialize)]
 pub struct EditorConfig {
-    pub theme_on_focus: EditorTheme,
-    pub theme_on_defocus: EditorTheme,
-    #[serde(with = "text_editor_mode_serde")]
-    pub mode: Mode,
-    pub word_break_chars: HashSet<char>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct EditorTheme {
-    pub prefix: String,
-
-    #[serde(with = "content_style_serde")]
-    pub prefix_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub active_char_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub inactive_char_style: ContentStyle,
+    pub on_focus: text_editor::Config,
+    pub on_defocus: text_editor::Config,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct JsonConfig {
     pub max_streams: Option<usize>,
-    pub theme: JsonTheme,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct JsonTheme {
-    pub indent: usize,
-
-    #[serde(with = "content_style_serde")]
-    pub curly_brackets_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub square_brackets_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub key_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub string_value_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub number_value_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub boolean_value_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub null_value_style: ContentStyle,
+    pub stream: jsonstream::Config,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct CompletionConfig {
-    pub lines: Option<usize>,
-    pub cursor: String,
+    pub listbox: listbox::Config,
     pub search_result_chunk_size: usize,
     pub search_load_chunk_size: usize,
-
-    #[serde(with = "content_style_serde")]
-    pub active_item_style: ContentStyle,
-
-    #[serde(with = "content_style_serde")]
-    pub inactive_item_style: ContentStyle,
 }
 
 // TODO: remove Clone derive
