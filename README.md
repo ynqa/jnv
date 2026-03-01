@@ -204,7 +204,7 @@ the default configuration file location for each platform is as follows:
 If the configuration file does not exist,
 it will be automatically created on first run.
 
-### Configuration Options
+### Configuration
 
 > [!IMPORTANT]
 > The syntax in TOML configurations
