@@ -21,7 +21,7 @@ mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod processor;
 use processor::{
-    init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
+    init::ViewInitializer, monitor::ContextMonitor, Context, Processor,
     ViewProvider, Visualizer,
 };
 mod prompt;

@@ -17,6 +17,7 @@ use promkit_widgets::{
         grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
     },
+    spinner::{self, Spinner},
     status::{self, Severity},
 };
 use tokio::{
@@ -26,7 +27,7 @@ use tokio::{
 
 use crate::{
     config::{Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, Processor, SearchProvider, SpinnerSpawner, ViewInitializer,
+    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer,
     ViewProvider, Visualizer,
 };
 
@@ -81,7 +82,7 @@ enum Focus {
     Processor,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
     Editor = 0,
     Guide = 1,
@@ -140,9 +141,15 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         reactivity_control.resize_debounce_duration,
     );
 
-    let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning =
-        spinner_spawner.spawn_spin_task(shared_renderer.clone(), reactivity_control.spin_duration);
+    let spinning = tokio::spawn({
+        let shared_renderer = shared_renderer.clone();
+        let state = ContextMonitor::new(ctx.clone());
+        let spin_duration = reactivity_control.spin_duration;
+        async move {
+            let spinner = Spinner::default().duration(spin_duration);
+            let _ = spinner::run(&spinner, state, Index::Processor, shared_renderer).await;
+        }
+    });
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);

@@ -11,7 +11,6 @@ pub use init::ViewProvider;
 
 use crate::prompt::Index;
 pub mod monitor;
-pub mod spinner;
 
 fn empty_pane() -> StyledGraphemes {
     StyledGraphemes::default()
