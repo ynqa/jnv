@@ -2,13 +2,11 @@ use std::{future::Future, pin::Pin};
 
 use promkit_widgets::{
     core::{
-        crossterm::{
-            event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-            style::{Color, ContentStyle},
-        },
-        Pane, PaneFactory,
+        Widget,
+        crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+        grapheme::StyledGraphemes,
     },
-    text::{self, Text},
+    status::{self, Severity},
     text_editor,
 };
 
@@ -19,7 +17,7 @@ pub struct Editor {
     state: text_editor::State,
     focus_config: text_editor::Config,
     defocus_config: text_editor::Config,
-    guide: text::State,
+    guide: status::State,
     searcher: IncrementalSearcher,
     editor_keybinds: EditorKeybinds,
 }
@@ -37,7 +35,7 @@ impl Editor {
             state,
             focus_config,
             defocus_config,
-            guide: text::State::default(),
+            guide: status::State::default(),
             searcher,
             editor_keybinds,
         }
@@ -53,23 +51,23 @@ impl Editor {
         self.searcher.leave_search();
         self.handler = BOXED_EDITOR_HANDLER;
 
-        self.guide.text = Default::default();
+        self.guide = status::State::default();
     }
 
     pub fn text(&self) -> String {
         self.state.texteditor.text_without_cursor().to_string()
     }
 
-    pub fn create_editor_pane(&self, width: u16, height: u16) -> Pane {
-        self.state.create_pane(width, height)
+    pub fn create_editor_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+        self.state.create_graphemes(width, height)
     }
 
-    pub fn create_searcher_pane(&self, width: u16, height: u16) -> Pane {
+    pub fn create_searcher_pane(&self, width: u16, height: u16) -> StyledGraphemes {
         self.searcher.create_pane(width, height)
     }
 
-    pub fn create_guide_pane(&self, width: u16, height: u16) -> Pane {
-        self.guide.create_pane(width, height)
+    pub fn create_guide_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+        self.guide.create_graphemes(width, height)
     }
 
     pub async fn operate(&mut self, event: &Event) -> anyhow::Result<()> {
@@ -92,7 +90,7 @@ const BOXED_SEARCHER_HANDLER: Handler =
     };
 
 pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Result<()> {
-    editor.guide.text = Default::default();
+    editor.guide = status::State::default();
 
     match event {
         key if editor.editor_keybinds.completion.contains(key) => {
@@ -101,42 +99,37 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                 Ok(result) => match result.head_item {
                     Some(head) => {
                         if result.load_state.loaded {
-                            editor.guide.text = Text::from(format!(
-                                "Loaded all ({}) suggestions",
-                                result.load_state.loaded_item_len
-                            ));
-                            editor.guide.config.style = Some(ContentStyle {
-                                foreground_color: Some(Color::Green),
-                                ..Default::default()
-                            });
+                            editor.guide = status::State::new(
+                                format!(
+                                    "Loaded all ({}) suggestions",
+                                    result.load_state.loaded_item_len
+                                ),
+                                Severity::Success,
+                            );
                         } else {
-                            editor.guide.text = Text::from(format!(
-                                "Loaded partially ({}) suggestions",
-                                result.load_state.loaded_item_len
-                            ));
-                            editor.guide.config.style = Some(ContentStyle {
-                                foreground_color: Some(Color::Green),
-                                ..Default::default()
-                            });
+                            editor.guide = status::State::new(
+                                format!(
+                                    "Loaded partially ({}) suggestions",
+                                    result.load_state.loaded_item_len
+                                ),
+                                Severity::Success,
+                            );
                         }
                         editor.state.texteditor.replace(&head);
                         editor.handler = BOXED_SEARCHER_HANDLER;
                     }
                     None => {
-                        editor.guide.text =
-                            Text::from(format!("No suggestion found for '{prefix}'"));
-                        editor.guide.config.style = Some(ContentStyle {
-                            foreground_color: Some(Color::Yellow),
-                            ..Default::default()
-                        });
+                        editor.guide = status::State::new(
+                            format!("No suggestion found for '{prefix}'"),
+                            Severity::Warning,
+                        );
                     }
                 },
                 Err(e) => {
-                    editor.guide.text = Text::from(format!("Failed to lookup suggestions: {e}"));
-                    editor.guide.config.style = Some(ContentStyle {
-                        foreground_color: Some(Color::Yellow),
-                        ..Default::default()
-                    });
+                    editor.guide = status::State::new(
+                        format!("Failed to lookup suggestions: {e}"),
+                        Severity::Warning,
+                    );
                 }
             }
         }

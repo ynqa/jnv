@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use promkit_widgets::{
-    core::{pane::Pane, PaneFactory},
+    core::{Widget, grapheme::StyledGraphemes},
     listbox::{self, Listbox},
 };
 use tokio::{
@@ -111,8 +111,8 @@ impl IncrementalSearcher {
         self.state.listbox.get().to_string()
     }
 
-    pub fn create_pane(&self, width: u16, height: u16) -> Pane {
-        self.state.create_pane(width, height)
+    pub fn create_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+        self.state.create_graphemes(width, height)
     }
 
     pub fn leave_search(&mut self) {
