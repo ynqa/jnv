@@ -111,8 +111,14 @@ cargo install jnv
 
 ```bash
 cat data.json | jnv
+
 # or
 jnv data.json
+
+# or write current result to stdout on exit (UNIX only)
+cat data.json | jnv --write-to-stdout | some-command
+# and also output to file
+cat data.json | jnv -- --write-to-stdout > result.json
 ```
 
 ## Keymap
@@ -180,6 +186,7 @@ Arguments:
 Options:
   -c, --config <CONFIG_FILE>             Path to the configuration file.
       --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
+      --write-to-stdout                  Write the current JSON result to stdout when exiting
   -h, --help                             Print help (see more with '--help')
   -V, --version                          Print version
 ```
@@ -389,9 +396,9 @@ on_completion.down = ["Down", "Tab"]
 # Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
 # Move up in JSON viewer
-up = ["Up", "Ctrl+K"]
+up = ["Up", "Ctrl+K", "ScrollUp"]
 # Move down in JSON viewer
-down = ["Down", "Ctrl+J"]
+down = ["Down", "Ctrl+J", "ScrollDown"]
 # Move to the top of JSON viewer
 move_to_head = ["Ctrl+L"]
 # Move to the bottom of JSON viewer

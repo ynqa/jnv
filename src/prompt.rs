@@ -123,7 +123,8 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
     keybinds: Keybinds,
-) -> anyhow::Result<()> {
+    write_to_stdout: bool,
+) -> anyhow::Result<Option<String>> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
 
@@ -385,11 +386,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         })
     };
 
+    let shared_visualizer = Arc::new(Mutex::new(initializing.await?));
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
-        let visualizer = initializing.await?;
-        let shared_visualizer = Arc::new(Mutex::new(visualizer));
+        let shared_visualizer = shared_visualizer.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -460,6 +461,13 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     main_task.await??;
 
+    let output = if write_to_stdout {
+        let visualizer = shared_visualizer.lock().await;
+        Some(visualizer.content_to_copy().await)
+    } else {
+        None
+    };
+
     loading_suggestions_task.abort();
     spinning.abort();
     query_debouncer.abort();
@@ -470,5 +478,5 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;
     disable_raw_mode()?;
 
-    Ok(())
+    Ok(output)
 }

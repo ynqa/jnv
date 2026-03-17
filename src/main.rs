@@ -17,6 +17,8 @@ use editor::Editor;
 mod config;
 mod json;
 use json::JsonStreamProvider;
+mod stdout_redirect;
+use stdout_redirect::StdoutRedirect;
 mod processor;
 use processor::{
     init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
@@ -70,6 +72,12 @@ pub struct Args {
         "
     )]
     default_filter: Option<String>,
+
+    #[arg(
+        long = "write-to-stdout",
+        help = "Write the current JSON result to stdout when exiting"
+    )]
+    write_to_stdout: bool,
 }
 
 /// Parses the input based on the provided arguments.
@@ -194,8 +202,10 @@ async fn main() -> anyhow::Result<()> {
         config.keybinds.on_editor.clone(),
     );
 
+    let mut stdout_redirect = StdoutRedirect::try_new_for_tui(args.write_to_stdout)?;
+
     // TODO: put all logics here.
-    prompt::run(
+    let maybe_output = prompt::run(
         item,
         config.reactivity_control,
         provider,
@@ -203,8 +213,20 @@ async fn main() -> anyhow::Result<()> {
         loading_suggestions_task,
         config.no_hint,
         config.keybinds,
+        args.write_to_stdout,
     )
-    .await?;
+    .await;
+
+    stdout_redirect.restore()?;
+    let maybe_output = maybe_output?;
+
+    if let Some(output) = maybe_output {
+        let mut stdout = io::stdout();
+        stdout.write_all(output.as_bytes())?;
+        if !output.ends_with('\n') {
+            stdout.write_all(b"\n")?;
+        }
+    }
 
     Ok(())
 }

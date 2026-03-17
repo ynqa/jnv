@@ -857,6 +857,7 @@ dependencies = [
  "jaq-json",
  "jaq-std",
  "promkit-widgets",
+ "rustix",
  "serde",
  "termcfg",
  "tokio",
