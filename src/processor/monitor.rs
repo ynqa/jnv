@@ -13,11 +13,6 @@ impl ContextMonitor {
     pub fn new(shared: Arc<Mutex<Context>>) -> Self {
         Self { shared }
     }
-
-    pub async fn is_idle(&self) -> bool {
-        let context = self.shared.lock().await;
-        context.state == State::Idle
-    }
 }
 
 impl spinner::State for ContextMonitor {

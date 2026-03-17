@@ -17,7 +17,7 @@ use promkit_widgets::{
         grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
     },
-    spinner::{self, Spinner},
+    spinner::{self, Spinner, State},
     status::{self, Severity},
 };
 use tokio::{
