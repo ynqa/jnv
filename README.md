@@ -396,9 +396,9 @@ on_completion.down = ["Down", "Tab"]
 # Keybindings for JSON viewer operations
 [keybinds.on_json_viewer]
 # Move up in JSON viewer
-up = ["Up", "Ctrl+K"]
+up = ["Up", "Ctrl+K", "ScrollUp"]
 # Move down in JSON viewer
-down = ["Down", "Ctrl+J"]
+down = ["Down", "Ctrl+J", "ScrollDown"]
 # Move to the top of JSON viewer
 move_to_head = ["Ctrl+L"]
 # Move to the bottom of JSON viewer
