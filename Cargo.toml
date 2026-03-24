@@ -31,7 +31,6 @@ jaq-std = "2.1.2"
 
 [dependencies.promkit-widgets]
 version = "0.5.0"
-path = "../promkit/promkit-widgets"
 features = ["jsonstream", "listbox", "serde", "spinner", "status", "texteditor"]
 default-features = false
 
