@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use promkit_widgets::{
-    core::{Widget, grapheme::StyledGraphemes},
+    core::{grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
 };
 use tokio::{

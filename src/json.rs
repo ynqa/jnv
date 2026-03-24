@@ -5,7 +5,7 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    core::{Widget, crossterm::event::Event, grapheme::StyledGraphemes},
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
     jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
     status::{self, Severity},
@@ -90,11 +90,7 @@ impl Visualizer for Json {
         self.state.create_graphemes(area.0, area.1)
     }
 
-    async fn create_pane_from_event(
-        &mut self,
-        area: (u16, u16),
-        event: &Event,
-    ) -> StyledGraphemes {
+    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
         self.operate(event);
         self.state.create_graphemes(area.0, area.1)
     }

@@ -4,7 +4,6 @@ use arboard::Clipboard;
 use futures::StreamExt;
 use promkit_widgets::{
     core::{
-        Widget,
         crossterm::{
             cursor,
             event::{
@@ -16,6 +15,7 @@ use promkit_widgets::{
         },
         grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
+        Widget,
     },
     spinner::{self, Spinner, State},
     status::{self, Severity},
@@ -27,8 +27,8 @@ use tokio::{
 
 use crate::{
     config::{Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer,
-    ViewProvider, Visualizer,
+    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer, ViewProvider,
+    Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(

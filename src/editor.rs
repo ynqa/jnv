@@ -2,9 +2,9 @@ use std::{future::Future, pin::Pin};
 
 use promkit_widgets::{
     core::{
-        Widget,
         crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
         grapheme::StyledGraphemes,
+        Widget,
     },
     status::{self, Severity},
     text_editor,
