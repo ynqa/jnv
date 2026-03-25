@@ -111,8 +111,14 @@ cargo install jnv
 
 ```bash
 cat data.json | jnv
+
 # or
 jnv data.json
+
+# or write current result to stdout on exit (UNIX only)
+cat data.json | jnv --write-to-stdout | some-command
+# and also output to file
+cat data.json | jnv -- --write-to-stdout > result.json
 ```
 
 ## Keymap
@@ -180,6 +186,7 @@ Arguments:
 Options:
   -c, --config <CONFIG_FILE>             Path to the configuration file.
       --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
+      --write-to-stdout                  Write the current JSON result to stdout when exiting
   -h, --help                             Print help (see more with '--help')
   -V, --version                          Print version
 ```
@@ -204,93 +211,15 @@ the default configuration file location for each platform is as follows:
 If the configuration file does not exist,
 it will be automatically created on first run.
 
-### Configuration Options
+### Configuration
 
-The following settings are available in `config.toml`:
-
-```toml
-# Whether to hide the hint message
-no_hint = false
-
-# Editor settings
-[editor]
-# Editor mode ("Insert" or "Overwrite")
-mode = "Insert"
-# Word break characters
-word_break_chars = [".", "|", "(", ")", "[", "]"]
-
-# Theme when editor is focused
-[editor.theme_on_focus]
-prefix = "❯❯ "
-prefix_style = { foreground = "blue" }
-active_char_style = { background = "magenta" }
-inactive_char_style = {}
-
-# Theme when editor is not focused
-[editor.theme_on_defocus]
-prefix = "▼ "
-prefix_style = { foreground = "blue", attributes = ["Dim"] }
-active_char_style = { attributes = ["Dim"] }
-inactive_char_style = { attributes = ["Dim"] }
-
-# JSON display settings
-[json]
-# Maximum number of JSON objects to read from stream
-# max_streams = 
-
-# JSON theme settings
-[json.theme]
-indent = 2
-curly_brackets_style = { attributes = ["Bold"] }
-square_brackets_style = { attributes = ["Bold"] }
-key_style = { foreground = "cyan" }
-string_value_style = { foreground = "green" }
-number_value_style = {}
-boolean_value_style = {}
-null_value_style = { foreground = "grey" }
-
-# Completion feature settings
-[completion]
-lines = 3
-cursor = "❯ "
-active_item_style = { foreground = "grey", background = "yellow" }
-inactive_item_style = { foreground = "grey" }
-search_result_chunk_size = 100
-search_load_chunk_size = 50000
-
-# Keybind settings
-[keybinds]
-# Application exit key
-exit = [{ Key = { modifiers = "CONTROL", code = { Char = "c" } } }]
-# Copy query to clipboard key
-copy_query = [{ Key = { modifiers = "CONTROL", code = { Char = "q" } } }]
-# Copy result to clipboard key
-copy_result = [{ Key = { modifiers = "CONTROL", code = { Char = "o" } } }]
-# Mode switch keys
-switch_mode = [
-  { Key = { code = "Down", modifiers = "SHIFT" } },
-  { Key = { code = "Up", modifiers = "SHIFT" } }
-]
-
-# Editor operation keybinds
-[keybinds.on_editor]
-# (Details omitted)
-
-# JSON viewer keybinds
-[keybinds.on_json_viewer]
-# (Details omitted)
-
-# Application reactivity settings
-[reactivity_control]
-# Delay time after query input
-query_debounce_duration = "600ms"
-# Redraw delay time after window resize
-resize_debounce_duration = "200ms"
-# Spinner animation update interval
-spin_duration = "300ms"
-```
-
-For more details on configuration, please refer to [default.toml](./default.toml)
+> [!IMPORTANT]
+> The syntax in TOML configurations
+> like [default.toml](./default.toml) was revamped in v0.7.0,
+> and the configuration shown below reflects the new format.
+> A migration tool is not provided for this change.
+> Please manually replace/update your local
+> `config.toml` to match the new syntax.
 
 > [!WARNING]
 > Depending on the type of terminal and environment,
@@ -298,5 +227,206 @@ For more details on configuration, please refer to [default.toml](./default.toml
 > Specific key bindings and decorative characters may not
 > display or function correctly in certain terminal emulators.
 
+<details>
+<summary>The following settings are available in config.toml</summary>
+
+```toml
+# Whether to hide hint messages
+no_hint = false
+
+# Editor settings
+# Uses promkit_widgets::text_editor::Config directly
+[editor.on_focus]
+
+# Editor mode
+# "Insert": Insert characters at the cursor position
+# "Overwrite": Replace characters at the cursor position with new ones
+edit_mode = "Insert"
+
+# Characters considered as word boundaries
+# These are used to define word movement and deletion behavior in the editor
+word_break_chars = [".", "|", "(", ")", "[", "]"]
+
+# Style notation (termcfg)
+# Format: "fg=<color>,bg=<color>,ul=<color>,attr=<token|token...>"
+# Examples:
+# - "fg=blue"
+# - "fg=#00FF00,bg=black,attr=bold|underlined"
+# - "attr=dim"
+#
+# Color tokens:
+# - reset, black, red, green, yellow, blue, magenta, cyan, white
+# - darkgrey, darkred, darkgreen, darkyellow, darkblue, darkmagenta, darkcyan, grey
+# - #RRGGBB
+#
+# Attribute tokens (examples):
+# - bold, italic, underlined, dim, reverse, crossedout, nounderline, nobold
+#
+# Notes:
+# - ANSI 256-color index tokens (0..255, e.g. "200") are currently out of notation scope.
+# - See termcfg notation reference for full token list.
+#
+# References:
+# - https://github.com/ynqa/termcfg/blob/main/Notations.md
+# - https://github.com/ynqa/termcfg
+
+# Prefix shown before the cursor
+prefix = "❯❯ "
+# Style for the prefix
+prefix_style = "fg=blue"
+# Style for the character under the cursor
+active_char_style = "bg=magenta"
+# Style for all other characters
+inactive_char_style = ""
+
+# Theme settings when the editor is unfocused
+[editor.on_defocus]
+# Prefix shown when focus is lost
+prefix = "▼ "
+# Style for the prefix when unfocused
+prefix_style = "fg=blue,attr=dim"
+# Style for the character under the cursor when unfocused
+active_char_style = "attr=dim"
+# Style for all other characters when unfocused
+inactive_char_style = "attr=dim"
+
+# JSON display settings
+[json]
+# Maximum number of JSON objects to read from streams (e.g., JSON Lines format)
+# Limits how many objects are processed to reduce memory usage when handling large data streams
+# No limit if unset
+# max_streams =
+
+# JSON display settings
+# Uses promkit_widgets::jsonstream::Config directly
+[json.stream]
+# Number of spaces to use for indentation
+indent = 2
+# Style for curly brackets {}
+curly_brackets_style = "attr=bold"
+# Style for square brackets []
+square_brackets_style = "attr=bold"
+# Style for JSON keys
+key_style = "fg=cyan"
+# Style for string values
+string_value_style = "fg=green"
+# Style for number values
+number_value_style = ""
+# Style for boolean values
+boolean_value_style = ""
+# Style for null values
+null_value_style = "fg=grey"
+# Attribute for the selected row and unselected rows
+active_item_attribute = "bold"
+# Attribute for unselected rows
+inactive_item_attribute = "dim"
+# Behavior when JSON content exceeds the available width
+# "Wrap": Wrap content to the next line
+# "Truncate": Truncate content with an ellipsis (...)
+overflow_mode = "Wrap"
+
+# Completion feature settings
+[completion]
+# Settings for background loading of completion candidates
+#
+# Number of candidates loaded per chunk for search results
+# A larger value displays results faster but uses more memory
+search_result_chunk_size = 100
+
+# Number of items loaded per batch during background loading
+# A larger value finishes loading sooner but uses more memory temporarily
+search_load_chunk_size = 50000
+
+# Completion UI settings
+# Uses promkit_widgets::listbox::Config directly
+[completion.listbox]
+# Number of lines to display for completion candidates
+lines = 3
+# Cursor character shown before the selected candidate
+cursor = "❯ "
+# Style for the selected candidate
+active_item_style = "fg=grey,bg=yellow"
+# Style for unselected candidates
+inactive_item_style = "fg=grey"
+
+# Keybinding settings
+[keybinds]
+# Key to exit the application
+exit = ["Ctrl+C"]
+# Key to copy the query to the clipboard
+copy_query = ["Ctrl+Q"]
+# Key to copy the result to the clipboard
+copy_result = ["Ctrl+O"]
+# Keys to switch focus between editor and JSON viewer
+switch_mode = ["Shift+Down", "Shift+Up"]
+
+# Keybindings for editor operations
+[keybinds.on_editor]
+# Move cursor left
+backward = ["Left"]
+
+# Move cursor right
+forward = ["Right"]
+
+# Move cursor to beginning of line
+move_to_head = ["Ctrl+A"]
+# Move cursor to end of line
+move_to_tail = ["Ctrl+E"]
+# Move cursor to previous word boundary
+move_to_previous_nearest = ["Alt+B"]
+# Move cursor to next word boundary
+move_to_next_nearest = ["Alt+F"]
+# Delete character at the cursor
+erase = ["Backspace"]
+
+# Delete all input
+erase_all = ["Ctrl+U"]
+
+# Delete from cursor to previous word boundary
+erase_to_previous_nearest = ["Ctrl+W"]
+# Delete from cursor to next word boundary
+erase_to_next_nearest = ["Alt+D"]
+# Trigger completion
+completion = ["Tab"]
+# Move up in the completion list
+on_completion.up = ["Up"]
+# Move down in the completion list
+on_completion.down = ["Down", "Tab"]
+
+# Keybindings for JSON viewer operations
+[keybinds.on_json_viewer]
+# Move up in JSON viewer
+up = ["Up", "Ctrl+K", "ScrollUp"]
+# Move down in JSON viewer
+down = ["Down", "Ctrl+J", "ScrollDown"]
+# Move to the top of JSON viewer
+move_to_head = ["Ctrl+L"]
+# Move to the bottom of JSON viewer
+move_to_tail = ["Ctrl+H"]
+# Toggle expand/collapse of JSON nodes
+toggle = ["Enter"]
+# Expand all JSON nodes
+expand = ["Ctrl+P"]
+# Collapse all JSON nodes
+collapse = ["Ctrl+N"]
+
+# Application reactivity settings
+[reactivity_control]
+# Delay before processing query input
+# Prevents excessive updates while user is typing
+query_debounce_duration = "600ms"
+
+# Delay before redrawing after window resize
+# Prevents frequent redraws during continuous resizing
+resize_debounce_duration = "200ms"
+
+# Interval for spinner animation updates
+# Controls the speed of the loading spinner
+spin_duration = "300ms"
+```
+
+</details>
+
 ## Stargazers over time
+
 [![Stargazers over time](https://starchart.cc/ynqa/jnv.svg?variant=adaptive)](https://starchart.cc/ynqa/jnv)

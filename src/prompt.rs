@@ -7,17 +7,18 @@ use promkit_widgets::{
         crossterm::{
             cursor,
             event::{
-                Event, EventStream, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers,
+                DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
+                MouseEventKind,
             },
             execute,
-            style::{Color, ContentStyle},
             terminal::{self, disable_raw_mode, enable_raw_mode},
         },
-        pane::EMPTY_PANE,
+        grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
-        PaneFactory,
+        Widget,
     },
-    text::{self, Text},
+    spinner::{self, Spinner, State},
+    status::{self, Severity},
 };
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
@@ -25,9 +26,9 @@ use tokio::{
 };
 
 use crate::{
-    config::{event::Matcher, Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, Processor, SearchProvider, SpinnerSpawner, ViewInitializer,
-    ViewProvider, Visualizer,
+    config::{Keybinds, ReactivityControl},
+    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer, ViewProvider,
+    Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -57,38 +58,23 @@ fn spawn_debouncer<T: Send + 'static>(
     })
 }
 
-fn copy_to_clipboard(content: &str) -> text::State {
+fn copy_to_clipboard(content: &str) -> status::State {
     match Clipboard::new() {
         Ok(mut clipboard) => match clipboard.set_text(content) {
-            Ok(_) => text::State {
-                text: Text::from("Copied to clipboard"),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Green),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            Err(e) => text::State {
-                text: Text::from(format!("Failed to copy to clipboard: {e}")),
-                style: ContentStyle {
-                    foreground_color: Some(Color::Red),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            Ok(_) => status::State::new("Copied to clipboard", Severity::Success),
+            Err(e) => {
+                status::State::new(format!("Failed to copy to clipboard: {e}"), Severity::Error)
+            }
         },
         // arboard fails (in the specific environment like linux?) on Clipboard::new()
         // suppress the errors (but still show them) not to break the prompt
         // https://github.com/1Password/arboard/issues/153
-        Err(e) => text::State {
-            text: Text::from(format!("Failed to setup clipboard: {e}")),
-            style: ContentStyle {
-                foreground_color: Some(Color::Red),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        Err(e) => status::State::new(format!("Failed to setup clipboard: {e}"), Severity::Error),
     }
+}
+
+fn empty_pane() -> StyledGraphemes {
+    StyledGraphemes::default()
 }
 
 enum Focus {
@@ -96,7 +82,7 @@ enum Focus {
     Processor,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
     Editor = 0,
     Guide = 1,
@@ -113,19 +99,20 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
     keybinds: Keybinds,
-) -> anyhow::Result<()> {
+    write_to_stdout: bool,
+) -> anyhow::Result<Option<String>> {
     enable_raw_mode()?;
     execute!(io::stdout(), cursor::Hide)?;
 
     let size = terminal::size()?;
 
     let shared_renderer = SharedRenderer::new(
-        Renderer::try_new_with_panes(
+        Renderer::try_new_with_graphemes(
             [
                 (Index::Editor, editor.create_editor_pane(size.0, size.1)),
-                (Index::Guide, EMPTY_PANE.to_owned()),
-                (Index::Search, EMPTY_PANE.to_owned()),
-                (Index::Processor, EMPTY_PANE.to_owned()),
+                (Index::Guide, empty_pane()),
+                (Index::Search, empty_pane()),
+                (Index::Processor, empty_pane()),
             ]
             .into_iter(),
             true,
@@ -154,9 +141,15 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         reactivity_control.resize_debounce_duration,
     );
 
-    let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning =
-        spinner_spawner.spawn_spin_task(shared_renderer.clone(), reactivity_control.spin_duration);
+    let spinning = tokio::spawn({
+        let shared_renderer = shared_renderer.clone();
+        let state = ContextMonitor::new(ctx.clone());
+        let spin_duration = reactivity_control.spin_duration;
+        async move {
+            let spinner = Spinner::default().duration(spin_duration);
+            let _ = spinner::run(&spinner, state, Index::Processor, shared_renderer).await;
+        }
+    });
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
@@ -187,27 +180,36 @@ pub async fn run<T: ViewProvider + SearchProvider>(
             'main: loop {
                 tokio::select! {
                     Some(Ok(event)) = stream.next() => {
+                        // Note: `HashSet<Event>::contains` compares full mouse events (including `column`/`row`),
+                        // so wheel events are normalized to `(0, 0)` to match configured `ScrollUp`/`ScrollDown` bindings.
+                        let event = match event {
+                            Event::Mouse(mouse)
+                                if matches!(
+                                    mouse.kind,
+                                    MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                                ) =>
+                            {
+                                Event::Mouse(MouseEvent {
+                                    kind: mouse.kind,
+                                    column: 0,
+                                    row: 0,
+                                    modifiers: mouse.modifiers,
+                                })
+                            }
+                            other => other,
+                        };
+
                         match event {
                             Event::Resize(width, height) => {
                                 debounce_resize_tx.send((width, height)).await?;
                             },
-                            event if keybinds.exit.matches(&event) => {
+                            event if keybinds.exit.contains(&event) => {
                                 break 'main
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('q'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_query.contains(&event) => {
                                 editor_copy_tx.send(()).await?;
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Char('o'),
-                                modifiers: KeyModifiers::CONTROL,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.copy_result.contains(&event) => {
                                 if context_monitor.is_idle().await {
                                     processor_copy_tx.send(()).await?;
                                 } else if !no_hint{
@@ -215,53 +217,48 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     shared_renderer.update([
                                         (
                                             Index::Guide,
-                                            text::State {
-                                                text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                                style: ContentStyle {
-                                                    foreground_color: Some(Color::Yellow),
-                                                    ..Default::default()
-                                                },
-                                                ..Default::default()
-                                            }.create_pane(size.0, size.1),
+                                            status::State::new(
+                                                "Failed to copy while rendering is in progress.",
+                                                Severity::Warning,
+                                            )
+                                            .create_graphemes(size.0, size.1),
                                         ),
                                     ]).render().await?;
                                 }
                             },
-                            Event::Key(KeyEvent {
-                                code: KeyCode::Down,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) | Event::Key(KeyEvent {
-                                code: KeyCode::Up,
-                                modifiers: KeyModifiers::SHIFT,
-                                kind: KeyEventKind::Press,
-                                state: KeyEventState::NONE,
-                            }) => {
+                            event if keybinds.switch_mode.contains(&event) => {
                                 match focus {
                                     Focus::Editor => {
                                         if context_monitor.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
+                                            execute!(
+                                                io::stdout(),
+                                                terminal::EnterAlternateScreen,
+                                                EnableMouseCapture,
+                                            )?;
                                         } else if !no_hint{
                                             let size = terminal::size()?;
                                             shared_renderer.update([
                                                 (
                                                     Index::Guide,
-                                                    text::State {
-                                                        text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                        style: ContentStyle {
-                                                            foreground_color: Some(Color::Yellow),
-                                                            ..Default::default()
-                                                        },
-                                                        ..Default::default()
-                                                    }.create_pane(size.0, size.1)),
+                                                    status::State::new(
+                                                        "Failed to switch pane while rendering is in progress.",
+                                                        Severity::Warning,
+                                                    )
+                                                    .create_graphemes(size.0, size.1),
+                                                ),
                                             ]).render().await?;
                                         }
                                     },
                                     Focus::Processor => {
                                         focus = Focus::Editor;
                                         editor_focus_tx.send(true).await?;
+                                        execute!(
+                                            io::stdout(),
+                                            terminal::LeaveAlternateScreen,
+                                            DisableMouseCapture,
+                                        )?;
                                     },
                                 }
                             },
@@ -307,7 +304,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         };
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
-                            (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                            (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                         ]).render().await?;
                     }
                     Some(()) = editor_copy_rx.recv() => {
@@ -318,7 +315,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let guide = copy_to_clipboard(&text);
                         if !no_hint {
                             let size = terminal::size()?;
-                            let pane = guide.create_pane(size.0, size.1);
+                            let pane = guide.create_graphemes(size.0, size.1);
                             shared_renderer.update([
                                 (Index::Guide, pane),
                             ]).render().await?;
@@ -346,7 +343,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         {
                             shared_renderer.update([
                                 (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                                 (Index::Search, searcher_pane),
                             ]).render().await?;
                         }
@@ -360,11 +357,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         })
     };
 
+    let shared_visualizer = Arc::new(Mutex::new(initializing.await?));
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
-        let visualizer = initializing.await?;
-        let shared_visualizer = Arc::new(Mutex::new(visualizer));
+        let shared_visualizer = shared_visualizer.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -373,7 +370,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let guide = copy_to_clipboard(&visualizer.content_to_copy().await);
                         if !no_hint {
                             let size = terminal::size()?;
-                            let pane = guide.create_pane(size.0, size.1);
+                            let pane = guide.create_graphemes(size.0, size.1);
                             shared_renderer.update([
                                 (Index::Guide, pane),
                             ]).render().await?;
@@ -409,7 +406,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         {
                             shared_renderer.update([
                                 (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                                 (Index::Search, searcher_pane),
                             ]).render().await?;
                         }
@@ -435,6 +432,13 @@ pub async fn run<T: ViewProvider + SearchProvider>(
 
     main_task.await??;
 
+    let output = if write_to_stdout {
+        let visualizer = shared_visualizer.lock().await;
+        Some(visualizer.content_to_copy().await)
+    } else {
+        None
+    };
+
     loading_suggestions_task.abort();
     spinning.abort();
     query_debouncer.abort();
@@ -442,8 +446,8 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     editor_task.abort();
     processor_task.abort();
 
-    execute!(io::stdout(), cursor::Show)?;
+    execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;
     disable_raw_mode()?;
 
-    Ok(())
+    Ok(output)
 }

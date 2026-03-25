@@ -8,8 +8,6 @@ use anyhow::anyhow;
 use clap::Parser;
 use config::Config;
 use promkit_widgets::{
-    core::crossterm::style::Attribute,
-    jsonstream::format::RowFormatter,
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
 };
@@ -19,16 +17,17 @@ use editor::Editor;
 mod config;
 mod json;
 use json::JsonStreamProvider;
+mod stdout_redirect;
+use stdout_redirect::StdoutRedirect;
 mod processor;
 use processor::{
-    init::ViewInitializer, monitor::ContextMonitor, spinner::SpinnerSpawner, Context, Processor,
-    ViewProvider, Visualizer,
+    init::ViewInitializer, monitor::ContextMonitor, Context, Processor, ViewProvider, Visualizer,
 };
 mod prompt;
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
 
-static DEFAULT_CONFIG: &str = include_str!("../default.toml");
+use crate::config::DEFAULT_CONFIG;
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -72,6 +71,12 @@ pub struct Args {
         "
     )]
     default_filter: Option<String>,
+
+    #[arg(
+        long = "write-to-stdout",
+        help = "Write the current JSON result to stdout when exiting"
+    )]
+    write_to_stdout: bool,
 }
 
 /// Parses the input based on the provided arguments.
@@ -148,22 +153,19 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
 
-    let mut config = Config::default();
-    if let Ok(config_file) = determine_config_file(args.config_file) {
-        // Note that the configuration file absolutely exists.
-        let content = std::fs::read_to_string(&config_file)
-            // TODO: output the message as the initial guide pane.
-            .map_err(|e| anyhow!("Failed to read configuration file: {e}"))?;
-        config = Config::load_from(&content)
-            .map_err(|e| anyhow!("Failed to deserialize configuration file: {e}"))?;
-    }
+    let config = determine_config_file(args.config_file)
+        .and_then(|config_file| {
+            std::fs::read_to_string(&config_file)
+                .map_err(|e| anyhow!("Failed to read configuration file: {e}"))
+        })
+        .and_then(|content| Config::load_from(&content))
+        .unwrap_or_else(|_e| {
+            Config::load_from(DEFAULT_CONFIG).expect("Failed to load default configuration")
+        });
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),
-        cursor: config.completion.cursor,
-        active_item_style: Some(config.completion.active_item_style),
-        inactive_item_style: Some(config.completion.inactive_item_style),
-        lines: config.completion.lines,
+        config: config.completion.listbox.clone(),
     };
 
     let searcher =
@@ -176,31 +178,11 @@ async fn main() -> anyhow::Result<()> {
             Default::default()
         },
         history: Default::default(),
-        prefix: config.editor.theme_on_focus.prefix.clone(),
-        mask: Default::default(),
-        prefix_style: config.editor.theme_on_focus.prefix_style,
-        active_char_style: config.editor.theme_on_focus.active_char_style,
-        inactive_char_style: config.editor.theme_on_focus.inactive_char_style,
-        edit_mode: config.editor.mode,
-        word_break_chars: config.editor.word_break_chars,
-        lines: Default::default(),
+        config: config.editor.on_focus.clone(),
     };
 
-    let provider = &mut JsonStreamProvider::new(
-        RowFormatter {
-            curly_brackets_style: config.json.theme.curly_brackets_style,
-            square_brackets_style: config.json.theme.square_brackets_style,
-            key_style: config.json.theme.key_style,
-            string_value_style: config.json.theme.string_value_style,
-            number_value_style: config.json.theme.number_value_style,
-            boolean_value_style: config.json.theme.boolean_value_style,
-            null_value_style: config.json.theme.null_value_style,
-            active_item_attribute: Attribute::Bold,
-            inactive_item_attribute: Attribute::Dim,
-            indent: config.json.theme.indent,
-        },
-        config.json.max_streams,
-    );
+    let provider =
+        &mut JsonStreamProvider::new(config.json.stream.clone(), config.json.max_streams);
 
     let item = Box::leak(input.into_boxed_str());
 
@@ -213,14 +195,16 @@ async fn main() -> anyhow::Result<()> {
     let editor = Editor::new(
         text_editor_state,
         searcher,
-        config.editor.theme_on_focus,
-        config.editor.theme_on_defocus,
+        config.editor.on_focus,
+        config.editor.on_defocus,
         // TODO: remove clones
         config.keybinds.on_editor.clone(),
     );
 
+    let mut stdout_redirect = StdoutRedirect::try_new_for_tui(args.write_to_stdout)?;
+
     // TODO: put all logics here.
-    prompt::run(
+    let maybe_output = prompt::run(
         item,
         config.reactivity_control,
         provider,
@@ -228,8 +212,20 @@ async fn main() -> anyhow::Result<()> {
         loading_suggestions_task,
         config.no_hint,
         config.keybinds,
+        args.write_to_stdout,
     )
-    .await?;
+    .await;
+
+    stdout_redirect.restore()?;
+    let maybe_output = maybe_output?;
+
+    if let Some(output) = maybe_output {
+        let mut stdout = io::stdout();
+        stdout.write_all(output.as_bytes())?;
+        if !output.ends_with('\n') {
+            stdout.write_all(b"\n")?;
+        }
+    }
 
     Ok(())
 }

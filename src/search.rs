@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use promkit_widgets::{
-    core::{pane::Pane, PaneFactory},
+    core::{grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
 };
 use tokio::{
@@ -101,7 +101,7 @@ impl IncrementalSearcher {
             .listbox
             .len()
             .saturating_sub(self.state.listbox.position())
-            < self.state.lines.unwrap_or(1)
+            < self.state.config.lines.unwrap_or(1)
         {
             self.load_more();
         }
@@ -111,12 +111,12 @@ impl IncrementalSearcher {
         self.state.listbox.get().to_string()
     }
 
-    pub fn create_pane(&self, width: u16, height: u16) -> Pane {
-        self.state.create_pane(width, height)
+    pub fn create_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+        self.state.create_graphemes(width, height)
     }
 
     pub fn leave_search(&mut self) {
-        self.state.listbox = Listbox::from_displayable(Vec::<String>::new());
+        self.state.listbox = Listbox::from(Vec::<String>::new());
         self.search_chunk_remaining = Vec::<String>::new();
     }
 
@@ -141,7 +141,7 @@ impl IncrementalSearcher {
                     .drain(..self.search_result_chunk_size.min(items.len()))
                     .collect::<Vec<_>>();
                 self.search_chunk_remaining = items;
-                self.state.listbox = Listbox::from_displayable(used);
+                self.state.listbox = Listbox::from(used);
                 Ok(StartSearchResult {
                     head_item: Some(self.state.listbox.get().to_string()),
                     load_state: state.clone(),

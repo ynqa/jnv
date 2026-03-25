@@ -5,21 +5,14 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    core::{
-        crossterm::{
-            event::Event,
-            style::{Attribute, Attributes, Color, ContentStyle},
-        },
-        pane::Pane,
-        PaneFactory,
-    },
-    jsonstream::{self, format::RowFormatter, jsonz, JsonStream},
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
+    jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
-    text::{self, Text},
+    status::{self, Severity},
 };
 
 use crate::{
-    config::{event::Matcher, JsonViewerKeybinds},
+    config::JsonViewerKeybinds,
     processor::{ViewProvider, Visualizer},
     search::SearchProvider,
 };
@@ -33,7 +26,7 @@ pub struct Json {
 
 impl Json {
     pub fn new(
-        formatter: RowFormatter,
+        formatter: JsonStreamConfig,
         input_stream: &'static [serde_json::Value],
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
@@ -41,8 +34,7 @@ impl Json {
             json: input_stream,
             state: jsonstream::State {
                 stream: JsonStream::new(input_stream.iter()),
-                formatter,
-                lines: Default::default(),
+                config: formatter,
             },
             keybinds,
         })
@@ -51,35 +43,35 @@ impl Json {
     fn operate(&mut self, event: &Event) {
         match event {
             // Move up.
-            event if self.keybinds.up.matches(event) => {
+            event if self.keybinds.up.contains(event) => {
                 self.state.stream.up();
             }
 
             // Move down.
-            event if self.keybinds.down.matches(event) => {
+            event if self.keybinds.down.contains(event) => {
                 self.state.stream.down();
             }
 
             // Move to head
-            event if self.keybinds.move_to_head.matches(event) => {
+            event if self.keybinds.move_to_head.contains(event) => {
                 self.state.stream.head();
             }
 
             // Move to tail
-            event if self.keybinds.move_to_tail.matches(event) => {
+            event if self.keybinds.move_to_tail.contains(event) => {
                 self.state.stream.tail();
             }
 
             // Toggle collapse/expand
-            event if self.keybinds.toggle.matches(event) => {
+            event if self.keybinds.toggle.contains(event) => {
                 self.state.stream.toggle();
             }
 
-            event if self.keybinds.expand.matches(event) => {
+            event if self.keybinds.expand.contains(event) => {
                 self.state.stream.set_nodes_visibility(false);
             }
 
-            event if self.keybinds.collapse.matches(event) => {
+            event if self.keybinds.collapse.contains(event) => {
                 self.state.stream.set_nodes_visibility(true);
             }
 
@@ -91,59 +83,55 @@ impl Json {
 #[async_trait::async_trait]
 impl Visualizer for Json {
     async fn content_to_copy(&self) -> String {
-        self.state
-            .formatter
-            .format_raw_json(self.state.stream.rows())
+        self.state.config.format_raw_json(self.state.stream.rows())
     }
 
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> Pane {
-        self.state.create_pane(area.0, area.1)
+    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes {
+        self.state.create_graphemes(area.0, area.1)
     }
 
-    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> Pane {
+    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
         self.operate(event);
-        self.state.create_pane(area.0, area.1)
+        self.state.create_graphemes(area.0, area.1)
     }
 
     async fn create_panes_from_query(
         &mut self,
         area: (u16, u16),
         input: String,
-    ) -> (Option<Pane>, Option<Pane>) {
+    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
         match run_jaq(&input, self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(text::State {
-                        text: Text::from(format!("jq returned 'null', which may indicate a typo or incorrect filter: `{input}`")),
-                        style: ContentStyle {
-                            foreground_color: Some(Color::Yellow),
-                            attributes: Attributes::from(Attribute::Bold),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }.create_pane(area.0, area.1));
+                    guide = Some(
+                        status::State::new(
+                            format!(
+                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
+                            ),
+                            Severity::Warning,
+                        )
+                        .create_graphemes(area.0, area.1),
+                    );
+
+                    self.state.stream = JsonStream::new(self.json.iter());
+                } else {
+                    self.state.stream = JsonStream::new(ret.iter());
                 }
 
-                self.state.stream = JsonStream::new(ret.iter());
-
-                (guide, Some(self.state.create_pane(area.0, area.1)))
+                (guide, Some(self.state.create_graphemes(area.0, area.1)))
             }
-            Err(e) => (
-                Some(
-                    text::State {
-                        text: Text::from(format!("jq failed: `{e}`")),
-                        style: ContentStyle {
-                            foreground_color: Some(Color::Red),
-                            attributes: Attributes::from(Attribute::Bold),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }
-                    .create_pane(area.0, area.1),
-                ),
-                None,
-            ),
+            Err(e) => {
+                self.state.stream = JsonStream::new(self.json.iter());
+
+                (
+                    Some(
+                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+                            .create_graphemes(area.0, area.1),
+                    ),
+                    Some(self.state.create_graphemes(area.0, area.1)),
+                )
+            }
         }
     }
 }
@@ -186,12 +174,12 @@ fn run_jaq(
 
 #[derive(Clone)]
 pub struct JsonStreamProvider {
-    formatter: RowFormatter,
+    formatter: JsonStreamConfig,
     max_streams: Option<usize>,
 }
 
 impl JsonStreamProvider {
-    pub fn new(formatter: RowFormatter, max_streams: Option<usize>) -> Self {
+    pub fn new(formatter: JsonStreamConfig, max_streams: Option<usize>) -> Self {
         Self {
             formatter,
             max_streams,

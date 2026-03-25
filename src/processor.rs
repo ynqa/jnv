@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use promkit_widgets::core::{
-    crossterm::event::Event,
-    pane::{Pane, EMPTY_PANE},
-    render::SharedRenderer,
+    crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer,
 };
 use tokio::{sync::Mutex, task::JoinHandle};
 
@@ -13,7 +11,10 @@ pub use init::ViewProvider;
 
 use crate::prompt::Index;
 pub mod monitor;
-pub mod spinner;
+
+fn empty_pane() -> StyledGraphemes {
+    StyledGraphemes::default()
+}
 
 #[derive(PartialEq)]
 enum State {
@@ -25,13 +26,13 @@ enum State {
 #[async_trait]
 pub trait Visualizer: Send + Sync + 'static {
     async fn content_to_copy(&self) -> String;
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> Pane;
-    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> Pane;
+    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes;
+    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes;
     async fn create_panes_from_query(
         &mut self,
         area: (u16, u16),
         query: String,
-    ) -> (Option<Pane>, Option<Pane>);
+    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>);
 }
 
 pub struct Context {
@@ -90,11 +91,8 @@ impl Processor {
                 // TODO: error handling
                 let _ = shared_renderer
                     .update([
-                        (Index::Guide, maybe_guide.unwrap_or(EMPTY_PANE.to_owned())),
-                        (
-                            Index::Processor,
-                            maybe_resp.unwrap_or(EMPTY_PANE.to_owned()),
-                        ),
+                        (Index::Guide, maybe_guide.unwrap_or_else(empty_pane)),
+                        (Index::Processor, maybe_resp.unwrap_or_else(empty_pane)),
                     ])
                     .render()
                     .await;
