@@ -5,17 +5,10 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    core::{
-        crossterm::{
-            event::Event,
-            style::{Attribute, Attributes, Color, ContentStyle},
-        },
-        pane::Pane,
-        PaneFactory,
-    },
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
     jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
-    text::{self, Text},
+    status::{self, Severity},
 };
 
 use crate::{
@@ -93,63 +86,50 @@ impl Visualizer for Json {
         self.state.config.format_raw_json(self.state.stream.rows())
     }
 
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> Pane {
-        self.state.create_pane(area.0, area.1)
+    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes {
+        self.state.create_graphemes(area.0, area.1)
     }
 
-    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> Pane {
+    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
         self.operate(event);
-        self.state.create_pane(area.0, area.1)
+        self.state.create_graphemes(area.0, area.1)
     }
 
     async fn create_panes_from_query(
         &mut self,
         area: (u16, u16),
         input: String,
-    ) -> (Option<Pane>, Option<Pane>) {
+    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
         match run_jaq(&input, self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(text::State {
-                        text: Text::from(format!("jq returned 'null', which may indicate a typo or incorrect filter: `{input}`")),
-                        config: text::Config {
-                            style: Some(ContentStyle {
-                                foreground_color: Some(Color::Yellow),
-                                attributes: Attributes::from(Attribute::Bold),
-                                ..Default::default()
-                            }),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }.create_pane(area.0, area.1));
+                    guide = Some(
+                        status::State::new(
+                            format!(
+                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
+                            ),
+                            Severity::Warning,
+                        )
+                        .create_graphemes(area.0, area.1),
+                    );
 
                     self.state.stream = JsonStream::new(self.json.iter());
                 } else {
                     self.state.stream = JsonStream::new(ret.iter());
                 }
 
-                (guide, Some(self.state.create_pane(area.0, area.1)))
+                (guide, Some(self.state.create_graphemes(area.0, area.1)))
             }
             Err(e) => {
                 self.state.stream = JsonStream::new(self.json.iter());
 
                 (
                     Some(
-                        text::State {
-                            text: Text::from(format!("jq failed: `{e}`")),
-                            config: text::Config {
-                                style: Some(ContentStyle {
-                                    foreground_color: Some(Color::Red),
-                                    attributes: Attributes::from(Attribute::Bold),
-                                    ..Default::default()
-                                }),
-                                ..Default::default()
-                            },
-                        }
-                        .create_pane(area.0, area.1),
+                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+                            .create_graphemes(area.0, area.1),
                     ),
-                    Some(self.state.create_pane(area.0, area.1)),
+                    Some(self.state.create_graphemes(area.0, area.1)),
                 )
             }
         }

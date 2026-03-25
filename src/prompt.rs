@@ -11,14 +11,14 @@ use promkit_widgets::{
                 MouseEventKind,
             },
             execute,
-            style::{Color, ContentStyle},
             terminal::{self, disable_raw_mode, enable_raw_mode},
         },
-        pane::EMPTY_PANE,
+        grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
-        PaneFactory,
+        Widget,
     },
-    text::{self, Text},
+    spinner::{self, Spinner, State},
+    status::{self, Severity},
 };
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
@@ -27,8 +27,8 @@ use tokio::{
 
 use crate::{
     config::{Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, Processor, SearchProvider, SpinnerSpawner, ViewInitializer,
-    ViewProvider, Visualizer,
+    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer, ViewProvider,
+    Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -58,47 +58,23 @@ fn spawn_debouncer<T: Send + 'static>(
     })
 }
 
-fn copy_to_clipboard(content: &str) -> text::State {
+fn copy_to_clipboard(content: &str) -> status::State {
     match Clipboard::new() {
         Ok(mut clipboard) => match clipboard.set_text(content) {
-            Ok(_) => text::State {
-                text: Text::from("Copied to clipboard"),
-                config: text::Config {
-                    style: Some(ContentStyle {
-                        foreground_color: Some(Color::Green),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
-            Err(e) => text::State {
-                text: Text::from(format!("Failed to copy to clipboard: {e}")),
-                config: text::Config {
-                    style: Some(ContentStyle {
-                        foreground_color: Some(Color::Red),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            Ok(_) => status::State::new("Copied to clipboard", Severity::Success),
+            Err(e) => {
+                status::State::new(format!("Failed to copy to clipboard: {e}"), Severity::Error)
+            }
         },
         // arboard fails (in the specific environment like linux?) on Clipboard::new()
         // suppress the errors (but still show them) not to break the prompt
         // https://github.com/1Password/arboard/issues/153
-        Err(e) => text::State {
-            text: Text::from(format!("Failed to setup clipboard: {e}")),
-            config: text::Config {
-                style: Some(ContentStyle {
-                    foreground_color: Some(Color::Red),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            ..Default::default()
-        },
+        Err(e) => status::State::new(format!("Failed to setup clipboard: {e}"), Severity::Error),
     }
+}
+
+fn empty_pane() -> StyledGraphemes {
+    StyledGraphemes::default()
 }
 
 enum Focus {
@@ -106,7 +82,7 @@ enum Focus {
     Processor,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
     Editor = 0,
     Guide = 1,
@@ -131,12 +107,12 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let size = terminal::size()?;
 
     let shared_renderer = SharedRenderer::new(
-        Renderer::try_new_with_panes(
+        Renderer::try_new_with_graphemes(
             [
                 (Index::Editor, editor.create_editor_pane(size.0, size.1)),
-                (Index::Guide, EMPTY_PANE.to_owned()),
-                (Index::Search, EMPTY_PANE.to_owned()),
-                (Index::Processor, EMPTY_PANE.to_owned()),
+                (Index::Guide, empty_pane()),
+                (Index::Search, empty_pane()),
+                (Index::Processor, empty_pane()),
             ]
             .into_iter(),
             true,
@@ -165,9 +141,15 @@ pub async fn run<T: ViewProvider + SearchProvider>(
         reactivity_control.resize_debounce_duration,
     );
 
-    let spinner_spawner = SpinnerSpawner::new(ctx.clone());
-    let spinning =
-        spinner_spawner.spawn_spin_task(shared_renderer.clone(), reactivity_control.spin_duration);
+    let spinning = tokio::spawn({
+        let shared_renderer = shared_renderer.clone();
+        let state = ContextMonitor::new(ctx.clone());
+        let spin_duration = reactivity_control.spin_duration;
+        async move {
+            let spinner = Spinner::default().duration(spin_duration);
+            let _ = spinner::run(&spinner, state, Index::Processor, shared_renderer).await;
+        }
+    });
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
@@ -235,17 +217,11 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                     shared_renderer.update([
                                         (
                                             Index::Guide,
-                                            text::State {
-                                                text: Text::from("Failed to copy while rendering is in progress.".to_string()),
-                                                config: text::Config {
-                                                    style: Some(ContentStyle {
-                                                        foreground_color: Some(Color::Yellow),
-                                                        ..Default::default()
-                                                    }),
-                                                    ..Default::default()
-                                                },
-                                                ..Default::default()
-                                            }.create_pane(size.0, size.1),
+                                            status::State::new(
+                                                "Failed to copy while rendering is in progress.",
+                                                Severity::Warning,
+                                            )
+                                            .create_graphemes(size.0, size.1),
                                         ),
                                     ]).render().await?;
                                 }
@@ -266,17 +242,12 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                                             shared_renderer.update([
                                                 (
                                                     Index::Guide,
-                                                    text::State {
-                                                        text: Text::from("Failed to switch pane while rendering is in progress.".to_string()),
-                                                        config: text::Config {
-                                                            style: Some(ContentStyle {
-                                                                foreground_color: Some(Color::Yellow),
-                                                                ..Default::default()
-                                                            }),
-                                                            ..Default::default()
-                                                        },
-                                                        ..Default::default()
-                                                    }.create_pane(size.0, size.1)),
+                                                    status::State::new(
+                                                        "Failed to switch pane while rendering is in progress.",
+                                                        Severity::Warning,
+                                                    )
+                                                    .create_graphemes(size.0, size.1),
+                                                ),
                                             ]).render().await?;
                                         }
                                     },
@@ -333,7 +304,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         };
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
-                            (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                            (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                         ]).render().await?;
                     }
                     Some(()) = editor_copy_rx.recv() => {
@@ -344,7 +315,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let guide = copy_to_clipboard(&text);
                         if !no_hint {
                             let size = terminal::size()?;
-                            let pane = guide.create_pane(size.0, size.1);
+                            let pane = guide.create_graphemes(size.0, size.1);
                             shared_renderer.update([
                                 (Index::Guide, pane),
                             ]).render().await?;
@@ -372,7 +343,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         {
                             shared_renderer.update([
                                 (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                                 (Index::Search, searcher_pane),
                             ]).render().await?;
                         }
@@ -399,7 +370,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         let guide = copy_to_clipboard(&visualizer.content_to_copy().await);
                         if !no_hint {
                             let size = terminal::size()?;
-                            let pane = guide.create_pane(size.0, size.1);
+                            let pane = guide.create_graphemes(size.0, size.1);
                             shared_renderer.update([
                                 (Index::Guide, pane),
                             ]).render().await?;
@@ -435,7 +406,7 @@ pub async fn run<T: ViewProvider + SearchProvider>(
                         {
                             shared_renderer.update([
                                 (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { EMPTY_PANE.to_owned() }),
+                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                                 (Index::Search, searcher_pane),
                             ]).render().await?;
                         }
