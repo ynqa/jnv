@@ -22,7 +22,6 @@ pub enum State {
 
 #[async_trait]
 pub trait Visualizer: Send + Sync + 'static {
-    async fn content_to_copy(&self) -> String;
     async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes;
     async fn create_panes_from_query(
         &mut self,

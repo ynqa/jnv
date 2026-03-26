@@ -101,6 +101,11 @@ impl JsonRuntime {
         })
     }
 
+    /// Get the formatted content of current JSON stream
+    pub fn formatted_content(&self) -> String {
+        self.state.config.format_raw_json(self.state.stream.rows())
+    }
+
     fn operate(&mut self, event: &Event) {
         match event {
             // Move up.
@@ -143,10 +148,6 @@ impl JsonRuntime {
 
 #[async_trait::async_trait]
 impl Visualizer for JsonRuntime {
-    async fn content_to_copy(&self) -> String {
-        self.state.config.format_raw_json(self.state.stream.rows())
-    }
-
     async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
         self.operate(event);
         self.state.create_graphemes(area.0, area.1)
