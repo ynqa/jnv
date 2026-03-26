@@ -206,7 +206,6 @@ async fn main() -> anyhow::Result<()> {
         item,
         config.json,
         config.reactivity_control,
-        provider,
         editor,
         loading_suggestions_task,
         config.no_hint,
