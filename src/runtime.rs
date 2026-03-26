@@ -53,6 +53,7 @@ pub struct JsonRuntime {
 }
 
 impl JsonRuntime {
+    /// Initialize JsonRuntime while deserializing the input JSON string and rendering the initial view.
     pub async fn initialize(
         input: &'static str,
         config: JsonConfig,
