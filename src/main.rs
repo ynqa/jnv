@@ -23,6 +23,7 @@ use processor::{monitor::ContextMonitor, Context, Processor, Visualizer};
 mod prompt;
 mod search;
 use search::IncrementalSearcher;
+mod json;
 
 use crate::config::DEFAULT_CONFIG;
 
