@@ -20,9 +20,7 @@ use json::JsonStreamProvider;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod processor;
-use processor::{
-    init::ViewInitializer, monitor::ContextMonitor, Context, Processor, ViewProvider, Visualizer,
-};
+use processor::{monitor::ContextMonitor, Context, Processor, Visualizer};
 mod prompt;
 mod search;
 use search::{IncrementalSearcher, SearchProvider};
@@ -206,6 +204,7 @@ async fn main() -> anyhow::Result<()> {
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         item,
+        config.json,
         config.reactivity_control,
         provider,
         editor,

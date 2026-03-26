@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use jaq_core::{
     load::{Arena, File, Loader},
     Compiler, Ctx, RcIter,
@@ -5,19 +7,35 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
-    jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
+    jsonstream::{self, jsonz, JsonStream},
     serde_json::{self, Deserializer, Value},
     status::{self, Severity},
 };
+use tokio::sync::Mutex;
 
 use crate::{
-    config::JsonViewerKeybinds,
-    processor::{ViewProvider, Visualizer},
+    config::{JsonConfig, JsonViewerKeybinds},
+    processor::{Context, State, Visualizer},
+    prompt::Index,
     search::SearchProvider,
 };
 
-// #[derive(Clone)]
+/// Deserialize JSON string into a vector of serde_json::Value.
+/// If max_streams is given, only deserialize up to that many JSON values.
+fn deserialize_json(
+    json_str: &str,
+    max_streams: Option<usize>,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let deserializer: serde_json::StreamDeserializer<'_, serde_json::de::StrRead<'_>, Value> =
+        Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+    let results = match max_streams {
+        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
+        None => deserializer.collect::<Result<Vec<_>, _>>(),
+    };
+    results.map_err(anyhow::Error::from)
+}
+
 pub struct Json {
     state: jsonstream::State,
     json: Vec<serde_json::Value>,
@@ -25,18 +43,50 @@ pub struct Json {
 }
 
 impl Json {
-    pub fn new(
-        formatter: JsonStreamConfig,
-        input_stream: Vec<serde_json::Value>,
+    pub async fn initialize(
+        input: &'static str,
+        config: JsonConfig,
         keybinds: JsonViewerKeybinds,
+        shared_renderer: SharedRenderer<Index>,
+        shared_ctx: Arc<Mutex<Context>>,
     ) -> anyhow::Result<Self> {
+        // Set state to Loading to prevent overwriting by spinner frames in terminal.
+        {
+            let mut shared_ctx = shared_ctx.lock().await;
+            if let Some(task) = shared_ctx.current_task.take() {
+                task.abort();
+            }
+            shared_ctx.state = State::Loading;
+        }
+
+        let input_stream = deserialize_json(input, config.max_streams)?;
         let stream = JsonStream::new(input_stream.iter());
+        let state = jsonstream::State {
+            stream,
+            config: config.stream,
+        };
+
+        // Set state to Idle to prevent overwriting by spinner frames in terminal.
+        {
+            let mut shared_ctx = shared_ctx.lock().await;
+            shared_ctx.state = State::Idle;
+        }
+
+        {
+            let shared_ctx = shared_ctx.lock().await;
+            let area = shared_ctx.area;
+            drop(shared_ctx);
+
+            // TODO: error handling
+            let _ = shared_renderer
+                .update([(Index::Processor, state.create_graphemes(area.0, area.1))])
+                .render()
+                .await;
+        }
+
         Ok(Self {
             json: input_stream,
-            state: jsonstream::State {
-                stream,
-                config: formatter,
-            },
+            state,
             keybinds,
         })
     }
@@ -85,10 +135,6 @@ impl Json {
 impl Visualizer for Json {
     async fn content_to_copy(&self) -> String {
         self.state.config.format_raw_json(self.state.stream.rows())
-    }
-
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes {
-        self.state.create_graphemes(area.0, area.1)
     }
 
     async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
@@ -175,12 +221,12 @@ fn run_jaq(
 
 #[derive(Clone)]
 pub struct JsonStreamProvider {
-    formatter: JsonStreamConfig,
+    formatter: jsonstream::config::Config,
     max_streams: Option<usize>,
 }
 
 impl JsonStreamProvider {
-    pub fn new(formatter: JsonStreamConfig, max_streams: Option<usize>) -> Self {
+    pub fn new(formatter: jsonstream::config::Config, max_streams: Option<usize>) -> Self {
         Self {
             formatter,
             max_streams,
@@ -195,17 +241,6 @@ impl JsonStreamProvider {
             None => deserializer.collect::<Result<Vec<_>, _>>(),
         };
         results.map_err(anyhow::Error::from)
-    }
-}
-
-#[async_trait::async_trait]
-impl ViewProvider for JsonStreamProvider {
-    async fn provide(
-        &mut self,
-        item: &'static str,
-        keybinds: JsonViewerKeybinds,
-    ) -> anyhow::Result<Json> {
-        Json::new(std::mem::take(&mut self.formatter), self.deserialize_json(item)?, keybinds)
     }
 }
 

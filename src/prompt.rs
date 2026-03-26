@@ -26,9 +26,9 @@ use tokio::{
 };
 
 use crate::{
-    config::{Keybinds, ReactivityControl},
-    Context, ContextMonitor, Editor, Processor, SearchProvider, ViewInitializer, ViewProvider,
-    Visualizer,
+    config::{JsonConfig, Keybinds, ReactivityControl},
+    json::Json,
+    Context, ContextMonitor, Editor, Processor, SearchProvider, Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -91,10 +91,11 @@ pub enum Index {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn run<T: ViewProvider + SearchProvider>(
+pub async fn run<T: SearchProvider>(
     item: &'static str,
+    json_config: JsonConfig,
     reactivity_control: ReactivityControl,
-    provider: &mut T,
+    _provider: &mut T,
     editor: Editor,
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
@@ -164,13 +165,12 @@ pub async fn run<T: ViewProvider + SearchProvider>(
     let shared_editor = Arc::new(RwLock::new(editor));
     let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
-    let initializer = ViewInitializer::new(ctx.clone());
-    let initializing = initializer.initialize(
-        provider,
+    let initializing = Json::initialize(
         item,
-        size,
-        shared_renderer.clone(),
+        json_config,
         keybinds.on_json_viewer,
+        shared_renderer.clone(),
+        ctx.clone(),
     );
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
