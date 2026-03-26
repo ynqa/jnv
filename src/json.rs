@@ -18,8 +18,18 @@ use crate::{
     config::{JsonConfig, JsonViewerKeybinds},
     processor::{Context, State, Visualizer},
     prompt::Index,
-    search::SearchProvider,
 };
+
+/// Get all JSON paths from the input JSON string,
+/// respecting the max_streams limit if provided.
+pub async fn get_all_paths(
+    json_str: &str,
+    max_streams: Option<usize>,
+) -> anyhow::Result<impl Iterator<Item = String>> {
+    let stream = deserialize_json(json_str, max_streams)?;
+    let paths = jsonz::get_all_paths(stream.iter()).collect::<Vec<_>>();
+    Ok(paths.into_iter())
+}
 
 /// Deserialize JSON string into a vector of serde_json::Value.
 /// If max_streams is given, only deserialize up to that many JSON values.
@@ -217,41 +227,4 @@ fn run_jaq(
     }
 
     Ok(ret)
-}
-
-#[derive(Clone)]
-pub struct JsonStreamProvider {
-    formatter: jsonstream::config::Config,
-    max_streams: Option<usize>,
-}
-
-impl JsonStreamProvider {
-    pub fn new(formatter: jsonstream::config::Config, max_streams: Option<usize>) -> Self {
-        Self {
-            formatter,
-            max_streams,
-        }
-    }
-
-    fn deserialize_json(&self, json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
-        let deserializer: serde_json::StreamDeserializer<'_, serde_json::de::StrRead<'_>, Value> =
-            Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
-        let results = match self.max_streams {
-            Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
-            None => deserializer.collect::<Result<Vec<_>, _>>(),
-        };
-        results.map_err(anyhow::Error::from)
-    }
-}
-
-#[async_trait::async_trait]
-impl SearchProvider for JsonStreamProvider {
-    async fn provide(
-        &mut self,
-        item: &str,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>> {
-        let stream = self.deserialize_json(item)?;
-        let static_stream = Box::leak(stream.into_boxed_slice());
-        Ok(Box::new(jsonz::get_all_paths(static_stream.iter())))
-    }
 }

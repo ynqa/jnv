@@ -16,14 +16,13 @@ mod editor;
 use editor::Editor;
 mod config;
 mod json;
-use json::JsonStreamProvider;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod processor;
 use processor::{monitor::ContextMonitor, Context, Processor, Visualizer};
 mod prompt;
 mod search;
-use search::{IncrementalSearcher, SearchProvider};
+use search::IncrementalSearcher;
 
 use crate::config::DEFAULT_CONFIG;
 
@@ -150,6 +149,7 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input = parse_input(&args)?;
+    let input: &'static str = Box::leak(input.into_boxed_str());
 
     let config = determine_config_file(args.config_file)
         .and_then(|config_file| {
@@ -179,13 +179,11 @@ async fn main() -> anyhow::Result<()> {
         config: config.editor.on_focus.clone(),
     };
 
-    let provider =
-        &mut JsonStreamProvider::new(config.json.stream.clone(), config.json.max_streams);
-
-    let item = Box::leak(input.into_boxed_str());
-
-    let loading_suggestions_task =
-        searcher.spawn_load_task(provider, item, config.completion.search_load_chunk_size);
+    let loading_suggestions_task = searcher.spawn_load_task(
+        &input,
+        config.json.max_streams,
+        config.completion.search_load_chunk_size,
+    );
 
     // TODO: re-consider put editor_task of prompt::run into Editor construction time.
     // Overall, there are several cases where it would be sufficient to
@@ -203,7 +201,7 @@ async fn main() -> anyhow::Result<()> {
 
     // TODO: put all logics here.
     let maybe_output = prompt::run(
-        item,
+        &input,
         config.json,
         config.reactivity_control,
         editor,
