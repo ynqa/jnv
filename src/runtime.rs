@@ -46,13 +46,13 @@ fn deserialize_json(
     results.map_err(anyhow::Error::from)
 }
 
-pub struct Json {
+pub struct JsonRuntime {
     state: jsonstream::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
 }
 
-impl Json {
+impl JsonRuntime {
     pub async fn initialize(
         input: &'static str,
         config: JsonConfig,
@@ -142,7 +142,7 @@ impl Json {
 }
 
 #[async_trait::async_trait]
-impl Visualizer for Json {
+impl Visualizer for JsonRuntime {
     async fn content_to_copy(&self) -> String {
         self.state.config.format_raw_json(self.state.stream.rows())
     }

@@ -11,7 +11,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::json;
+use crate::runtime;
 
 #[async_trait]
 pub trait SearchProvider: Clone + Send + 'static {
@@ -61,7 +61,7 @@ impl IncrementalSearcher {
         let shared_load_state = self.shared_load_state.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(chunk_size);
-            let iter = json::get_all_paths(item, max_streams).await?;
+            let iter = runtime::get_all_paths(item, max_streams).await?;
 
             for v in iter {
                 batch.push(v);

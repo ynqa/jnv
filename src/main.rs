@@ -15,7 +15,7 @@ use promkit_widgets::{
 mod editor;
 use editor::Editor;
 mod config;
-mod json;
+mod runtime;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod processor;

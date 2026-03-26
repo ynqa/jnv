@@ -27,7 +27,7 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
-    json::Json,
+    runtime::JsonRuntime,
     Context, ContextMonitor, Editor, Processor, Visualizer,
 };
 
@@ -164,7 +164,7 @@ pub async fn run(
     let shared_editor = Arc::new(RwLock::new(editor));
     let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
-    let initializing = Json::initialize(
+    let initializing = JsonRuntime::initialize(
         item,
         json_config,
         keybinds.on_json_viewer,
@@ -356,17 +356,17 @@ pub async fn run(
         })
     };
 
-    let shared_visualizer = Arc::new(Mutex::new(initializing.await?));
+    let shared_runtime = Arc::new(Mutex::new(initializing.await?));
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
-        let shared_visualizer = shared_visualizer.clone();
+        let shared_runtime = shared_runtime.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(()) = processor_copy_rx.recv() => {
-                        let visualizer = shared_visualizer.lock().await;
-                        let guide = copy_to_clipboard(&visualizer.content_to_copy().await);
+                        let runtime = shared_runtime.lock().await;
+                        let guide = copy_to_clipboard(&runtime.content_to_copy().await);
                         if !no_hint {
                             let size = terminal::size()?;
                             let pane = guide.create_graphemes(size.0, size.1);
@@ -377,8 +377,8 @@ pub async fn run(
                     }
                     Some(event) = processor_event_rx.recv() => {
                         let pane = {
-                            let mut visualizer = shared_visualizer.lock().await;
-                            visualizer.create_pane_from_event((size.0, size.1), &event).await
+                            let mut runtime = shared_runtime.lock().await;
+                            runtime.create_pane_from_event((size.0, size.1), &event).await
                         };
                         {
                             shared_renderer.update([
@@ -388,7 +388,7 @@ pub async fn run(
                     }
                     Some(query) = last_query_rx.recv() => {
                         processor.render_result(
-                            shared_visualizer.clone(),
+                            shared_runtime.clone(),
                             query,
                             shared_renderer.clone(),
                         ).await;
@@ -414,7 +414,7 @@ pub async fn run(
                             editor.text()
                         };
                         processor.render_on_resize(
-                            shared_visualizer.clone(),
+                            shared_runtime.clone(),
                             area,
                             text,
                             shared_renderer.clone(),
@@ -432,8 +432,8 @@ pub async fn run(
     main_task.await??;
 
     let output = if write_to_stdout {
-        let visualizer = shared_visualizer.lock().await;
-        Some(visualizer.content_to_copy().await)
+        let runtime = shared_runtime.lock().await;
+        Some(runtime.content_to_copy().await)
     } else {
         None
     };
