@@ -366,7 +366,7 @@ pub async fn run(
                 tokio::select! {
                     Some(()) = processor_copy_rx.recv() => {
                         let runtime = shared_runtime.lock().await;
-                        let guide = copy_to_clipboard(&runtime.content_to_copy().await);
+                        let guide = copy_to_clipboard(&runtime.formatted_content());
                         if !no_hint {
                             let size = terminal::size()?;
                             let pane = guide.create_graphemes(size.0, size.1);
@@ -433,7 +433,7 @@ pub async fn run(
 
     let output = if write_to_stdout {
         let runtime = shared_runtime.lock().await;
-        Some(runtime.content_to_copy().await)
+        Some(runtime.formatted_content())
     } else {
         None
     };
