@@ -28,7 +28,7 @@ use tokio::{
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
     json::Json,
-    Context, ContextMonitor, Editor, Processor, SearchProvider, Visualizer,
+    Context, ContextMonitor, Editor, Processor, Visualizer,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -91,11 +91,10 @@ pub enum Index {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn run<T: SearchProvider>(
+pub async fn run(
     item: &'static str,
     json_config: JsonConfig,
     reactivity_control: ReactivityControl,
-    _provider: &mut T,
     editor: Editor,
     loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
     no_hint: bool,
