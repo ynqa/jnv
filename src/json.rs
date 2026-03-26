@@ -20,20 +20,21 @@ use crate::{
 // #[derive(Clone)]
 pub struct Json {
     state: jsonstream::State,
-    json: &'static [serde_json::Value],
+    json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
 }
 
 impl Json {
     pub fn new(
         formatter: JsonStreamConfig,
-        input_stream: &'static [serde_json::Value],
+        input_stream: Vec<serde_json::Value>,
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Self> {
+        let stream = JsonStream::new(input_stream.iter());
         Ok(Self {
             json: input_stream,
             state: jsonstream::State {
-                stream: JsonStream::new(input_stream.iter()),
+                stream,
                 config: formatter,
             },
             keybinds,
@@ -100,7 +101,7 @@ impl Visualizer for Json {
         area: (u16, u16),
         input: String,
     ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
-        match run_jaq(&input, self.json) {
+        match run_jaq(&input, &self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
@@ -138,7 +139,7 @@ impl Visualizer for Json {
 
 fn run_jaq(
     query: &str,
-    json_stream: &'static [serde_json::Value],
+    json_stream: &[serde_json::Value],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let arena = Arena::default();
     let loader = Loader::new(jaq_std::defs().chain(jaq_json::defs()));
@@ -204,9 +205,7 @@ impl ViewProvider for JsonStreamProvider {
         item: &'static str,
         keybinds: JsonViewerKeybinds,
     ) -> anyhow::Result<Json> {
-        let stream = self.deserialize_json(item)?;
-        let static_stream = Box::leak(stream.into_boxed_slice());
-        Json::new(std::mem::take(&mut self.formatter), static_stream, keybinds)
+        Json::new(std::mem::take(&mut self.formatter), self.deserialize_json(item)?, keybinds)
     }
 }
 
