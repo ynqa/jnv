@@ -6,9 +6,6 @@ use promkit_widgets::core::{
 };
 use tokio::{sync::Mutex, task::JoinHandle};
 
-pub mod init;
-pub use init::ViewProvider;
-
 use crate::prompt::Index;
 pub mod monitor;
 
@@ -17,7 +14,7 @@ fn empty_pane() -> StyledGraphemes {
 }
 
 #[derive(PartialEq)]
-enum State {
+pub enum State {
     Idle,
     Loading,
     Processing,
@@ -26,7 +23,6 @@ enum State {
 #[async_trait]
 pub trait Visualizer: Send + Sync + 'static {
     async fn content_to_copy(&self) -> String;
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes;
     async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes;
     async fn create_panes_from_query(
         &mut self,
@@ -36,9 +32,9 @@ pub trait Visualizer: Send + Sync + 'static {
 }
 
 pub struct Context {
-    state: State,
-    area: (u16, u16),
-    current_task: Option<JoinHandle<()>>,
+    pub state: State,
+    pub area: (u16, u16),
+    pub current_task: Option<JoinHandle<()>>,
 }
 
 impl Context {
