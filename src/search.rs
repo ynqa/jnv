@@ -1,7 +1,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::anyhow;
-use async_trait::async_trait;
 use promkit_widgets::{
     core::{grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
@@ -12,14 +11,6 @@ use tokio::{
 };
 
 use crate::json;
-
-#[async_trait]
-pub trait SearchProvider: Clone + Send + 'static {
-    async fn provide(
-        &mut self,
-        item: &str,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>>;
-}
 
 #[derive(Clone, Default)]
 pub struct LoadState {
