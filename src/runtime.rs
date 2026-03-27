@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
+    core::{Widget, crossterm::{self, event::Event}, grapheme::StyledGraphemes, render::SharedRenderer},
     jsonstream::{self, JsonStream},
     serde_json::{self, Value},
     status::{self, Severity},
@@ -15,10 +15,22 @@ use crate::{
     prompt::Index,
 };
 
+/// Represent the trigger for rendering views.
+pub enum RenderTrigger {
+    /// User actions such as key presses
+    UserAction(crossterm::event::Event),
+    /// Query updates such as new jq filter input
+    QueryUpdated { query: String },
+    /// Terminal resize events
+    Resized { area: (u16, u16), query: String },
+}
+
 pub struct JsonRuntime {
     state: jsonstream::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
+    shared_renderer: SharedRenderer<Index>,
+    shared_ctx: Arc<Mutex<Context>>,
 }
 
 impl JsonRuntime {
@@ -68,12 +80,81 @@ impl JsonRuntime {
             json: input_stream,
             state,
             keybinds,
+            shared_renderer,
+            shared_ctx,
         })
     }
 
     /// Get the formatted content of current JSON stream
     pub fn formatted_content(&self) -> String {
         self.state.config.format_raw_json(self.state.stream.rows())
+    }
+
+    /// Render views based on the given trigger.
+    pub async fn render(&mut self, trigger: RenderTrigger) {
+        match trigger {
+            _ => {},
+            RenderTrigger::Resized { area, query } => {
+                {
+                    let mut ctx = self.shared_ctx.lock().await;
+                    // Update the terminal area in shared context for accurate rendering.
+                    ctx.area = area;
+
+                    // Abort any ongoing processing task to prevent race conditions
+                    // and ensure the new render reflects the latest terminal size.
+                    if let Some(task) = ctx.current_task.take() {
+                        task.abort();
+                    }
+                }
+
+                let process_task = self.spawn_process_task(query);
+
+                // Store the new processing task handle in shared context
+                // to allow future cancellation if needed.
+                {
+                    let mut ctx = self.shared_ctx.lock().await;
+                    ctx.current_task = Some(process_task);
+                }
+            }
+        }
+    }
+
+    fn spawn_process_task(
+        &self,
+        query: String,
+    ) -> tokio::task::JoinHandle<()> {
+        let shared: Arc<Mutex<Context>> = self.shared_ctx.clone();
+        let shared_renderer = self.shared_renderer.clone();
+        tokio::spawn(async move {
+            {
+                let mut shared_state = shared.lock().await;
+                shared_state.state = State::Processing;
+            }
+
+            let (maybe_guide, maybe_resp) = {
+                let shared_state = shared.lock().await;
+                let area = shared_state.area;
+                drop(shared_state);
+
+                self.create_panes_from_query(area, query).await
+            };
+
+            // Set state to Idle to prevent overwriting by spinner frames in terminal.
+            {
+                let mut shared_state = shared.lock().await;
+                shared_state.state = State::Idle;
+            }
+            {
+                // TODO: error handling
+                let _ = shared_renderer
+                    .update([
+                        (Index::Guide, maybe_guide.unwrap_or(StyledGraphemes::default())),
+                        (Index::Processor, maybe_resp.unwrap_or(StyledGraphemes::default())),
+                    ])
+                    .render()
+                    .await;
+            }
+        })
     }
 
     fn operate(&mut self, event: &Event) {
