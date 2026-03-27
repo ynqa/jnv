@@ -98,11 +98,11 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
             match editor.searcher.start_search(&prefix) {
                 Ok(result) => match result.head_item {
                     Some(head) => {
-                        if result.load_state.loaded {
+                        if result.load_progress.is_complete {
                             editor.guide = status::State::new(
                                 format!(
                                     "Loaded all ({}) suggestions",
-                                    result.load_state.loaded_item_len
+                                    result.load_progress.loaded_path_count
                                 ),
                                 Severity::Success,
                             );
@@ -110,7 +110,7 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
                             editor.guide = status::State::new(
                                 format!(
                                     "Loaded partially ({}) suggestions",
-                                    result.load_state.loaded_item_len
+                                    result.load_progress.loaded_path_count
                                 ),
                                 Severity::Success,
                             );

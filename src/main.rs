@@ -147,9 +147,12 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    
+    // Load input data
     let input = parse_input(&args)?;
     let input: &'static str = Box::leak(input.into_boxed_str());
 
+    // Load configuration
     let config = determine_config_file(args.config_file)
         .and_then(|config_file| {
             std::fs::read_to_string(&config_file)
