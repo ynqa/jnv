@@ -91,6 +91,94 @@ pub struct JsonViewer {
 
 pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 
+
+impl JsonViewer {
+    /// Get the formatted content of current JSON stream.
+    pub fn formatted_content(&self) -> String {
+        self.state.config.format_raw_json(self.state.stream.rows())
+    }
+
+    /// Handle user interactions and update the viewer state accordingly.
+    fn operate(&mut self, event: &Event) {
+        match event {
+            // Move up.
+            event if self.keybinds.up.contains(event) => {
+                self.state.stream.up();
+            }
+
+            // Move down.
+            event if self.keybinds.down.contains(event) => {
+                self.state.stream.down();
+            }
+
+            // Move to head
+            event if self.keybinds.move_to_head.contains(event) => {
+                self.state.stream.head();
+            }
+
+            // Move to tail
+            event if self.keybinds.move_to_tail.contains(event) => {
+                self.state.stream.tail();
+            }
+
+            // Toggle collapse/expand
+            event if self.keybinds.toggle.contains(event) => {
+                self.state.stream.toggle();
+            }
+
+            event if self.keybinds.expand.contains(event) => {
+                self.state.stream.set_nodes_visibility(false);
+            }
+
+            event if self.keybinds.collapse.contains(event) => {
+                self.state.stream.set_nodes_visibility(true);
+            }
+
+            _ => (),
+        }
+    }
+
+    async fn create_panes_from_query(
+        &mut self,
+        area: (u16, u16),
+        input: String,
+    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
+        match json::run_jaq(&input, &self.json) {
+            Ok(ret) => {
+                let mut guide = None;
+                if ret.iter().all(|val| *val == Value::Null) {
+                    guide = Some(
+                        status::State::new(
+                            format!(
+                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
+                            ),
+                            Severity::Warning,
+                        )
+                        .create_graphemes(area.0, area.1),
+                    );
+
+                    self.state.stream = JsonStream::new(self.json.iter());
+                } else {
+                    self.state.stream = JsonStream::new(ret.iter());
+                }
+
+                (guide, Some(self.state.create_graphemes(area.0, area.1)))
+            }
+            Err(e) => {
+                self.state.stream = JsonStream::new(self.json.iter());
+
+                (
+                    Some(
+                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+                            .create_graphemes(area.0, area.1),
+                    ),
+                    Some(self.state.create_graphemes(area.0, area.1)),
+                )
+            }
+        }
+    }
+}
+
 /// Initialize the JSON viewer with the given input, configuration, keybinds, and shared context.
 pub async fn initialize(
     input: &'static str,
@@ -295,90 +383,4 @@ fn spawn_query_processing_task(
             .render()
             .await;
     })
-}
-
-impl JsonViewer {
-    /// Get the formatted content of current JSON stream.
-    pub fn formatted_content(&self) -> String {
-        self.state.config.format_raw_json(self.state.stream.rows())
-    }
-
-    fn operate(&mut self, event: &Event) {
-        match event {
-            // Move up.
-            event if self.keybinds.up.contains(event) => {
-                self.state.stream.up();
-            }
-
-            // Move down.
-            event if self.keybinds.down.contains(event) => {
-                self.state.stream.down();
-            }
-
-            // Move to head
-            event if self.keybinds.move_to_head.contains(event) => {
-                self.state.stream.head();
-            }
-
-            // Move to tail
-            event if self.keybinds.move_to_tail.contains(event) => {
-                self.state.stream.tail();
-            }
-
-            // Toggle collapse/expand
-            event if self.keybinds.toggle.contains(event) => {
-                self.state.stream.toggle();
-            }
-
-            event if self.keybinds.expand.contains(event) => {
-                self.state.stream.set_nodes_visibility(false);
-            }
-
-            event if self.keybinds.collapse.contains(event) => {
-                self.state.stream.set_nodes_visibility(true);
-            }
-
-            _ => (),
-        }
-    }
-
-    async fn create_panes_from_query(
-        &mut self,
-        area: (u16, u16),
-        input: String,
-    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
-        match json::run_jaq(&input, &self.json) {
-            Ok(ret) => {
-                let mut guide = None;
-                if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(
-                        status::State::new(
-                            format!(
-                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
-                            ),
-                            Severity::Warning,
-                        )
-                        .create_graphemes(area.0, area.1),
-                    );
-
-                    self.state.stream = JsonStream::new(self.json.iter());
-                } else {
-                    self.state.stream = JsonStream::new(ret.iter());
-                }
-
-                (guide, Some(self.state.create_graphemes(area.0, area.1)))
-            }
-            Err(e) => {
-                self.state.stream = JsonStream::new(self.json.iter());
-
-                (
-                    Some(
-                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
-                            .create_graphemes(area.0, area.1),
-                    ),
-                    Some(self.state.create_graphemes(area.0, area.1)),
-                )
-            }
-        }
-    }
 }
