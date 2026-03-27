@@ -15,16 +15,6 @@ use crate::{
     prompt::Index,
 };
 
-/// Represent the trigger for rendering views.
-pub enum RenderTrigger {
-    /// User actions such as key presses
-    UserAction(Event),
-    /// Query updates such as new jq filter input
-    QueryUpdated { query: String },
-    /// Terminal resize events
-    Resized { area: (u16, u16), query: String },
-}
-
 #[derive(PartialEq)]
 pub enum State {
     Idle,
@@ -68,12 +58,25 @@ impl spinner::State for ContextMonitor {
     }
 }
 
+/// Represent the trigger for rendering views.
+pub enum RenderTrigger {
+    /// User actions such as key presses
+    UserAction(Event),
+    /// Query changes such as new jq filter input
+    QueryChanged { query: String },
+    /// Terminal resize events
+    AreaResized { area: (u16, u16), query: String },
+}
+
+/// JSON viewer that maintains the state of JSON stream
+/// and handles user interactions and query processing.
 pub struct JsonViewer {
     state: jsonstream::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
 }
 
+/// Initialize the JSON viewer with the given input, configuration, keybinds, and shared context.
 pub async fn initialize(
     input: &'static str,
     config: JsonConfig,
@@ -130,13 +133,13 @@ pub async fn render(
 ) {
     match trigger {
         RenderTrigger::UserAction(event) => {
-            render_from_user_action(shared_viewer_state, shared_renderer, shared_ctx, event).await;
+            handle_user_action(shared_viewer_state, shared_renderer, shared_ctx, event).await;
         }
-        RenderTrigger::QueryUpdated { query } => {
-            start_query_processing(shared_viewer_state, shared_renderer, shared_ctx, query).await;
+        RenderTrigger::QueryChanged { query } => {
+            handle_query_changed(shared_viewer_state, shared_renderer, shared_ctx, query).await;
         }
-        RenderTrigger::Resized { area, query } => {
-            resize_and_start_query_processing(
+        RenderTrigger::AreaResized { area, query } => {
+            handle_area_resized(
                 shared_viewer_state,
                 shared_renderer,
                 shared_ctx,
@@ -148,7 +151,7 @@ pub async fn render(
     }
 }
 
-async fn render_from_user_action(
+async fn handle_user_action(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
@@ -171,7 +174,7 @@ async fn render_from_user_action(
         .await;
 }
 
-async fn start_query_processing(
+async fn handle_query_changed(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
@@ -191,13 +194,15 @@ async fn start_query_processing(
         query,
     );
 
+    // Store the new processing task handle in shared context
+    // to allow future cancellation if needed.
     {
         let mut shared_state = shared_ctx.lock().await;
         shared_state.current_task = Some(process_task);
     }
 }
 
-async fn resize_and_start_query_processing(
+async fn handle_area_resized(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
@@ -205,9 +210,14 @@ async fn resize_and_start_query_processing(
     query: String,
 ) {
     {
-        let mut shared_state = shared_ctx.lock().await;
-        shared_state.area = area;
-        if let Some(task) = shared_state.current_task.take() {
+        let mut ctx = shared_ctx.lock().await;
+
+        // Update the terminal area in shared context for accurate rendering.
+        ctx.area = area;
+
+        // Abort any ongoing processing task to prevent race conditions
+        // and ensure the new render reflects the latest terminal size.
+        if let Some(task) = ctx.current_task.take() {
             task.abort();
         }
     }
@@ -219,6 +229,8 @@ async fn resize_and_start_query_processing(
         query,
     );
 
+    // Store the new processing task handle in shared context
+    // to allow future cancellation if needed.
     {
         let mut shared_state = shared_ctx.lock().await;
         shared_state.current_task = Some(process_task);
