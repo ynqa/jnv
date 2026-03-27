@@ -27,7 +27,7 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
-    json_viewer::{self, Context, ContextMonitor, RenderTrigger},
+    json_viewer::{self, RenderTrigger, SharedContext},
     Editor,
 };
 
@@ -120,7 +120,7 @@ pub async fn run(
         .await?,
     );
 
-    let ctx = Arc::new(Mutex::new(Context::new(size)));
+    let ctx = SharedContext::try_default()?;
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
@@ -143,7 +143,7 @@ pub async fn run(
 
     let spinning = tokio::spawn({
         let shared_renderer = shared_renderer.clone();
-        let state = ContextMonitor::new(ctx.clone());
+        let state = ctx.clone();
         let spin_duration = reactivity_control.spin_duration;
         async move {
             let spinner = Spinner::default().duration(spin_duration);
@@ -162,7 +162,7 @@ pub async fn run(
 
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
-    let context_monitor = ContextMonitor::new(ctx.clone());
+    let context_monitor = ctx.clone();
     let initializing = json_viewer::initialize(
         item,
         json_config,
