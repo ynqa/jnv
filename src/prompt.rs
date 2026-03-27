@@ -27,8 +27,8 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
-    runtime::JsonRuntime,
-    Context, ContextMonitor, Editor, Processor, Visualizer,
+    state::{initialize, render, Context, ContextMonitor, RenderTrigger},
+    Editor,
 };
 
 fn spawn_debouncer<T: Send + 'static>(
@@ -162,9 +162,8 @@ pub async fn run(
 
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
-    let processor = Processor::new(ctx.clone());
     let context_monitor = ContextMonitor::new(ctx.clone());
-    let initializing = JsonRuntime::initialize(
+    let initializing = initialize(
         item,
         json_config,
         keybinds.on_json_viewer,
@@ -356,16 +355,17 @@ pub async fn run(
         })
     };
 
-    let shared_runtime = Arc::new(Mutex::new(initializing.await?));
+    let shared_viewer_state = Arc::new(Mutex::new(initializing.await?));
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
-        let shared_runtime = shared_runtime.clone();
+        let shared_viewer_state = shared_viewer_state.clone();
+        let ctx = ctx.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(()) = processor_copy_rx.recv() => {
-                        let runtime = shared_runtime.lock().await;
+                        let runtime = shared_viewer_state.lock().await;
                         let guide = copy_to_clipboard(&runtime.formatted_content());
                         if !no_hint {
                             let size = terminal::size()?;
@@ -376,22 +376,22 @@ pub async fn run(
                         }
                     }
                     Some(event) = processor_event_rx.recv() => {
-                        let pane = {
-                            let mut runtime = shared_runtime.lock().await;
-                            runtime.create_pane_from_event((size.0, size.1), &event).await
-                        };
-                        {
-                            shared_renderer.update([
-                                (Index::Processor, pane),
-                            ]).render().await?;
-                        }
+                        render(
+                            shared_viewer_state.clone(),
+                            shared_renderer.clone(),
+                            ctx.clone(),
+                            RenderTrigger::UserAction(event),
+                        )
+                        .await;
                     }
                     Some(query) = last_query_rx.recv() => {
-                        processor.render_result(
-                            shared_runtime.clone(),
-                            query,
+                        render(
+                            shared_viewer_state.clone(),
                             shared_renderer.clone(),
-                        ).await;
+                            ctx.clone(),
+                            RenderTrigger::QueryUpdated { query },
+                        )
+                        .await;
                     }
                     Some(area) = last_resize_rx.recv() => {
                         let (editor_pane, guide_pane, searcher_pane) = {
@@ -413,12 +413,13 @@ pub async fn run(
                             let editor = shared_editor.read().await;
                             editor.text()
                         };
-                        processor.render_on_resize(
-                            shared_runtime.clone(),
-                            area,
-                            text,
+                        render(
+                            shared_viewer_state.clone(),
                             shared_renderer.clone(),
-                        ).await;
+                            ctx.clone(),
+                            RenderTrigger::Resized { area, query: text },
+                        )
+                        .await;
                     }
                     else => {
                         break
@@ -432,7 +433,7 @@ pub async fn run(
     main_task.await??;
 
     let output = if write_to_stdout {
-        let runtime = shared_runtime.lock().await;
+        let runtime = shared_viewer_state.lock().await;
         Some(runtime.formatted_content())
     } else {
         None

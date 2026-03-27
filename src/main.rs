@@ -15,11 +15,9 @@ use promkit_widgets::{
 mod editor;
 use editor::Editor;
 mod config;
-mod runtime;
+mod state;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
-mod processor;
-use processor::{monitor::ContextMonitor, Context, Processor, Visualizer};
 mod prompt;
 mod search;
 use search::IncrementalSearcher;
