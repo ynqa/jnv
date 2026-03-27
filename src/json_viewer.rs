@@ -1,7 +1,12 @@
 use std::{future::Future, sync::Arc};
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
+    core::{
+        crossterm::{event::Event, terminal},
+        grapheme::StyledGraphemes,
+        render::SharedRenderer,
+        Widget,
+    },
     jsonstream::{self, JsonStream},
     serde_json::{self, Value},
     spinner,
@@ -16,41 +21,49 @@ use crate::{
 };
 
 #[derive(PartialEq)]
+/// Represent the current state of the JSON viewer,
+/// which can be used to control rendering behavior
+/// and manage concurrent tasks like query processing and spinner animation.
 pub enum State {
+    /// The viewer is idle and ready for user interactions or query processing.
     Idle,
+    /// The viewer is currently loading the JSON stream, which may involve deserialization
     Loading,
+    /// The viewer is actively processing a jq query, which may involve executing the query
+    /// and updating the view with the results.
     Processing,
 }
 
-pub struct Context {
-    pub state: State,
-    pub area: (u16, u16),
-    pub current_task: Option<JoinHandle<()>>,
+struct Context {
+    /// The current state of the processor, which can be Idle, Loading, or Processing.
+    state: State,
+    /// The current size of the terminal area.
+    area: (u16, u16),
+    /// The current task being executed, if any.
+    current_task: Option<JoinHandle<()>>,
 }
 
-impl Context {
-    pub fn new(area: (u16, u16)) -> Self {
-        Self {
+#[derive(Clone)]
+pub struct SharedContext(Arc<Mutex<Context>>);
+
+impl SharedContext {
+    pub fn try_default() -> anyhow::Result<Self> {
+        let area = terminal::size()?;
+        Ok(Self(Arc::new(Mutex::new(Context {
             state: State::Idle,
             area,
             current_task: None,
-        }
+        }))))
+    }
+
+    async fn lock(&self) -> tokio::sync::MutexGuard<'_, Context> {
+        self.0.lock().await
     }
 }
 
-pub struct ContextMonitor {
-    shared: Arc<Mutex<Context>>,
-}
-
-impl ContextMonitor {
-    pub fn new(shared: Arc<Mutex<Context>>) -> Self {
-        Self { shared }
-    }
-}
-
-impl spinner::State for ContextMonitor {
+impl spinner::State for SharedContext {
     fn is_idle(&self) -> impl Future<Output = bool> + Send {
-        let shared = self.shared.clone();
+        let shared = self.0.clone();
         async move {
             let context = shared.lock().await;
             context.state == State::Idle
@@ -82,7 +95,7 @@ pub async fn initialize(
     config: JsonConfig,
     keybinds: JsonViewerKeybinds,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
 ) -> anyhow::Result<JsonViewer> {
     // Set state to Loading to prevent overwriting by spinner frames in terminal.
     {
@@ -128,7 +141,7 @@ pub async fn initialize(
 pub async fn render(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
     trigger: RenderTrigger,
 ) {
     match trigger {
@@ -154,7 +167,7 @@ pub async fn render(
 async fn handle_user_action(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
     event: Event,
 ) {
     let area = {
@@ -178,7 +191,7 @@ async fn handle_user_action(
 async fn handle_query_changed(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
     query: String,
 ) {
     {
@@ -206,7 +219,7 @@ async fn handle_query_changed(
 async fn handle_area_resized(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
     area: (u16, u16),
     query: String,
 ) {
@@ -240,7 +253,7 @@ async fn handle_area_resized(
 
 fn spawn_query_processing_task(
     shared_viewer_state: Arc<Mutex<JsonViewer>>,
-    shared_ctx: Arc<Mutex<Context>>,
+    shared_ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
     query: String,
 ) -> JoinHandle<()> {
