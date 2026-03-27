@@ -162,14 +162,15 @@ async fn handle_user_action(
         ctx.area
     };
 
-    let pane = {
-        let mut runtime = shared_viewer_state.lock().await;
-        runtime.create_pane_from_event(area, &event).await
+    let graphemes = {
+        let mut viewer = shared_viewer_state.lock().await;
+        viewer.operate(&event);
+        viewer.state.create_graphemes(area.0, area.1)
     };
 
     // TODO: error handling
     let _ = shared_renderer
-        .update([(Index::Processor, pane)])
+        .update([(Index::Processor, graphemes)])
         .render()
         .await;
 }
@@ -324,11 +325,6 @@ impl JsonViewer {
 
             _ => (),
         }
-    }
-
-    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
-        self.operate(event);
-        self.state.create_graphemes(area.0, area.1)
     }
 
     async fn create_panes_from_query(
