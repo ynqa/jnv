@@ -13,19 +13,23 @@ use tokio::{
 use crate::json;
 
 #[derive(Clone, Default)]
-pub struct LoadState {
-    pub loaded: bool,
-    pub loaded_item_len: usize,
+pub struct SuggestionLoadProgress {
+    pub is_complete: bool,
+    pub loaded_path_count: usize,
 }
 
 pub struct StartSearchResult {
     pub head_item: Option<String>,
-    pub load_state: LoadState,
+    pub load_progress: SuggestionLoadProgress,
 }
 
 pub struct IncrementalSearcher {
-    shared_set: Arc<Mutex<BTreeSet<String>>>,
-    shared_load_state: Arc<RwLock<LoadState>>,
+    // Background loader writes discovered JSON paths, completion search reads them.
+    // This mutex protects the shared path index itself.
+    shared_paths: Arc<Mutex<BTreeSet<String>>>,
+    // Loader updates progress, completion reads status for hints.
+    // RwLock is used because reads are frequent from UI-side completion.
+    shared_progress: Arc<RwLock<SuggestionLoadProgress>>,
     state: listbox::State,
     search_result_chunk_size: usize,
     search_chunk_remaining: Vec<String>,
@@ -34,8 +38,8 @@ pub struct IncrementalSearcher {
 impl IncrementalSearcher {
     pub fn new(state: listbox::State, search_result_chunk_size: usize) -> Self {
         Self {
-            shared_set: Default::default(),
-            shared_load_state: Default::default(),
+            shared_paths: Default::default(),
+            shared_progress: Default::default(),
             state,
             search_result_chunk_size,
             search_chunk_remaining: Default::default(),
@@ -48,8 +52,8 @@ impl IncrementalSearcher {
         max_streams: Option<usize>,
         chunk_size: usize,
     ) -> JoinHandle<anyhow::Result<()>> {
-        let shared_set = self.shared_set.clone();
-        let shared_load_state = self.shared_load_state.clone();
+        let shared_paths = self.shared_paths.clone();
+        let shared_progress = self.shared_progress.clone();
         tokio::spawn(async move {
             let mut batch = Vec::with_capacity(chunk_size);
             let iter = json::get_all_paths(item, max_streams).await?;
@@ -58,26 +62,26 @@ impl IncrementalSearcher {
                 batch.push(v);
 
                 if batch.len() >= chunk_size {
-                    let mut set = shared_set.lock().await;
+                    let mut set = shared_paths.lock().await;
                     for item in batch.drain(..) {
                         set.insert(item);
                     }
-                    let mut state = shared_load_state.write().await;
-                    state.loaded_item_len += chunk_size;
+                    let mut state = shared_progress.write().await;
+                    state.loaded_path_count += chunk_size;
                 }
             }
 
             let remaining = batch.len();
             if !batch.is_empty() {
-                let mut set = shared_set.lock().await;
+                let mut set = shared_paths.lock().await;
                 for item in batch {
                     set.insert(item);
                 }
             }
 
-            let mut state = shared_load_state.write().await;
-            state.loaded = true;
-            state.loaded_item_len += remaining;
+            let mut state = shared_progress.write().await;
+            state.is_complete = true;
+            state.loaded_path_count += remaining;
             Ok(())
         })
     }
@@ -113,10 +117,9 @@ impl IncrementalSearcher {
     }
 
     pub fn start_search(&mut self, prefix: &str) -> anyhow::Result<StartSearchResult> {
-        match (
-            self.shared_load_state.try_read(),
-            self.shared_set.try_lock(),
-        ) {
+        // UI event handling path uses try_* to avoid blocking input latency.
+        // If loader currently holds one of these locks, we return a retriable error.
+        match (self.shared_progress.try_read(), self.shared_paths.try_lock()) {
             (Ok(state), Ok(set)) => {
                 let mut items: Vec<_> = set
                     .iter()
@@ -126,7 +129,7 @@ impl IncrementalSearcher {
                 if items.is_empty() {
                     return Ok(StartSearchResult {
                         head_item: None,
-                        load_state: state.clone(),
+                        load_progress: state.clone(),
                     });
                 }
                 let used = items
@@ -136,7 +139,7 @@ impl IncrementalSearcher {
                 self.state.listbox = Listbox::from(used);
                 Ok(StartSearchResult {
                     head_item: Some(self.state.listbox.get().to_string()),
-                    load_state: state.clone(),
+                    load_progress: state.clone(),
                 })
             }
             (Err(_), _) | (_, Err(_)) => Err(anyhow!(
