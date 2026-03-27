@@ -89,6 +89,8 @@ pub struct JsonViewer {
     keybinds: JsonViewerKeybinds,
 }
 
+pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
+
 /// Initialize the JSON viewer with the given input, configuration, keybinds, and shared context.
 pub async fn initialize(
     input: &'static str,
@@ -96,7 +98,7 @@ pub async fn initialize(
     keybinds: JsonViewerKeybinds,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
-) -> anyhow::Result<JsonViewer> {
+) -> anyhow::Result<SharedJsonViewer> {
     // Set state to Loading to prevent overwriting by spinner frames in terminal.
     {
         let mut shared_ctx = shared_ctx.lock().await;
@@ -131,15 +133,15 @@ pub async fn initialize(
             .await;
     }
 
-    Ok(JsonViewer {
+    Ok(Arc::new(Mutex::new(JsonViewer {
         json: input_stream,
         state,
         keybinds,
-    })
+    })))
 }
 
 pub async fn render(
-    shared_viewer_state: Arc<Mutex<JsonViewer>>,
+    shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
     trigger: RenderTrigger,
@@ -165,7 +167,7 @@ pub async fn render(
 }
 
 async fn handle_user_action(
-    shared_viewer_state: Arc<Mutex<JsonViewer>>,
+    shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
     event: Event,
@@ -189,7 +191,7 @@ async fn handle_user_action(
 }
 
 async fn handle_query_changed(
-    shared_viewer_state: Arc<Mutex<JsonViewer>>,
+    shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
     query: String,
@@ -217,7 +219,7 @@ async fn handle_query_changed(
 }
 
 async fn handle_area_resized(
-    shared_viewer_state: Arc<Mutex<JsonViewer>>,
+    shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
     area: (u16, u16),
@@ -252,7 +254,7 @@ async fn handle_area_resized(
 }
 
 fn spawn_query_processing_task(
-    shared_viewer_state: Arc<Mutex<JsonViewer>>,
+    shared_viewer_state: SharedJsonViewer,
     shared_ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
     query: String,
