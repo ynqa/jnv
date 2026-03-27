@@ -143,11 +143,11 @@ pub async fn run(
 
     let spinning = tokio::spawn({
         let shared_renderer = shared_renderer.clone();
-        let state = ctx.clone();
+        let ctx = ctx.clone();
         let spin_duration = reactivity_control.spin_duration;
         async move {
             let spinner = Spinner::default().duration(spin_duration);
-            let _ = spinner::run(&spinner, state, Index::Processor, shared_renderer).await;
+            let _ = spinner::run(&spinner, ctx, Index::Processor, shared_renderer).await;
         }
     });
 
@@ -162,7 +162,6 @@ pub async fn run(
 
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
-    let context_monitor = ctx.clone();
     let initializing = json_viewer::initialize(
         item,
         json_config,
@@ -174,6 +173,7 @@ pub async fn run(
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
         let shared_renderer = shared_renderer.clone();
+        let ctx = ctx.clone();
         tokio::spawn(async move {
             'main: loop {
                 tokio::select! {
@@ -208,7 +208,7 @@ pub async fn run(
                                 editor_copy_tx.send(()).await?;
                             },
                             event if keybinds.copy_result.contains(&event) => {
-                                if context_monitor.is_idle().await {
+                                if ctx.is_idle().await {
                                     processor_copy_tx.send(()).await?;
                                 } else if !no_hint{
                                     let size = terminal::size()?;
@@ -227,7 +227,7 @@ pub async fn run(
                             event if keybinds.switch_mode.contains(&event) => {
                                 match focus {
                                     Focus::Editor => {
-                                        if context_monitor.is_idle().await {
+                                        if ctx.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
                                             execute!(
