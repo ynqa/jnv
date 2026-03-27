@@ -27,7 +27,7 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
-    json_viewer::{initialize, render, Context, ContextMonitor, RenderTrigger},
+    json_viewer::{self, Context, ContextMonitor, RenderTrigger},
     Editor,
 };
 
@@ -163,7 +163,7 @@ pub async fn run(
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
     let context_monitor = ContextMonitor::new(ctx.clone());
-    let initializing = initialize(
+    let initializing = json_viewer::initialize(
         item,
         json_config,
         keybinds.on_json_viewer,
@@ -376,7 +376,7 @@ pub async fn run(
                         }
                     }
                     Some(event) = processor_event_rx.recv() => {
-                        render(
+                        json_viewer::render(
                             shared_viewer_state.clone(),
                             shared_renderer.clone(),
                             ctx.clone(),
@@ -385,11 +385,11 @@ pub async fn run(
                         .await;
                     }
                     Some(query) = last_query_rx.recv() => {
-                        render(
+                        json_viewer::render(
                             shared_viewer_state.clone(),
                             shared_renderer.clone(),
                             ctx.clone(),
-                            RenderTrigger::QueryUpdated { query },
+                            RenderTrigger::QueryChanged { query },
                         )
                         .await;
                     }
@@ -413,11 +413,11 @@ pub async fn run(
                             let editor = shared_editor.read().await;
                             editor.text()
                         };
-                        render(
+                        json_viewer::render(
                             shared_viewer_state.clone(),
                             shared_renderer.clone(),
                             ctx.clone(),
-                            RenderTrigger::Resized { area, query: text },
+                            RenderTrigger::AreaResized { area, query: text },
                         )
                         .await;
                     }
