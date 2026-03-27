@@ -21,7 +21,7 @@ use promkit_widgets::{
     status::{self, Severity},
 };
 use tokio::{
-    sync::{mpsc, Mutex, RwLock},
+    sync::{mpsc, RwLock},
     task::JoinHandle,
 };
 
@@ -355,7 +355,7 @@ pub async fn run(
         })
     };
 
-    let shared_viewer_state = Arc::new(Mutex::new(initializing.await?));
+    let shared_viewer_state = initializing.await?;
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
