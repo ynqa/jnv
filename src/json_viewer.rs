@@ -98,8 +98,8 @@ impl JsonViewer {
         self.state.config.format_raw_json(self.state.stream.rows())
     }
 
-    /// Handle user interactions and update the viewer state accordingly.
-    fn operate(&mut self, event: &Event) {
+    /// Handle user actions and update the viewer state accordingly.
+    fn apply_user_action(&mut self, event: &Event) {
         match event {
             // Move up.
             event if self.keybinds.up.contains(event) => {
@@ -138,7 +138,8 @@ impl JsonViewer {
         }
     }
 
-    async fn create_panes_from_query(
+    /// Process jq query and update the viewer state with the results.
+    async fn refresh_view_with_query(
         &mut self,
         area: (u16, u16),
         input: String,
@@ -189,11 +190,11 @@ pub async fn initialize(
 ) -> anyhow::Result<SharedJsonViewer> {
     // Set state to Loading to prevent overwriting by spinner frames in terminal.
     {
-        let mut shared_ctx = shared_ctx.lock().await;
-        if let Some(task) = shared_ctx.current_task.take() {
+        let mut ctx = shared_ctx.lock().await;
+        if let Some(task) = ctx.current_task.take() {
             task.abort();
         }
-        shared_ctx.state = State::Loading;
+        ctx.state = State::Loading;
     }
 
     let input_stream = json::deserialize(input, config.max_streams)?;
@@ -205,14 +206,14 @@ pub async fn initialize(
 
     // Set state to Idle to prevent overwriting by spinner frames in terminal.
     {
-        let mut shared_ctx = shared_ctx.lock().await;
-        shared_ctx.state = State::Idle;
+        let mut ctx = shared_ctx.lock().await;
+        ctx.state = State::Idle;
     }
 
     {
-        let shared_ctx = shared_ctx.lock().await;
-        let area = shared_ctx.area;
-        drop(shared_ctx);
+        let ctx = shared_ctx.lock().await;
+        let area = ctx.area;
+        drop(ctx);
 
         // TODO: error handling
         let _ = shared_renderer
@@ -267,7 +268,7 @@ async fn handle_user_action(
 
     let graphemes = {
         let mut viewer = shared_viewer_state.lock().await;
-        viewer.operate(&event);
+        viewer.apply_user_action(&event);
         viewer.state.create_graphemes(area.0, area.1)
     };
 
@@ -284,14 +285,16 @@ async fn handle_query_changed(
     shared_ctx: SharedContext,
     query: String,
 ) {
+    // Abort any ongoing processing task to prevent race conditions
+    // and ensure the new render reflects the latest terminal size.
     {
-        let mut shared_state = shared_ctx.lock().await;
-        if let Some(task) = shared_state.current_task.take() {
+        let mut ctx = shared_ctx.lock().await;
+        if let Some(task) = ctx.current_task.take() {
             task.abort();
         }
     }
 
-    let process_task = spawn_query_processing_task(
+    let task = spawn_query_update_task(
         shared_viewer_state.clone(),
         shared_ctx.clone(),
         shared_renderer,
@@ -301,8 +304,8 @@ async fn handle_query_changed(
     // Store the new processing task handle in shared context
     // to allow future cancellation if needed.
     {
-        let mut shared_state = shared_ctx.lock().await;
-        shared_state.current_task = Some(process_task);
+        let mut ctx = shared_ctx.lock().await;
+        ctx.current_task = Some(task);
     }
 }
 
@@ -326,7 +329,7 @@ async fn handle_area_resized(
         }
     }
 
-    let process_task = spawn_query_processing_task(
+    let task = spawn_query_update_task(
         shared_viewer_state.clone(),
         shared_ctx.clone(),
         shared_renderer,
@@ -336,36 +339,40 @@ async fn handle_area_resized(
     // Store the new processing task handle in shared context
     // to allow future cancellation if needed.
     {
-        let mut shared_state = shared_ctx.lock().await;
-        shared_state.current_task = Some(process_task);
+        let mut ctx = shared_ctx.lock().await;
+        ctx.current_task = Some(task);
     }
 }
 
-fn spawn_query_processing_task(
+/// Spawn a background task to process jq query
+/// and update the viewer state
+/// and rendered view accordingly.
+fn spawn_query_update_task(
     shared_viewer_state: SharedJsonViewer,
     shared_ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
     query: String,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
+        // Set state to Processing to prevent overwriting by spinner frames in terminal.
         {
-            let mut shared_state = shared_ctx.lock().await;
-            shared_state.state = State::Processing;
+            let mut ctx = shared_ctx.lock().await;
+            ctx.state = State::Processing;
         }
 
         let (maybe_guide, maybe_resp) = {
-            let shared_state = shared_ctx.lock().await;
-            let area = shared_state.area;
-            drop(shared_state);
+            let ctx = shared_ctx.lock().await;
+            let area = ctx.area;
+            drop(ctx);
 
             let mut runtime = shared_viewer_state.lock().await;
-            runtime.create_panes_from_query(area, query).await
+            runtime.refresh_view_with_query(area, query).await
         };
 
-        // Set state to Idle to prevent overwriting by spinner frames in terminal.
+        // Set state to Idle to allow rendering of spinner frames in terminal.
         {
-            let mut shared_state = shared_ctx.lock().await;
-            shared_state.state = State::Idle;
+            let mut ctx = shared_ctx.lock().await;
+            ctx.state = State::Idle;
         }
 
         // TODO: error handling
