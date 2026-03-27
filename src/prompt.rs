@@ -27,7 +27,7 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
-    state::{initialize, render, Context, ContextMonitor, RenderTrigger},
+    json_viewer::{initialize, render, Context, ContextMonitor, RenderTrigger},
     Editor,
 };
 

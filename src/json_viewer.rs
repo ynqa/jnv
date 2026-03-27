@@ -68,7 +68,7 @@ impl spinner::State for ContextMonitor {
     }
 }
 
-pub struct JsonViewerState {
+pub struct JsonViewer {
     state: jsonstream::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
@@ -80,7 +80,7 @@ pub async fn initialize(
     keybinds: JsonViewerKeybinds,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
-) -> anyhow::Result<JsonViewerState> {
+) -> anyhow::Result<JsonViewer> {
     // Set state to Loading to prevent overwriting by spinner frames in terminal.
     {
         let mut shared_ctx = shared_ctx.lock().await;
@@ -115,7 +115,7 @@ pub async fn initialize(
             .await;
     }
 
-    Ok(JsonViewerState {
+    Ok(JsonViewer {
         json: input_stream,
         state,
         keybinds,
@@ -123,7 +123,7 @@ pub async fn initialize(
 }
 
 pub async fn render(
-    shared_viewer_state: Arc<Mutex<JsonViewerState>>,
+    shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
     trigger: RenderTrigger,
@@ -149,7 +149,7 @@ pub async fn render(
 }
 
 async fn render_from_user_action(
-    shared_viewer_state: Arc<Mutex<JsonViewerState>>,
+    shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
     event: Event,
@@ -172,7 +172,7 @@ async fn render_from_user_action(
 }
 
 async fn start_query_processing(
-    shared_viewer_state: Arc<Mutex<JsonViewerState>>,
+    shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
     query: String,
@@ -198,7 +198,7 @@ async fn start_query_processing(
 }
 
 async fn resize_and_start_query_processing(
-    shared_viewer_state: Arc<Mutex<JsonViewerState>>,
+    shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: Arc<Mutex<Context>>,
     area: (u16, u16),
@@ -226,7 +226,7 @@ async fn resize_and_start_query_processing(
 }
 
 fn spawn_query_processing_task(
-    shared_viewer_state: Arc<Mutex<JsonViewerState>>,
+    shared_viewer_state: Arc<Mutex<JsonViewer>>,
     shared_ctx: Arc<Mutex<Context>>,
     shared_renderer: SharedRenderer<Index>,
     query: String,
@@ -269,7 +269,7 @@ fn spawn_query_processing_task(
     })
 }
 
-impl JsonViewerState {
+impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {
         self.state.config.format_raw_json(self.state.stream.rows())
