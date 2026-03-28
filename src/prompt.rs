@@ -78,8 +78,10 @@ fn empty_pane() -> StyledGraphemes {
     StyledGraphemes::default()
 }
 
+#[derive(Clone, Copy)]
 enum Focus {
     Editor,
+    Searcher,
     Processor,
 }
 
@@ -154,6 +156,7 @@ pub async fn run(
 
     let mut focus = Focus::Editor;
     let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
+    let (searcher_event_tx, mut searcher_event_rx) = mpsc::channel::<(Focus, Event)>(1);
     let (processor_event_tx, mut processor_event_rx) = mpsc::channel::<Event>(1);
 
     let (editor_copy_tx, mut editor_copy_rx) = mpsc::channel::<()>(1);
@@ -161,9 +164,10 @@ pub async fn run(
 
     let (editor_focus_tx, mut editor_focus_rx) = mpsc::channel::<bool>(1);
 
-    let mut text_diff = [editor.text(), editor.text()];
+    let text_diff = Arc::new(RwLock::new([editor.text(), editor.text()]));
     let shared_editor = Arc::new(RwLock::new(editor));
     let shared_searcher = Arc::new(RwLock::new(searcher));
+    let editor_keybinds = keybinds.on_editor.clone();
     let initializing = json_viewer::initialize(
         item,
         json_config,
@@ -176,6 +180,7 @@ pub async fn run(
         let mut stream = EventStream::new();
         let shared_renderer = shared_renderer.clone();
         let ctx = ctx.clone();
+        let editor_keybinds = editor_keybinds.clone();
         tokio::spawn(async move {
             'main: loop {
                 tokio::select! {
@@ -228,7 +233,7 @@ pub async fn run(
                             },
                             event if keybinds.switch_mode.contains(&event) => {
                                 match focus {
-                                    Focus::Editor => {
+                                    Focus::Editor | Focus::Searcher => {
                                         if ctx.is_idle().await {
                                             focus = Focus::Processor;
                                             editor_focus_tx.send(false).await?;
@@ -265,7 +270,28 @@ pub async fn run(
                             event => {
                                 match focus {
                                     Focus::Editor => {
-                                        editor_event_tx.send(event).await?;
+                                        if editor_keybinds.completion.contains(&event) {
+                                            focus = Focus::Searcher;
+                                            searcher_event_tx.send((Focus::Editor, event)).await?;
+                                        } else {
+                                            editor_event_tx.send(event).await?;
+                                        }
+                                    },
+                                    Focus::Searcher => {
+                                        if editor_keybinds.on_completion.down.contains(&event)
+                                            || editor_keybinds.on_completion.up.contains(&event)
+                                            || editor_keybinds.completion.contains(&event)
+                                        {
+                                            searcher_event_tx.send((Focus::Searcher, event)).await?;
+                                        } else {
+                                            focus = Focus::Editor;
+                                            searcher_event_tx
+                                                .send((Focus::Searcher, event.clone()))
+                                                .await?;
+                                            if !editor_keybinds.completion.contains(&event) {
+                                                editor_event_tx.send(event).await?;
+                                            }
+                                        }
                                     },
                                     Focus::Processor => {
                                         processor_event_tx.send(event).await?;
@@ -287,6 +313,8 @@ pub async fn run(
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
         let shared_searcher = shared_searcher.clone();
+        let text_diff = text_diff.clone();
+        let debounce_query_tx = debounce_query_tx.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -297,12 +325,13 @@ pub async fn run(
                             if focus {
                                 editor.focus();
                             } else {
-                                editor.defocus(&mut searcher);
+                                editor.defocus();
+                                searcher.leave_search();
                             }
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
-                                editor.create_searcher_pane(&searcher, size.0, size.1),
+                                searcher.create_pane(size.0, size.1),
                             )
                         };
                         shared_renderer.update([
@@ -329,19 +358,20 @@ pub async fn run(
                         let size = terminal::size()?;
                         let (editor_pane, guide_pane, searcher_pane) = {
                             let mut editor = shared_editor.write().await;
-                            let mut searcher = shared_searcher.write().await;
-                            editor.operate(&event, &mut searcher).await?;
+                            editor.operate(&event).await?;
+                            let searcher = shared_searcher.read().await;
 
                             let current_text = editor.text();
-                            if current_text != text_diff[1] {
+                            let mut diff = text_diff.write().await;
+                            if current_text != diff[1] {
                                 debounce_query_tx.send(current_text.clone()).await?;
-                                text_diff[0] = text_diff[1].clone();
-                                text_diff[1] = current_text;
+                                diff[0] = diff[1].clone();
+                                diff[1] = current_text;
                             }
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
-                                editor.create_searcher_pane(&searcher, size.0, size.1),
+                                searcher.create_pane(size.0, size.1),
                             )
                         };
                         {
@@ -355,6 +385,82 @@ pub async fn run(
                     else => {
                         break
                     }
+                }
+            }
+            Ok(())
+        })
+    };
+
+    let searcher_task: JoinHandle<anyhow::Result<()>> = {
+        let shared_renderer = shared_renderer.clone();
+        let shared_editor = shared_editor.clone();
+        let shared_searcher = shared_searcher.clone();
+        let text_diff = text_diff.clone();
+        let debounce_query_tx = debounce_query_tx.clone();
+        let editor_keybinds = editor_keybinds.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    Some((source_focus, event)) = searcher_event_rx.recv() => {
+                        let size = terminal::size()?;
+                        let (editor_pane, guide_pane, searcher_pane) = {
+                            let mut editor = shared_editor.write().await;
+                            let mut searcher = shared_searcher.write().await;
+                            match source_focus {
+                                Focus::Editor => {
+                                    let prefix = editor.text();
+                                    let (head_item, load_progress) =
+                                        searcher.start_search(&prefix).await;
+                                    match head_item {
+                                        Some(head) => {
+                                            editor.set_completion_found_guide(
+                                                load_progress.loaded_path_count,
+                                                load_progress.is_complete,
+                                            );
+                                            editor.replace_text(&head);
+                                        }
+                                        None => editor.set_completion_empty_guide(&prefix),
+                                    }
+                                }
+                                Focus::Searcher => {
+                                    if editor_keybinds.on_completion.down.contains(&event)
+                                        || editor_keybinds.completion.contains(&event)
+                                    {
+                                        searcher.down_with_load();
+                                        editor.replace_text(&searcher.get_current_item());
+                                    } else if editor_keybinds.on_completion.up.contains(&event) {
+                                        searcher.up();
+                                        editor.replace_text(&searcher.get_current_item());
+                                    } else {
+                                        searcher.leave_search();
+                                    }
+                                }
+                                Focus::Processor => {
+                                    // No-op: Searcher events are not expected from Processor focus.
+                                }
+                            }
+
+                            let current_text = editor.text();
+                            let mut diff = text_diff.write().await;
+                            if current_text != diff[1] {
+                                debounce_query_tx.send(current_text.clone()).await?;
+                                diff[0] = diff[1].clone();
+                                diff[1] = current_text;
+                            }
+                            (
+                                editor.create_editor_pane(size.0, size.1),
+                                editor.create_guide_pane(size.0, size.1),
+                                searcher.create_pane(size.0, size.1),
+                            )
+                        };
+
+                        shared_renderer.update([
+                            (Index::Editor, editor_pane),
+                            (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
+                            (Index::Search, searcher_pane),
+                        ]).render().await?;
+                    }
+                    else => break,
                 }
             }
             Ok(())
@@ -407,7 +513,7 @@ pub async fn run(
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
-                                editor.create_searcher_pane(&searcher, size.0, size.1),
+                                searcher.create_pane(size.0, size.1),
                             )
                         };
                         {
@@ -451,6 +557,7 @@ pub async fn run(
     query_debouncer.abort();
     resize_debouncer.abort();
     editor_task.abort();
+    searcher_task.abort();
     processor_task.abort();
 
     execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;

@@ -37,12 +37,6 @@ impl SharedSuggestionStore {
             .collect::<Vec<_>>();
         (items, store.progress.clone())
     }
-
-    /// Get the current load progress of suggestions
-    pub async fn load_progress(&self) -> SuggestionLoadProgress {
-        let store = self.0.lock().await;
-        store.progress.clone()
-    }
 }
 
 /// Initialize shared suggestion store by loading paths from JSON input
@@ -161,8 +155,10 @@ impl IncrementalSearcher {
         Some(self.state.listbox.get().to_string())
     }
 
-    pub async fn load_progress(&self) -> SuggestionLoadProgress {
-        self.shared_suggestions.load_progress().await
+    pub async fn start_search(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
+        let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
+        let head_item = self.apply_search_items(items);
+        (head_item, progress)
     }
 
     fn load_more(&mut self) {
