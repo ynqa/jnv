@@ -94,12 +94,6 @@ pub struct JsonViewer {
 
 pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 
-pub enum ViewerAction {
-    CopyResult,
-    UserEvent(Event),
-    QueryChanged(String),
-}
-
 impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {
@@ -401,6 +395,19 @@ fn spawn_query_update_task(
     })
 }
 
+/// Represent the actions that can be performed in JSON viewer,
+/// including copying results to clipboard, handling user events, and processing query changes.
+pub enum ViewerAction {
+    // Copy the current JSON stream results to clipboard.
+    CopyResult,
+    // Handle user events such as key presses for navigation and toggling.
+    UserEvent(Event),
+    // Handle changes in jq query input for dynamic filtering of JSON stream.
+    QueryChanged(String),
+}
+
+/// Spawn a background task to handle viewer actions such as user events and query changes,
+/// and update the viewer state and rendered view accordingly.
 pub fn start_viewer_task(
     mut action_rx: mpsc::Receiver<ViewerAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,

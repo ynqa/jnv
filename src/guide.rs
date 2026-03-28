@@ -25,7 +25,7 @@ pub enum GuideAction {
     Show(GuideMessage),
 }
 
-pub fn message_to_state(message: GuideMessage) -> status::State {
+fn message_to_state(message: GuideMessage) -> status::State {
     match message {
         GuideMessage::CopiedToClipboard => {
             status::State::new("Copied to clipboard", Severity::Success)
