@@ -1,89 +1,122 @@
 use std::{collections::BTreeSet, sync::Arc};
 
-use anyhow::anyhow;
 use promkit_widgets::{
     core::{grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
 };
-use tokio::{
-    sync::{Mutex, RwLock},
-    task::JoinHandle,
-};
+use tokio::{sync::Mutex, task};
 
 use crate::json;
 
+/// Progress information for loading suggestions
 #[derive(Clone, Default)]
 pub struct SuggestionLoadProgress {
     pub is_complete: bool,
     pub loaded_path_count: usize,
 }
 
-pub struct StartSearchResult {
-    pub head_item: Option<String>,
-    pub load_progress: SuggestionLoadProgress,
+/// Store for suggestions with thread-safe access
+struct SuggestionStore {
+    /// Set of all paths extracted from JSON input
+    paths: BTreeSet<String>,
+    progress: SuggestionLoadProgress,
+}
+
+#[derive(Clone)]
+pub struct SharedSuggestionStore(Arc<Mutex<SuggestionStore>>);
+
+impl SharedSuggestionStore {
+    /// Collect suggestions that start with the given prefix
+    pub async fn collect_matches(&self, prefix: &str) -> (Vec<String>, SuggestionLoadProgress) {
+        let store = self.0.lock().await;
+        let items = store
+            .paths
+            .iter()
+            .filter(|p| p.starts_with(prefix))
+            .cloned()
+            .collect::<Vec<_>>();
+        (items, store.progress.clone())
+    }
+
+    /// Get the current load progress of suggestions
+    pub async fn load_progress(&self) -> SuggestionLoadProgress {
+        let store = self.0.lock().await;
+        store.progress.clone()
+    }
+}
+
+/// Initialize shared suggestion store by loading paths from JSON input
+pub async fn initialize(
+    item: &'static str,
+    max_streams: Option<usize>,
+    chunk_size: usize,
+) -> anyhow::Result<SharedSuggestionStore> {
+    let shared = SharedSuggestionStore(Arc::new(Mutex::new(SuggestionStore {
+        paths: BTreeSet::new(),
+        progress: SuggestionLoadProgress::default(),
+    })));
+
+    let shared_for_loading = shared.clone();
+    task::spawn(async move {
+        // Load paths in a streaming manner and update the shared store incrementally
+        let iter = match json::get_all_paths(item, max_streams).await {
+            Ok(iter) => iter,
+            Err(_) => {
+                let mut store = shared_for_loading.0.lock().await;
+                store.progress.is_complete = true;
+                return;
+            }
+        };
+
+        // Process paths in chunks to avoid holding the lock for too long
+        let mut batch = Vec::with_capacity(chunk_size);
+        for path in iter {
+            batch.push(path);
+
+            if batch.len() >= chunk_size {
+                let loaded = batch.len();
+                let mut store = shared_for_loading.0.lock().await;
+                for item in batch.drain(..) {
+                    store.paths.insert(item);
+                }
+                store.progress.loaded_path_count += loaded;
+            }
+        }
+
+        // Insert any remaining paths after the loop
+        let remaining = batch.len();
+        let mut store = shared_for_loading.0.lock().await;
+        for item in batch {
+            store.paths.insert(item);
+        }
+
+        // Mark loading as complete and update progress
+        store.progress.loaded_path_count += remaining;
+        store.progress.is_complete = true;
+    });
+
+    Ok(shared)
 }
 
 pub struct IncrementalSearcher {
-    // Background loader writes discovered JSON paths, completion search reads them.
-    // This mutex protects the shared path index itself.
-    shared_paths: Arc<Mutex<BTreeSet<String>>>,
-    // Loader updates progress, completion reads status for hints.
-    // RwLock is used because reads are frequent from UI-side completion.
-    shared_progress: Arc<RwLock<SuggestionLoadProgress>>,
+    shared_suggestions: SharedSuggestionStore,
     state: listbox::State,
     search_result_chunk_size: usize,
     search_chunk_remaining: Vec<String>,
 }
 
 impl IncrementalSearcher {
-    pub fn new(state: listbox::State, search_result_chunk_size: usize) -> Self {
+    pub fn new(
+        shared_suggestions: SharedSuggestionStore,
+        state: listbox::State,
+        search_result_chunk_size: usize,
+    ) -> Self {
         Self {
-            shared_paths: Default::default(),
-            shared_progress: Default::default(),
+            shared_suggestions,
             state,
             search_result_chunk_size,
             search_chunk_remaining: Default::default(),
         }
-    }
-
-    pub fn spawn_load_task(
-        &self,
-        item: &'static str,
-        max_streams: Option<usize>,
-        chunk_size: usize,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        let shared_paths = self.shared_paths.clone();
-        let shared_progress = self.shared_progress.clone();
-        tokio::spawn(async move {
-            let mut batch = Vec::with_capacity(chunk_size);
-            let iter = json::get_all_paths(item, max_streams).await?;
-
-            for v in iter {
-                batch.push(v);
-
-                if batch.len() >= chunk_size {
-                    let mut set = shared_paths.lock().await;
-                    for item in batch.drain(..) {
-                        set.insert(item);
-                    }
-                    let mut state = shared_progress.write().await;
-                    state.loaded_path_count += chunk_size;
-                }
-            }
-
-            let remaining = batch.len();
-            if !batch.is_empty() {
-                let mut set = shared_paths.lock().await;
-                for item in batch {
-                    set.insert(item);
-                }
-            }
-
-            let mut state = shared_progress.write().await;
-            state.is_complete = true;
-            state.loaded_path_count += remaining;
-            Ok(())
-        })
     }
 
     pub fn up(&mut self) {
@@ -116,36 +149,20 @@ impl IncrementalSearcher {
         self.search_chunk_remaining = Vec::<String>::new();
     }
 
-    pub fn start_search(&mut self, prefix: &str) -> anyhow::Result<StartSearchResult> {
-        // UI event handling path uses try_* to avoid blocking input latency.
-        // If loader currently holds one of these locks, we return a retriable error.
-        match (self.shared_progress.try_read(), self.shared_paths.try_lock()) {
-            (Ok(state), Ok(set)) => {
-                let mut items: Vec<_> = set
-                    .iter()
-                    .filter(|p| p.starts_with(prefix))
-                    .cloned()
-                    .collect();
-                if items.is_empty() {
-                    return Ok(StartSearchResult {
-                        head_item: None,
-                        load_progress: state.clone(),
-                    });
-                }
-                let used = items
-                    .drain(..self.search_result_chunk_size.min(items.len()))
-                    .collect::<Vec<_>>();
-                self.search_chunk_remaining = items;
-                self.state.listbox = Listbox::from(used);
-                Ok(StartSearchResult {
-                    head_item: Some(self.state.listbox.get().to_string()),
-                    load_progress: state.clone(),
-                })
-            }
-            (Err(_), _) | (_, Err(_)) => Err(anyhow!(
-                "Failed to acquire lock for suggestions. Please try again."
-            )),
+    pub fn apply_search_items(&mut self, mut items: Vec<String>) -> Option<String> {
+        if items.is_empty() {
+            return None;
         }
+        let used = items
+            .drain(..self.search_result_chunk_size.min(items.len()))
+            .collect::<Vec<_>>();
+        self.search_chunk_remaining = items;
+        self.state.listbox = Listbox::from(used);
+        Some(self.state.listbox.get().to_string())
+    }
+
+    pub async fn load_progress(&self) -> SuggestionLoadProgress {
+        self.shared_suggestions.load_progress().await
     }
 
     fn load_more(&mut self) {

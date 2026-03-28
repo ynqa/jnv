@@ -10,7 +10,10 @@ use promkit_widgets::{
     text_editor,
 };
 
-use crate::{config::EditorKeybinds, search::IncrementalSearcher};
+use crate::{
+    config::EditorKeybinds,
+    search::{IncrementalSearcher, SharedSuggestionStore},
+};
 
 pub struct Editor {
     handler: Handler,
@@ -18,14 +21,14 @@ pub struct Editor {
     focus_config: text_editor::Config,
     defocus_config: text_editor::Config,
     guide: status::State,
-    searcher: IncrementalSearcher,
+    shared_suggestions: SharedSuggestionStore,
     editor_keybinds: EditorKeybinds,
 }
 
 impl Editor {
     pub fn new(
         state: text_editor::State,
-        searcher: IncrementalSearcher,
+        shared_suggestions: SharedSuggestionStore,
         focus_config: text_editor::Config,
         defocus_config: text_editor::Config,
         editor_keybinds: EditorKeybinds,
@@ -36,7 +39,7 @@ impl Editor {
             focus_config,
             defocus_config,
             guide: status::State::default(),
-            searcher,
+            shared_suggestions,
             editor_keybinds,
         }
     }
@@ -45,10 +48,10 @@ impl Editor {
         self.state.config = self.focus_config.clone();
     }
 
-    pub fn defocus(&mut self) {
+    pub fn defocus(&mut self, searcher: &mut IncrementalSearcher) {
         self.state.config = self.defocus_config.clone();
 
-        self.searcher.leave_search();
+        searcher.leave_search();
         self.handler = BOXED_EDITOR_HANDLER;
 
         self.guide = status::State::default();
@@ -62,72 +65,77 @@ impl Editor {
         self.state.create_graphemes(width, height)
     }
 
-    pub fn create_searcher_pane(&self, width: u16, height: u16) -> StyledGraphemes {
-        self.searcher.create_pane(width, height)
+    pub fn create_searcher_pane(
+        &self,
+        searcher: &IncrementalSearcher,
+        width: u16,
+        height: u16,
+    ) -> StyledGraphemes {
+        searcher.create_pane(width, height)
     }
 
     pub fn create_guide_pane(&self, width: u16, height: u16) -> StyledGraphemes {
         self.guide.create_graphemes(width, height)
     }
 
-    pub async fn operate(&mut self, event: &Event) -> anyhow::Result<()> {
-        (self.handler)(event, self).await
+    pub async fn operate(
+        &mut self,
+        event: &Event,
+        searcher: &mut IncrementalSearcher,
+    ) -> anyhow::Result<()> {
+        (self.handler)(event, self, searcher).await
     }
 }
 
 pub type Handler = for<'a> fn(
     &'a Event,
     &'a mut Editor,
+    &'a mut IncrementalSearcher,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
 
 const BOXED_EDITOR_HANDLER: Handler =
-    |event, editor| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
-        Box::pin(edit(event, editor))
+    |event, editor, searcher| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
+        Box::pin(edit(event, editor, searcher))
     };
 const BOXED_SEARCHER_HANDLER: Handler =
-    |event, editor| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
-        Box::pin(search(event, editor))
+    |event, editor, searcher| -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + '_>> {
+        Box::pin(search(event, editor, searcher))
     };
 
-pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Result<()> {
+pub async fn edit<'a>(
+    event: &'a Event,
+    editor: &'a mut Editor,
+    searcher: &'a mut IncrementalSearcher,
+) -> anyhow::Result<()> {
     editor.guide = status::State::default();
 
     match event {
         key if editor.editor_keybinds.completion.contains(key) => {
             let prefix = editor.state.texteditor.text_without_cursor().to_string();
-            match editor.searcher.start_search(&prefix) {
-                Ok(result) => match result.head_item {
-                    Some(head) => {
-                        if result.load_progress.is_complete {
-                            editor.guide = status::State::new(
-                                format!(
-                                    "Loaded all ({}) suggestions",
-                                    result.load_progress.loaded_path_count
-                                ),
-                                Severity::Success,
-                            );
-                        } else {
-                            editor.guide = status::State::new(
-                                format!(
-                                    "Loaded partially ({}) suggestions",
-                                    result.load_progress.loaded_path_count
-                                ),
-                                Severity::Success,
-                            );
-                        }
-                        editor.state.texteditor.replace(&head);
-                        editor.handler = BOXED_SEARCHER_HANDLER;
-                    }
-                    None => {
+            let (items, _) = editor.shared_suggestions.collect_matches(&prefix).await;
+            let progress = searcher.load_progress().await;
+            match searcher.apply_search_items(items) {
+                Some(head) => {
+                    if progress.is_complete {
                         editor.guide = status::State::new(
-                            format!("No suggestion found for '{prefix}'"),
-                            Severity::Warning,
+                            format!("Loaded all ({}) suggestions", progress.loaded_path_count),
+                            Severity::Success,
+                        );
+                    } else {
+                        editor.guide = status::State::new(
+                            format!(
+                                "Loaded partially ({}) suggestions",
+                                progress.loaded_path_count
+                            ),
+                            Severity::Success,
                         );
                     }
-                },
-                Err(e) => {
+                    editor.state.texteditor.replace(&head);
+                    editor.handler = BOXED_SEARCHER_HANDLER;
+                }
+                None => {
                     editor.guide = status::State::new(
-                        format!("Failed to lookup suggestions: {e}"),
+                        format!("No suggestion found for '{prefix}'"),
                         Severity::Warning,
                     );
                 }
@@ -214,28 +222,32 @@ pub async fn edit<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Resul
     Ok(())
 }
 
-pub async fn search<'a>(event: &'a Event, editor: &'a mut Editor) -> anyhow::Result<()> {
+pub async fn search<'a>(
+    event: &'a Event,
+    editor: &'a mut Editor,
+    searcher: &'a mut IncrementalSearcher,
+) -> anyhow::Result<()> {
     match event {
         key if editor.editor_keybinds.on_completion.down.contains(key) => {
-            editor.searcher.down_with_load();
+            searcher.down_with_load();
             editor
                 .state
                 .texteditor
-                .replace(&editor.searcher.get_current_item());
+                .replace(&searcher.get_current_item());
         }
 
         key if editor.editor_keybinds.on_completion.up.contains(key) => {
-            editor.searcher.up();
+            searcher.up();
             editor
                 .state
                 .texteditor
-                .replace(&editor.searcher.get_current_item());
+                .replace(&searcher.get_current_item());
         }
 
         _ => {
-            editor.searcher.leave_search();
+            searcher.leave_search();
             editor.handler = BOXED_EDITOR_HANDLER;
-            return edit(event, editor).await;
+            return edit(event, editor, searcher).await;
         }
     }
 

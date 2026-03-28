@@ -28,6 +28,7 @@ use tokio::{
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
     json_viewer::{self, RenderTrigger, SharedContext},
+    search::IncrementalSearcher,
     Editor,
 };
 
@@ -96,7 +97,7 @@ pub async fn run(
     json_config: JsonConfig,
     reactivity_control: ReactivityControl,
     editor: Editor,
-    loading_suggestions_task: JoinHandle<anyhow::Result<()>>,
+    searcher: IncrementalSearcher,
     no_hint: bool,
     keybinds: Keybinds,
     write_to_stdout: bool,
@@ -162,6 +163,7 @@ pub async fn run(
 
     let mut text_diff = [editor.text(), editor.text()];
     let shared_editor = Arc::new(RwLock::new(editor));
+    let shared_searcher = Arc::new(RwLock::new(searcher));
     let initializing = json_viewer::initialize(
         item,
         json_config,
@@ -284,25 +286,29 @@ pub async fn run(
     let editor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
+        let shared_searcher = shared_searcher.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(focus) = editor_focus_rx.recv() => {
-                        let (editor_pane, guide_pane) = {
+                        let (editor_pane, guide_pane, searcher_pane) = {
                             let mut editor = shared_editor.write().await;
+                            let mut searcher = shared_searcher.write().await;
                             if focus {
                                 editor.focus();
                             } else {
-                                editor.defocus();
+                                editor.defocus(&mut searcher);
                             }
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
+                                editor.create_searcher_pane(&searcher, size.0, size.1),
                             )
                         };
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
                             (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
+                            (Index::Search, searcher_pane),
                         ]).render().await?;
                     }
                     Some(()) = editor_copy_rx.recv() => {
@@ -322,9 +328,9 @@ pub async fn run(
                     Some(event) = editor_event_rx.recv() => {
                         let size = terminal::size()?;
                         let (editor_pane, guide_pane, searcher_pane) = {
-
                             let mut editor = shared_editor.write().await;
-                            editor.operate(&event).await?;
+                            let mut searcher = shared_searcher.write().await;
+                            editor.operate(&event, &mut searcher).await?;
 
                             let current_text = editor.text();
                             if current_text != text_diff[1] {
@@ -335,7 +341,7 @@ pub async fn run(
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
-                                editor.create_searcher_pane(size.0, size.1),
+                                editor.create_searcher_pane(&searcher, size.0, size.1),
                             )
                         };
                         {
@@ -359,6 +365,7 @@ pub async fn run(
     let processor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
+        let shared_searcher = shared_searcher.clone();
         let shared_viewer_state = shared_viewer_state.clone();
         let ctx = ctx.clone();
         tokio::spawn(async move {
@@ -396,10 +403,11 @@ pub async fn run(
                     Some(area) = last_resize_rx.recv() => {
                         let (editor_pane, guide_pane, searcher_pane) = {
                             let editor = shared_editor.read().await;
+                            let searcher = shared_searcher.read().await;
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
-                                editor.create_searcher_pane(size.0, size.1),
+                                editor.create_searcher_pane(&searcher, size.0, size.1),
                             )
                         };
                         {
@@ -439,7 +447,6 @@ pub async fn run(
         None
     };
 
-    loading_suggestions_task.abort();
     spinning.abort();
     query_debouncer.abort();
     resize_debouncer.abort();
