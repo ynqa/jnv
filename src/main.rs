@@ -195,7 +195,6 @@ async fn main() -> anyhow::Result<()> {
     // launch a background thread during construction.
     let editor = Editor::new(
         text_editor_state,
-        shared_suggestions.clone(),
         config.editor.on_focus,
         config.editor.on_defocus,
         // TODO: remove clones
