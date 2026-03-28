@@ -143,7 +143,7 @@ impl IncrementalSearcher {
         self.search_chunk_remaining = Vec::<String>::new();
     }
 
-    pub fn apply_search_items(&mut self, mut items: Vec<String>) -> Option<String> {
+    fn apply_search_items(&mut self, mut items: Vec<String>) -> Option<String> {
         if items.is_empty() {
             return None;
         }

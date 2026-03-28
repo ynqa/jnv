@@ -85,6 +85,32 @@ enum Focus {
     Processor,
 }
 
+enum GlobalAction {
+    Resize(u16, u16),
+    Exit,
+    CopyQuery,
+    CopyResult,
+    SwitchMode,
+}
+
+enum EditorAction {
+    Focus(bool),
+    CopyQuery,
+    UserEvent(Event),
+}
+
+enum SearchAction {
+    Start,
+    UserEvent(Event),
+    Leave,
+}
+
+enum JsonViewerAction {
+    CopyResult,
+    UserEvent(Event),
+    QueryChanged(String),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
     Editor = 0,
@@ -155,14 +181,9 @@ pub async fn run(
     });
 
     let mut focus = Focus::Editor;
-    let (editor_event_tx, mut editor_event_rx) = mpsc::channel::<Event>(1);
-    let (searcher_event_tx, mut searcher_event_rx) = mpsc::channel::<(Focus, Event)>(1);
-    let (processor_event_tx, mut processor_event_rx) = mpsc::channel::<Event>(1);
-
-    let (editor_copy_tx, mut editor_copy_rx) = mpsc::channel::<()>(1);
-    let (processor_copy_tx, mut processor_copy_rx) = mpsc::channel::<()>(1);
-
-    let (editor_focus_tx, mut editor_focus_rx) = mpsc::channel::<bool>(1);
+    let (editor_action_tx, mut editor_action_rx) = mpsc::channel::<EditorAction>(1);
+    let (search_action_tx, mut search_action_rx) = mpsc::channel::<SearchAction>(1);
+    let (json_viewer_action_tx, mut json_viewer_action_rx) = mpsc::channel::<JsonViewerAction>(8);
 
     let text_diff = Arc::new(RwLock::new([editor.text(), editor.text()]));
     let shared_editor = Arc::new(RwLock::new(editor));
@@ -181,6 +202,7 @@ pub async fn run(
         let shared_renderer = shared_renderer.clone();
         let ctx = ctx.clone();
         let editor_keybinds = editor_keybinds.clone();
+        let json_viewer_action_tx = json_viewer_action_tx.clone();
         tokio::spawn(async move {
             'main: loop {
                 tokio::select! {
@@ -204,100 +226,124 @@ pub async fn run(
                             other => other,
                         };
 
-                        match event {
-                            Event::Resize(width, height) => {
-                                debounce_resize_tx.send((width, height)).await?;
-                            },
-                            event if keybinds.exit.contains(&event) => {
-                                break 'main
-                            },
-                            event if keybinds.copy_query.contains(&event) => {
-                                editor_copy_tx.send(()).await?;
-                            },
-                            event if keybinds.copy_result.contains(&event) => {
-                                if ctx.is_idle().await {
-                                    processor_copy_tx.send(()).await?;
-                                } else if !no_hint{
-                                    let size = terminal::size()?;
-                                    shared_renderer.update([
-                                        (
-                                            Index::Guide,
-                                            status::State::new(
-                                                "Failed to copy while rendering is in progress.",
-                                                Severity::Warning,
-                                            )
-                                            .create_graphemes(size.0, size.1),
-                                        ),
-                                    ]).render().await?;
+                        let global_action = if let Event::Resize(width, height) = event {
+                            Some(GlobalAction::Resize(width, height))
+                        } else if keybinds.exit.contains(&event) {
+                            Some(GlobalAction::Exit)
+                        } else if keybinds.copy_query.contains(&event) {
+                            Some(GlobalAction::CopyQuery)
+                        } else if keybinds.copy_result.contains(&event) {
+                            Some(GlobalAction::CopyResult)
+                        } else if keybinds.switch_mode.contains(&event) {
+                            Some(GlobalAction::SwitchMode)
+                        } else {
+                            None
+                        };
+
+                        if let Some(action) = global_action {
+                            match action {
+                                GlobalAction::Resize(width, height) => {
+                                    debounce_resize_tx.send((width, height)).await?;
                                 }
-                            },
-                            event if keybinds.switch_mode.contains(&event) => {
-                                match focus {
+                                GlobalAction::Exit => break 'main,
+                                GlobalAction::CopyQuery => {
+                                    editor_action_tx.send(EditorAction::CopyQuery).await?;
+                                }
+                                GlobalAction::CopyResult => {
+                                    if ctx.is_idle().await {
+                                        json_viewer_action_tx
+                                            .send(JsonViewerAction::CopyResult)
+                                            .await?;
+                                    } else if !no_hint {
+                                        let size = terminal::size()?;
+                                        shared_renderer
+                                            .update([(
+                                                Index::Guide,
+                                                status::State::new(
+                                                    "Failed to copy while rendering is in progress.",
+                                                    Severity::Warning,
+                                                )
+                                                .create_graphemes(size.0, size.1),
+                                            )])
+                                            .render()
+                                            .await?;
+                                    }
+                                }
+                                GlobalAction::SwitchMode => match focus {
                                     Focus::Editor | Focus::Searcher => {
                                         if ctx.is_idle().await {
                                             focus = Focus::Processor;
-                                            editor_focus_tx.send(false).await?;
+                                            search_action_tx.send(SearchAction::Leave).await?;
+                                            editor_action_tx.send(EditorAction::Focus(false)).await?;
                                             execute!(
                                                 io::stdout(),
                                                 terminal::EnterAlternateScreen,
                                                 EnableMouseCapture,
                                             )?;
-                                        } else if !no_hint{
+                                        } else if !no_hint {
                                             let size = terminal::size()?;
-                                            shared_renderer.update([
-                                                (
+                                            shared_renderer
+                                                .update([(
                                                     Index::Guide,
                                                     status::State::new(
                                                         "Failed to switch pane while rendering is in progress.",
                                                         Severity::Warning,
                                                     )
                                                     .create_graphemes(size.0, size.1),
-                                                ),
-                                            ]).render().await?;
+                                                )])
+                                                .render()
+                                                .await?;
                                         }
-                                    },
+                                    }
                                     Focus::Processor => {
                                         focus = Focus::Editor;
-                                        editor_focus_tx.send(true).await?;
+                                        editor_action_tx.send(EditorAction::Focus(true)).await?;
                                         execute!(
                                             io::stdout(),
                                             terminal::LeaveAlternateScreen,
                                             DisableMouseCapture,
                                         )?;
-                                    },
+                                    }
+                                },
+                            }
+                            continue;
+                        }
+
+                        match focus {
+                            Focus::Editor => {
+                                if editor_keybinds.completion.contains(&event) {
+                                    focus = Focus::Searcher;
+                                    search_action_tx.send(SearchAction::Start).await?;
+                                } else {
+                                    editor_action_tx.send(EditorAction::UserEvent(event)).await?;
                                 }
-                            },
-                            event => {
-                                match focus {
-                                    Focus::Editor => {
-                                        if editor_keybinds.completion.contains(&event) {
-                                            focus = Focus::Searcher;
-                                            searcher_event_tx.send((Focus::Editor, event)).await?;
-                                        } else {
-                                            editor_event_tx.send(event).await?;
-                                        }
-                                    },
-                                    Focus::Searcher => {
-                                        if editor_keybinds.on_completion.down.contains(&event)
-                                            || editor_keybinds.on_completion.up.contains(&event)
-                                            || editor_keybinds.completion.contains(&event)
-                                        {
-                                            searcher_event_tx.send((Focus::Searcher, event)).await?;
-                                        } else {
-                                            focus = Focus::Editor;
-                                            searcher_event_tx
-                                                .send((Focus::Searcher, event.clone()))
-                                                .await?;
-                                            if !editor_keybinds.completion.contains(&event) {
-                                                editor_event_tx.send(event).await?;
-                                            }
-                                        }
-                                    },
-                                    Focus::Processor => {
-                                        processor_event_tx.send(event).await?;
-                                    },
+                            }
+                            Focus::Searcher => {
+                                if editor_keybinds.on_completion.down.contains(&event)
+                                    || editor_keybinds.completion.contains(&event)
+                                {
+                                    search_action_tx
+                                        .send(SearchAction::UserEvent(event))
+                                        .await?;
+                                } else if editor_keybinds.on_completion.up.contains(&event) {
+                                    search_action_tx
+                                        .send(SearchAction::UserEvent(event))
+                                        .await?;
+                                } else {
+                                    focus = Focus::Editor;
+                                    search_action_tx.send(SearchAction::Leave).await?;
+                                    if !editor_keybinds.completion.contains(&event) {
+                                        editor_action_tx
+                                            .send(EditorAction::UserEvent(event))
+                                            .await?;
+                                    }
                                 }
-                            },
+                            }
+                            Focus::Processor => {
+                                json_viewer_action_tx
+                                    .send(JsonViewerAction::UserEvent(event))
+                                    .await?;
+                            }
                         }
                     },
                     else => {
@@ -306,6 +352,17 @@ pub async fn run(
                 }
             }
             Ok(())
+        })
+    };
+
+    let query_action_forwarder = {
+        let json_viewer_action_tx = json_viewer_action_tx.clone();
+        tokio::spawn(async move {
+            while let Some(query) = last_query_rx.recv().await {
+                let _ = json_viewer_action_tx
+                    .send(JsonViewerAction::QueryChanged(query))
+                    .await;
+            }
         })
     };
 
@@ -318,69 +375,48 @@ pub async fn run(
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some(focus) = editor_focus_rx.recv() => {
-                        let (editor_pane, guide_pane, searcher_pane) = {
+                    Some(action) = editor_action_rx.recv() => {
+                        let size = terminal::size()?;
+                        let (editor_pane, guide_pane, searcher_pane, maybe_text_for_debounce) = {
                             let mut editor = shared_editor.write().await;
-                            let mut searcher = shared_searcher.write().await;
-                            if focus {
-                                editor.focus();
-                            } else {
-                                editor.defocus();
-                                searcher.leave_search();
+                            match action {
+                                EditorAction::Focus(focus) => {
+                                    let mut searcher = shared_searcher.write().await;
+                                    if focus {
+                                        editor.focus();
+                                    } else {
+                                        editor.defocus();
+                                        searcher.leave_search();
+                                    }
+                                }
+                                EditorAction::CopyQuery => {
+                                    let guide = copy_to_clipboard(&editor.text());
+                                    editor.set_guide(guide);
+                                }
+                                EditorAction::UserEvent(event) => {
+                                    editor.operate(&event).await?;
+                                }
                             }
+                            let searcher = shared_searcher.read().await;
+                            let current_text = editor.text();
                             (
                                 editor.create_editor_pane(size.0, size.1),
                                 editor.create_guide_pane(size.0, size.1),
                                 searcher.create_pane(size.0, size.1),
+                                current_text,
                             )
                         };
+                        let mut diff = text_diff.write().await;
+                        if maybe_text_for_debounce != diff[1] {
+                            debounce_query_tx.send(maybe_text_for_debounce.clone()).await?;
+                            diff[0] = diff[1].clone();
+                            diff[1] = maybe_text_for_debounce;
+                        }
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
                             (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                             (Index::Search, searcher_pane),
                         ]).render().await?;
-                    }
-                    Some(()) = editor_copy_rx.recv() => {
-                        let text = {
-                            let editor = shared_editor.read().await;
-                            editor.text()
-                        };
-                        let guide = copy_to_clipboard(&text);
-                        if !no_hint {
-                            let size = terminal::size()?;
-                            let pane = guide.create_graphemes(size.0, size.1);
-                            shared_renderer.update([
-                                (Index::Guide, pane),
-                            ]).render().await?;
-                        }
-                    }
-                    Some(event) = editor_event_rx.recv() => {
-                        let size = terminal::size()?;
-                        let (editor_pane, guide_pane, searcher_pane) = {
-                            let mut editor = shared_editor.write().await;
-                            editor.operate(&event).await?;
-                            let searcher = shared_searcher.read().await;
-
-                            let current_text = editor.text();
-                            let mut diff = text_diff.write().await;
-                            if current_text != diff[1] {
-                                debounce_query_tx.send(current_text.clone()).await?;
-                                diff[0] = diff[1].clone();
-                                diff[1] = current_text;
-                            }
-                            (
-                                editor.create_editor_pane(size.0, size.1),
-                                editor.create_guide_pane(size.0, size.1),
-                                searcher.create_pane(size.0, size.1),
-                            )
-                        };
-                        {
-                            shared_renderer.update([
-                                (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
-                                (Index::Search, searcher_pane),
-                            ]).render().await?;
-                        }
                     }
                     else => {
                         break
@@ -401,13 +437,13 @@ pub async fn run(
         tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some((source_focus, event)) = searcher_event_rx.recv() => {
+                    Some(action) = search_action_rx.recv() => {
                         let size = terminal::size()?;
                         let (editor_pane, guide_pane, searcher_pane) = {
                             let mut editor = shared_editor.write().await;
                             let mut searcher = shared_searcher.write().await;
-                            match source_focus {
-                                Focus::Editor => {
+                            match action {
+                                SearchAction::Start => {
                                     let prefix = editor.text();
                                     let (head_item, load_progress) =
                                         searcher.start_search(&prefix).await;
@@ -422,7 +458,7 @@ pub async fn run(
                                         None => editor.set_completion_empty_guide(&prefix),
                                     }
                                 }
-                                Focus::Searcher => {
+                                SearchAction::UserEvent(event) => {
                                     if editor_keybinds.on_completion.down.contains(&event)
                                         || editor_keybinds.completion.contains(&event)
                                     {
@@ -431,12 +467,10 @@ pub async fn run(
                                     } else if editor_keybinds.on_completion.up.contains(&event) {
                                         searcher.up();
                                         editor.replace_text(&searcher.get_current_item());
-                                    } else {
-                                        searcher.leave_search();
                                     }
                                 }
-                                Focus::Processor => {
-                                    // No-op: Searcher events are not expected from Processor focus.
+                                SearchAction::Leave => {
+                                    searcher.leave_search();
                                 }
                             }
 
@@ -468,72 +502,90 @@ pub async fn run(
     };
 
     let shared_viewer_state = initializing.await?;
-    let processor_task: JoinHandle<anyhow::Result<()>> = {
+    let resize_action_forwarder = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
         let shared_searcher = shared_searcher.clone();
         let shared_viewer_state = shared_viewer_state.clone();
         let ctx = ctx.clone();
         tokio::spawn(async move {
+            while let Some(area) = last_resize_rx.recv().await {
+                let size = terminal::size()?;
+                let (editor_pane, guide_pane, searcher_pane) = {
+                    let editor = shared_editor.read().await;
+                    let searcher = shared_searcher.read().await;
+                    (
+                        editor.create_editor_pane(size.0, size.1),
+                        editor.create_guide_pane(size.0, size.1),
+                        searcher.create_pane(size.0, size.1),
+                    )
+                };
+                shared_renderer
+                    .update([
+                        (Index::Editor, editor_pane),
+                        (
+                            Index::Guide,
+                            if !no_hint { guide_pane } else { empty_pane() },
+                        ),
+                        (Index::Search, searcher_pane),
+                    ])
+                    .render()
+                    .await?;
+                let text = {
+                    let editor = shared_editor.read().await;
+                    editor.text()
+                };
+                json_viewer::render(
+                    shared_viewer_state.clone(),
+                    shared_renderer.clone(),
+                    ctx.clone(),
+                    RenderTrigger::AreaResized { area, query: text },
+                )
+                .await;
+            }
+            Ok::<(), anyhow::Error>(())
+        })
+    };
+
+    let processor_task: JoinHandle<anyhow::Result<()>> = {
+        let shared_renderer = shared_renderer.clone();
+        let shared_viewer_state = shared_viewer_state.clone();
+        let ctx = ctx.clone();
+        tokio::spawn(async move {
             loop {
                 tokio::select! {
-                    Some(()) = processor_copy_rx.recv() => {
-                        let runtime = shared_viewer_state.lock().await;
-                        let guide = copy_to_clipboard(&runtime.formatted_content());
-                        if !no_hint {
-                            let size = terminal::size()?;
-                            let pane = guide.create_graphemes(size.0, size.1);
-                            shared_renderer.update([
-                                (Index::Guide, pane),
-                            ]).render().await?;
+                    Some(action) = json_viewer_action_rx.recv() => {
+                        match action {
+                            JsonViewerAction::CopyResult => {
+                                let runtime = shared_viewer_state.lock().await;
+                                let guide = copy_to_clipboard(&runtime.formatted_content());
+                                if !no_hint {
+                                    let size = terminal::size()?;
+                                    let pane = guide.create_graphemes(size.0, size.1);
+                                    shared_renderer.update([
+                                        (Index::Guide, pane),
+                                    ]).render().await?;
+                                }
+                            }
+                            JsonViewerAction::UserEvent(event) => {
+                                json_viewer::render(
+                                    shared_viewer_state.clone(),
+                                    shared_renderer.clone(),
+                                    ctx.clone(),
+                                    RenderTrigger::UserAction(event),
+                                )
+                                .await;
+                            }
+                            JsonViewerAction::QueryChanged(query) => {
+                                json_viewer::render(
+                                    shared_viewer_state.clone(),
+                                    shared_renderer.clone(),
+                                    ctx.clone(),
+                                    RenderTrigger::QueryChanged { query },
+                                )
+                                .await;
+                            }
                         }
-                    }
-                    Some(event) = processor_event_rx.recv() => {
-                        json_viewer::render(
-                            shared_viewer_state.clone(),
-                            shared_renderer.clone(),
-                            ctx.clone(),
-                            RenderTrigger::UserAction(event),
-                        )
-                        .await;
-                    }
-                    Some(query) = last_query_rx.recv() => {
-                        json_viewer::render(
-                            shared_viewer_state.clone(),
-                            shared_renderer.clone(),
-                            ctx.clone(),
-                            RenderTrigger::QueryChanged { query },
-                        )
-                        .await;
-                    }
-                    Some(area) = last_resize_rx.recv() => {
-                        let (editor_pane, guide_pane, searcher_pane) = {
-                            let editor = shared_editor.read().await;
-                            let searcher = shared_searcher.read().await;
-                            (
-                                editor.create_editor_pane(size.0, size.1),
-                                editor.create_guide_pane(size.0, size.1),
-                                searcher.create_pane(size.0, size.1),
-                            )
-                        };
-                        {
-                            shared_renderer.update([
-                                (Index::Editor, editor_pane),
-                                (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
-                                (Index::Search, searcher_pane),
-                            ]).render().await?;
-                        }
-                        let text = {
-                            let editor = shared_editor.read().await;
-                            editor.text()
-                        };
-                        json_viewer::render(
-                            shared_viewer_state.clone(),
-                            shared_renderer.clone(),
-                            ctx.clone(),
-                            RenderTrigger::AreaResized { area, query: text },
-                        )
-                        .await;
                     }
                     else => {
                         break
@@ -556,6 +608,8 @@ pub async fn run(
     spinning.abort();
     query_debouncer.abort();
     resize_debouncer.abort();
+    query_action_forwarder.abort();
+    resize_action_forwarder.abort();
     editor_task.abort();
     searcher_task.abort();
     processor_task.abort();
