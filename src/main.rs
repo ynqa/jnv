@@ -12,16 +12,16 @@ use promkit_widgets::{
     text_editor::{self, TextEditor},
 };
 
-mod editor;
-use editor::Editor;
+mod query_editor;
+use query_editor::QueryEditor;
 mod config;
 mod guide;
 mod json_viewer;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
+mod completion;
 mod prompt;
-mod search;
-use search::IncrementalSearcher;
+use completion::CompletionNavigator;
 mod json;
 
 use crate::config::DEFAULT_CONFIG;
@@ -179,13 +179,13 @@ async fn main() -> anyhow::Result<()> {
         config: config.editor.on_focus.clone(),
     };
 
-    let shared_suggestions = search::initialize(
+    let shared_suggestions = completion::initialize(
         &input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
     )
     .await?;
-    let searcher = IncrementalSearcher::new(
+    let completion = CompletionNavigator::new(
         shared_suggestions.clone(),
         listbox_state,
         config.completion.search_result_chunk_size,
@@ -194,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
     // TODO: re-consider put editor_task of prompt::run into Editor construction time.
     // Overall, there are several cases where it would be sufficient to
     // launch a background thread during construction.
-    let editor = Editor::new(
+    let editor = QueryEditor::new(
         text_editor_state,
         config.editor.on_focus,
         config.editor.on_defocus,
@@ -210,7 +210,7 @@ async fn main() -> anyhow::Result<()> {
         config.json,
         config.reactivity_control,
         editor,
-        searcher,
+        completion,
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,

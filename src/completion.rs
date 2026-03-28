@@ -1,12 +1,25 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use promkit_widgets::{
-    core::{grapheme::StyledGraphemes, Widget},
+    core::{
+        crossterm::{event::Event, terminal},
+        grapheme::StyledGraphemes,
+        Widget,
+    },
     listbox::{self, Listbox},
 };
-use tokio::{sync::Mutex, task};
+use tokio::{
+    sync::{mpsc, Mutex, RwLock},
+    task::{self, JoinHandle},
+};
 
-use crate::json;
+use crate::{
+    config::EditorKeybinds,
+    guide::{GuideAction, GuideMessage},
+    json,
+    prompt::Index,
+    query_editor::QueryEditor,
+};
 
 /// Progress information for loading suggestions
 #[derive(Clone, Default)]
@@ -92,14 +105,14 @@ pub async fn initialize(
     Ok(shared)
 }
 
-pub struct IncrementalSearcher {
+pub struct CompletionNavigator {
     shared_suggestions: SharedSuggestionStore,
     state: listbox::State,
     search_result_chunk_size: usize,
     search_chunk_remaining: Vec<String>,
 }
 
-impl IncrementalSearcher {
+impl CompletionNavigator {
     pub fn new(
         shared_suggestions: SharedSuggestionStore,
         state: listbox::State,
@@ -138,7 +151,7 @@ impl IncrementalSearcher {
         self.state.create_graphemes(width, height)
     }
 
-    pub fn leave_search(&mut self) {
+    pub fn leave(&mut self) {
         self.state.listbox = Listbox::from(Vec::<String>::new());
         self.search_chunk_remaining = Vec::<String>::new();
     }
@@ -155,7 +168,7 @@ impl IncrementalSearcher {
         Some(self.state.listbox.get().to_string())
     }
 
-    pub async fn start_search(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
+    pub async fn start(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
         let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
         let head_item = self.apply_search_items(items);
         (head_item, progress)
@@ -174,4 +187,91 @@ impl IncrementalSearcher {
             self.state.listbox.push_string(item);
         }
     }
+}
+
+pub enum CompletionAction {
+    Start,
+    UserEvent(Event),
+    Leave,
+}
+
+pub fn start_completion_task(
+    mut action_rx: mpsc::Receiver<CompletionAction>,
+    shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
+    shared_editor: Arc<RwLock<QueryEditor>>,
+    shared_completion: Arc<RwLock<CompletionNavigator>>,
+    text_diff: Arc<RwLock<[String; 2]>>,
+    debounce_query_tx: mpsc::Sender<String>,
+    guide_action_tx: mpsc::Sender<GuideAction>,
+    editor_keybinds: EditorKeybinds,
+) -> JoinHandle<anyhow::Result<()>> {
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                Some(action) = action_rx.recv() => {
+                    let size = terminal::size()?;
+                    let (editor_pane, completion_pane) = {
+                        let mut editor = shared_editor.write().await;
+                        let mut completion = shared_completion.write().await;
+                        match action {
+                            CompletionAction::Start => {
+                                let prefix = editor.text();
+                                let (head_item, load_progress) = completion.start(&prefix).await;
+                                match head_item {
+                                    Some(head) => {
+                                        let message = if load_progress.is_complete {
+                                            GuideMessage::LoadedAllSuggestions(load_progress.loaded_path_count)
+                                        } else {
+                                            GuideMessage::LoadedPartiallySuggestions(load_progress.loaded_path_count)
+                                        };
+                                        guide_action_tx.send(GuideAction::Show(message)).await?;
+                                        editor.replace_text(&head);
+                                    }
+                                    None => {
+                                        guide_action_tx
+                                            .send(GuideAction::Show(GuideMessage::NoSuggestionFound(prefix)))
+                                            .await?;
+                                    }
+                                }
+                            }
+                            CompletionAction::UserEvent(event) => {
+                                if editor_keybinds.on_completion.down.contains(&event)
+                                    || editor_keybinds.completion.contains(&event)
+                                {
+                                    completion.down_with_load();
+                                    editor.replace_text(&completion.get_current_item());
+                                } else if editor_keybinds.on_completion.up.contains(&event) {
+                                    completion.up();
+                                    editor.replace_text(&completion.get_current_item());
+                                }
+                            }
+                            CompletionAction::Leave => {
+                                completion.leave();
+                            }
+                        }
+
+                        let current_text = editor.text();
+                        let mut diff = text_diff.write().await;
+                        if current_text != diff[1] {
+                            debounce_query_tx.send(current_text.clone()).await?;
+                            diff[0] = diff[1].clone();
+                            diff[1] = current_text;
+                        }
+
+                        (
+                            editor.create_pane(size.0, size.1),
+                            completion.create_pane(size.0, size.1),
+                        )
+                    };
+
+                    shared_renderer
+                        .update([(Index::Editor, editor_pane), (Index::Search, completion_pane)])
+                        .render()
+                        .await?;
+                }
+                else => break,
+            }
+        }
+        Ok(())
+    })
 }
