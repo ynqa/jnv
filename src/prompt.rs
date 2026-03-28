@@ -163,6 +163,8 @@ pub async fn run(
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
         let ctx = ctx.clone();
+        let shared_editor = shared_editor.clone();
+        let editor_action_tx = editor_action_tx.clone();
         let editor_keybinds = editor_keybinds.clone();
         let json_viewer_action_tx = json_viewer_action_tx.clone();
         let guide_action_tx = guide_action_tx.clone();
@@ -263,7 +265,11 @@ pub async fn run(
                             Focus::Editor => {
                                 if editor_keybinds.completion.contains(&event) {
                                     focus = Focus::Searcher;
-                                    completion_action_tx.send(CompletionAction::Start).await?;
+                                    let prefix = {
+                                        let editor = shared_editor.read().await;
+                                        editor.text()
+                                    };
+                                    completion_action_tx.send(CompletionAction::Start(prefix)).await?;
                                 } else {
                                     editor_action_tx
                                         .send(QueryEditorAction::UserEvent(event))
@@ -324,7 +330,6 @@ pub async fn run(
         editor_action_rx,
         shared_renderer.clone(),
         shared_editor.clone(),
-        shared_completion.clone(),
         text_diff.clone(),
         debounce_query_tx.clone(),
         guide_action_tx.clone(),
@@ -333,10 +338,8 @@ pub async fn run(
     let completion_task = completion::start_completion_task(
         completion_action_rx,
         shared_renderer.clone(),
-        shared_editor.clone(),
         shared_completion.clone(),
-        text_diff.clone(),
-        debounce_query_tx.clone(),
+        editor_action_tx.clone(),
         guide_action_tx.clone(),
         editor_keybinds.clone(),
     );

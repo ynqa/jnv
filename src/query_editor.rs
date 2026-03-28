@@ -17,7 +17,6 @@ use tokio::{
 };
 
 use crate::{
-    completion::CompletionNavigator,
     config::EditorKeybinds,
     guide::{self, GuideAction},
     prompt::Index,
@@ -140,6 +139,8 @@ pub enum QueryEditorAction {
     Focus(bool),
     /// Copy the current query text to clipboard.
     CopyQuery,
+    /// Replace the current query text.
+    ReplaceText(String),
     /// Handle user input events to update the query editor's state.
     UserEvent(Event),
 }
@@ -150,7 +151,6 @@ pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     shared_editor: Arc<RwLock<QueryEditor>>,
-    shared_completion: Arc<RwLock<CompletionNavigator>>,
     text_diff: Arc<RwLock<[String; 2]>>,
     debounce_query_tx: mpsc::Sender<String>,
     guide_action_tx: mpsc::Sender<GuideAction>,
@@ -160,35 +160,32 @@ pub fn start_query_editor_task(
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let size = terminal::size()?;
-                    let (editor_pane, completion_pane, maybe_text_for_debounce) = {
+                    let (editor_pane, maybe_text_for_debounce) = {
                         let mut editor = shared_editor.write().await;
                         match action {
                             QueryEditorAction::Focus(focus) => {
-                                let mut completion = shared_completion.write().await;
                                 if focus {
                                     editor.focus();
                                 } else {
                                     editor.defocus();
-                                    completion.leave();
                                 }
                             }
                             QueryEditorAction::CopyQuery => {
                                 let message = guide::copy_to_clipboard_message(&editor.text());
                                 guide_action_tx.send(GuideAction::Show(message)).await?;
                             }
+                            QueryEditorAction::ReplaceText(text) => {
+                                editor.replace_text(&text);
+                            }
                             QueryEditorAction::UserEvent(event) => {
                                 editor.handle_user_event(&event);
                             }
                         }
-                        let completion = shared_completion.read().await;
                         let current_text = editor.text();
-                        (
-                            editor.create_graphemes(size.0, size.1),
-                            completion.create_graphemes(size.0, size.1),
-                            current_text,
-                        )
+                        (editor.create_graphemes(size.0, size.1), current_text)
                     };
 
+                    // If the text has changed, send it to the debounce channel for processing.
                     let mut diff = text_diff.write().await;
                     if maybe_text_for_debounce != diff[1] {
                         debounce_query_tx.send(maybe_text_for_debounce.clone()).await?;
@@ -196,8 +193,9 @@ pub fn start_query_editor_task(
                         diff[1] = maybe_text_for_debounce;
                     }
 
+                    // Update the renderer with the new editor pane and render it.
                     shared_renderer
-                        .update([(Index::Editor, editor_pane), (Index::Search, completion_pane)])
+                        .update([(Index::Editor, editor_pane)])
                         .render()
                         .await?;
                 }

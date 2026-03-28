@@ -18,7 +18,7 @@ use crate::{
     guide::{GuideAction, GuideMessage},
     json,
     prompt::Index,
-    query_editor::QueryEditor,
+    query_editor::QueryEditorAction,
 };
 
 /// Progress information for loading suggestions
@@ -190,7 +190,7 @@ impl CompletionNavigator {
 }
 
 pub enum CompletionAction {
-    Start,
+    Start(String),
     UserEvent(Event),
     Leave,
 }
@@ -198,10 +198,8 @@ pub enum CompletionAction {
 pub fn start_completion_task(
     mut action_rx: mpsc::Receiver<CompletionAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
-    shared_editor: Arc<RwLock<QueryEditor>>,
     shared_completion: Arc<RwLock<CompletionNavigator>>,
-    text_diff: Arc<RwLock<[String; 2]>>,
-    debounce_query_tx: mpsc::Sender<String>,
+    query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
     editor_keybinds: EditorKeybinds,
 ) -> JoinHandle<anyhow::Result<()>> {
@@ -210,12 +208,10 @@ pub fn start_completion_task(
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let size = terminal::size()?;
-                    let (editor_pane, completion_pane) = {
-                        let mut editor = shared_editor.write().await;
+                    let completion_pane = {
                         let mut completion = shared_completion.write().await;
                         match action {
-                            CompletionAction::Start => {
-                                let prefix = editor.text();
+                            CompletionAction::Start(prefix) => {
                                 let (head_item, load_progress) = completion.start(&prefix).await;
                                 match head_item {
                                     Some(head) => {
@@ -225,7 +221,9 @@ pub fn start_completion_task(
                                             GuideMessage::LoadedPartiallySuggestions(load_progress.loaded_path_count)
                                         };
                                         guide_action_tx.send(GuideAction::Show(message)).await?;
-                                        editor.replace_text(&head);
+                                        query_editor_action_tx
+                                            .send(QueryEditorAction::ReplaceText(head))
+                                            .await?;
                                     }
                                     None => {
                                         guide_action_tx
@@ -239,33 +237,25 @@ pub fn start_completion_task(
                                     || editor_keybinds.completion.contains(&event)
                                 {
                                     completion.down_with_load();
-                                    editor.replace_text(&completion.get_current_item());
+                                    query_editor_action_tx
+                                        .send(QueryEditorAction::ReplaceText(completion.get_current_item()))
+                                        .await?;
                                 } else if editor_keybinds.on_completion.up.contains(&event) {
                                     completion.up();
-                                    editor.replace_text(&completion.get_current_item());
+                                    query_editor_action_tx
+                                        .send(QueryEditorAction::ReplaceText(completion.get_current_item()))
+                                        .await?;
                                 }
                             }
                             CompletionAction::Leave => {
                                 completion.leave();
                             }
                         }
-
-                        let current_text = editor.text();
-                        let mut diff = text_diff.write().await;
-                        if current_text != diff[1] {
-                            debounce_query_tx.send(current_text.clone()).await?;
-                            diff[0] = diff[1].clone();
-                            diff[1] = current_text;
-                        }
-
-                        (
-                            editor.create_graphemes(size.0, size.1),
-                            completion.create_graphemes(size.0, size.1),
-                        )
+                        completion.create_graphemes(size.0, size.1)
                     };
 
                     shared_renderer
-                        .update([(Index::Editor, editor_pane), (Index::Search, completion_pane)])
+                        .update([(Index::Search, completion_pane)])
                         .render()
                         .await?;
                 }
