@@ -57,10 +57,6 @@ fn spawn_debouncer<T: Send + 'static>(
     })
 }
 
-fn empty_pane() -> StyledGraphemes {
-    StyledGraphemes::default()
-}
-
 #[derive(Clone, Copy)]
 enum Focus {
     Editor,
@@ -104,9 +100,9 @@ pub async fn run(
         Renderer::try_new_with_graphemes(
             [
                 (Index::Editor, editor.create_pane(size.0, size.1)),
-                (Index::Guide, empty_pane()),
-                (Index::Search, empty_pane()),
-                (Index::Processor, empty_pane()),
+                (Index::Guide, StyledGraphemes::default()),
+                (Index::Search, StyledGraphemes::default()),
+                (Index::Processor, StyledGraphemes::default()),
             ]
             .into_iter(),
             true,
