@@ -91,7 +91,6 @@ pub struct JsonViewer {
 
 pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 
-
 impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {

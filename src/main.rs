@@ -147,7 +147,7 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    
+
     // Load input data
     let input = parse_input(&args)?;
     let input: &'static str = Box::leak(input.into_boxed_str());
@@ -168,9 +168,6 @@ async fn main() -> anyhow::Result<()> {
         config: config.completion.listbox.clone(),
     };
 
-    let searcher =
-        IncrementalSearcher::new(listbox_state, config.completion.search_result_chunk_size);
-
     let text_editor_state = text_editor::State {
         texteditor: if let Some(filter) = args.default_filter {
             TextEditor::new(filter)
@@ -181,10 +178,16 @@ async fn main() -> anyhow::Result<()> {
         config: config.editor.on_focus.clone(),
     };
 
-    let loading_suggestions_task = searcher.spawn_load_task(
+    let shared_suggestions = search::initialize(
         &input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
+    )
+    .await?;
+    let searcher = IncrementalSearcher::new(
+        shared_suggestions.clone(),
+        listbox_state,
+        config.completion.search_result_chunk_size,
     );
 
     // TODO: re-consider put editor_task of prompt::run into Editor construction time.
@@ -192,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
     // launch a background thread during construction.
     let editor = Editor::new(
         text_editor_state,
-        searcher,
+        shared_suggestions.clone(),
         config.editor.on_focus,
         config.editor.on_defocus,
         // TODO: remove clones
@@ -207,7 +210,7 @@ async fn main() -> anyhow::Result<()> {
         config.json,
         config.reactivity_control,
         editor,
-        loading_suggestions_task,
+        searcher,
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,
