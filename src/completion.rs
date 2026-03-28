@@ -147,7 +147,7 @@ impl CompletionNavigator {
         self.state.listbox.get().to_string()
     }
 
-    pub fn create_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
         self.state.create_graphemes(width, height)
     }
 
@@ -259,8 +259,8 @@ pub fn start_completion_task(
                         }
 
                         (
-                            editor.create_pane(size.0, size.1),
-                            completion.create_pane(size.0, size.1),
+                            editor.create_graphemes(size.0, size.1),
+                            completion.create_graphemes(size.0, size.1),
                         )
                     };
 

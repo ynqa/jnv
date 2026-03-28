@@ -99,7 +99,7 @@ pub async fn run(
     let shared_renderer = SharedRenderer::new(
         Renderer::try_new_with_graphemes(
             [
-                (Index::Editor, editor.create_pane(size.0, size.1)),
+                (Index::Editor, editor.create_graphemes(size.0, size.1)),
                 (Index::Guide, StyledGraphemes::default()),
                 (Index::Search, StyledGraphemes::default()),
                 (Index::Processor, StyledGraphemes::default()),
@@ -356,8 +356,8 @@ pub async fn run(
                     let editor = shared_editor.read().await;
                     let completion = shared_completion.read().await;
                     (
-                        editor.create_pane(size.0, size.1),
-                        completion.create_pane(size.0, size.1),
+                        editor.create_graphemes(size.0, size.1),
+                        completion.create_graphemes(size.0, size.1),
                     )
                 };
                 shared_renderer
