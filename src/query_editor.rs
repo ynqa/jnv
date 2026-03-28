@@ -23,6 +23,8 @@ use crate::{
     prompt::Index,
 };
 
+/// Editor for inputting jq query. It manages the state of the text editor
+/// and handles user input events to update the query text accordingly.
 pub struct QueryEditor {
     state: text_editor::State,
     focus_config: text_editor::Config,
@@ -45,27 +47,33 @@ impl QueryEditor {
         }
     }
 
+    /// Focus the query editor, applying the focus configuration.
     pub fn focus(&mut self) {
         self.state.config = self.focus_config.clone();
     }
 
+    /// Defocus the query editor, applying the defocus configuration.
     pub fn defocus(&mut self) {
         self.state.config = self.defocus_config.clone();
     }
 
+    /// Get the current text of the query editor without the cursor.
     pub fn text(&self) -> String {
         self.state.texteditor.text_without_cursor().to_string()
     }
 
-    pub fn create_pane(&self, width: u16, height: u16) -> StyledGraphemes {
+    /// Create graphemes for rendering the query editor.
+    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
         self.state.create_graphemes(width, height)
     }
 
+    /// Replace the current text of the query editor with the given text.
     pub fn replace_text(&mut self, text: &str) {
         self.state.texteditor.replace(text);
     }
 
-    pub async fn operate(&mut self, event: &Event) -> anyhow::Result<()> {
+    /// Handle a user input event to update the query editor's state accordingly.
+    fn handle_user_event(&mut self, event: &Event) {
         match event {
             key if self.editor_keybinds.backward.contains(key) => {
                 self.state.texteditor.backward();
@@ -122,16 +130,22 @@ impl QueryEditor {
             },
             _ => {}
         }
-        Ok(())
     }
 }
 
+/// Represent the actions that can be performed on the query editor,
+/// such as focusing, copying the query, or handling user events.
 pub enum QueryEditorAction {
+    /// Focus or defocus the query editor based on the boolean value.
     Focus(bool),
+    /// Copy the current query text to clipboard.
     CopyQuery,
+    /// Handle user input events to update the query editor's state.
     UserEvent(Event),
 }
 
+/// Spawn a background task to manage the query editor's state and interactions.
+/// It listens for actions such as focusing, copying the query, or handling user events.
 pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
@@ -163,14 +177,14 @@ pub fn start_query_editor_task(
                                 guide_action_tx.send(GuideAction::Show(message)).await?;
                             }
                             QueryEditorAction::UserEvent(event) => {
-                                editor.operate(&event).await?;
+                                editor.handle_user_event(&event);
                             }
                         }
                         let completion = shared_completion.read().await;
                         let current_text = editor.text();
                         (
-                            editor.create_pane(size.0, size.1),
-                            completion.create_pane(size.0, size.1),
+                            editor.create_graphemes(size.0, size.1),
+                            completion.create_graphemes(size.0, size.1),
                             current_text,
                         )
                     };

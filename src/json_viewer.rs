@@ -100,8 +100,8 @@ impl JsonViewer {
         self.state.config.format_raw_json(self.state.stream.rows())
     }
 
-    /// Handle user actions and update the viewer state accordingly.
-    fn apply_user_action(&mut self, event: &Event) {
+    /// Handle user event and update the viewer state accordingly.
+    fn handle_user_event(&mut self, event: &Event) {
         match event {
             // Move up.
             event if self.keybinds.up.contains(event) => {
@@ -229,7 +229,7 @@ pub async fn render(
 ) {
     match trigger {
         RenderTrigger::UserAction(event) => {
-            handle_user_action(shared_viewer_state, shared_renderer, shared_ctx, event).await;
+            handle_user_event(shared_viewer_state, shared_renderer, shared_ctx, event).await;
         }
         RenderTrigger::QueryChanged { query } => {
             handle_query_changed(
@@ -255,7 +255,7 @@ pub async fn render(
     }
 }
 
-async fn handle_user_action(
+async fn handle_user_event(
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
@@ -268,7 +268,7 @@ async fn handle_user_action(
 
     let graphemes = {
         let mut viewer = shared_viewer_state.lock().await;
-        viewer.apply_user_action(&event);
+        viewer.handle_user_event(&event);
         viewer.state.create_graphemes(area.0, area.1)
     };
 
@@ -398,11 +398,11 @@ fn spawn_query_update_task(
 /// Represent the actions that can be performed in JSON viewer,
 /// including copying results to clipboard, handling user events, and processing query changes.
 pub enum ViewerAction {
-    // Copy the current JSON stream results to clipboard.
+    /// Copy the current JSON stream results to clipboard.
     CopyResult,
-    // Handle user events such as key presses for navigation and toggling.
+    /// Handle user events such as key presses for navigation and toggling.
     UserEvent(Event),
-    // Handle changes in jq query input for dynamic filtering of JSON stream.
+    /// Handle changes in jq query input for dynamic filtering of JSON stream.
     QueryChanged(String),
 }
 
