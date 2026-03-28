@@ -10,12 +10,15 @@ use promkit_widgets::{
     jsonstream::{self, JsonStream},
     serde_json::{self, Value},
     spinner,
-    status::{self, Severity},
 };
-use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::{
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+};
 
 use crate::{
     config::{JsonConfig, JsonViewerKeybinds},
+    guide::{self, GuideAction, GuideMessage},
     json,
     prompt::Index,
 };
@@ -91,6 +94,12 @@ pub struct JsonViewer {
 
 pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 
+pub enum ViewerAction {
+    CopyResult,
+    UserEvent(Event),
+    QueryChanged(String),
+}
+
 impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {
@@ -142,20 +151,12 @@ impl JsonViewer {
         &mut self,
         area: (u16, u16),
         input: String,
-    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
+    ) -> (Option<GuideMessage>, Option<StyledGraphemes>) {
         match json::run_jaq(&input, &self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(
-                        status::State::new(
-                            format!(
-                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
-                            ),
-                            Severity::Warning,
-                        )
-                        .create_graphemes(area.0, area.1),
-                    );
+                    guide = Some(GuideMessage::JqReturnedNull(input));
 
                     self.state.stream = JsonStream::new(self.json.iter());
                 } else {
@@ -168,10 +169,7 @@ impl JsonViewer {
                 self.state.stream = JsonStream::new(self.json.iter());
 
                 (
-                    Some(
-                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
-                            .create_graphemes(area.0, area.1),
-                    ),
+                    Some(GuideMessage::JqFailed(e.to_string())),
                     Some(self.state.create_graphemes(area.0, area.1)),
                 )
             }
@@ -232,6 +230,7 @@ pub async fn render(
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
+    guide_action_tx: mpsc::Sender<GuideAction>,
     trigger: RenderTrigger,
 ) {
     match trigger {
@@ -239,13 +238,21 @@ pub async fn render(
             handle_user_action(shared_viewer_state, shared_renderer, shared_ctx, event).await;
         }
         RenderTrigger::QueryChanged { query } => {
-            handle_query_changed(shared_viewer_state, shared_renderer, shared_ctx, query).await;
+            handle_query_changed(
+                shared_viewer_state,
+                shared_renderer,
+                shared_ctx,
+                guide_action_tx,
+                query,
+            )
+            .await;
         }
         RenderTrigger::AreaResized { area, query } => {
             handle_area_resized(
                 shared_viewer_state,
                 shared_renderer,
                 shared_ctx,
+                guide_action_tx,
                 area,
                 query,
             )
@@ -282,6 +289,7 @@ async fn handle_query_changed(
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
+    guide_action_tx: mpsc::Sender<GuideAction>,
     query: String,
 ) {
     // Abort any ongoing processing task to prevent race conditions
@@ -296,6 +304,7 @@ async fn handle_query_changed(
     let task = spawn_query_update_task(
         shared_viewer_state.clone(),
         shared_ctx.clone(),
+        guide_action_tx,
         shared_renderer,
         query,
     );
@@ -312,6 +321,7 @@ async fn handle_area_resized(
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
+    guide_action_tx: mpsc::Sender<GuideAction>,
     area: (u16, u16),
     query: String,
 ) {
@@ -331,6 +341,7 @@ async fn handle_area_resized(
     let task = spawn_query_update_task(
         shared_viewer_state.clone(),
         shared_ctx.clone(),
+        guide_action_tx,
         shared_renderer,
         query,
     );
@@ -349,6 +360,7 @@ async fn handle_area_resized(
 fn spawn_query_update_task(
     shared_viewer_state: SharedJsonViewer,
     shared_ctx: SharedContext,
+    guide_action_tx: mpsc::Sender<GuideAction>,
     shared_renderer: SharedRenderer<Index>,
     query: String,
 ) -> JoinHandle<()> {
@@ -374,19 +386,63 @@ fn spawn_query_update_task(
             ctx.state = State::Idle;
         }
 
+        if let Some(message) = maybe_guide {
+            let _ = guide_action_tx.send(GuideAction::Show(message)).await;
+        }
+
         // TODO: error handling
         let _ = shared_renderer
-            .update([
-                (
-                    Index::Guide,
-                    maybe_guide.unwrap_or(StyledGraphemes::default()),
-                ),
-                (
-                    Index::Processor,
-                    maybe_resp.unwrap_or(StyledGraphemes::default()),
-                ),
-            ])
+            .update([(
+                Index::Processor,
+                maybe_resp.unwrap_or(StyledGraphemes::default()),
+            )])
             .render()
             .await;
+    })
+}
+
+pub fn start_viewer_task(
+    mut action_rx: mpsc::Receiver<ViewerAction>,
+    guide_action_tx: mpsc::Sender<GuideAction>,
+    shared_viewer_state: SharedJsonViewer,
+    shared_renderer: SharedRenderer<Index>,
+    shared_ctx: SharedContext,
+) -> JoinHandle<anyhow::Result<()>> {
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                Some(action) = action_rx.recv() => {
+                    match action {
+                        ViewerAction::CopyResult => {
+                            let runtime = shared_viewer_state.lock().await;
+                            let message = guide::copy_to_clipboard_message(&runtime.formatted_content());
+                            let _ = guide_action_tx.send(GuideAction::Show(message)).await;
+                        }
+                        ViewerAction::UserEvent(event) => {
+                            render(
+                                shared_viewer_state.clone(),
+                                shared_renderer.clone(),
+                                shared_ctx.clone(),
+                                guide_action_tx.clone(),
+                                RenderTrigger::UserAction(event),
+                            )
+                            .await;
+                        }
+                        ViewerAction::QueryChanged(query) => {
+                            render(
+                                shared_viewer_state.clone(),
+                                shared_renderer.clone(),
+                                shared_ctx.clone(),
+                                guide_action_tx.clone(),
+                                RenderTrigger::QueryChanged { query },
+                            )
+                            .await;
+                        }
+                    }
+                }
+                else => break,
+            }
+        }
+        Ok(())
     })
 }

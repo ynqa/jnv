@@ -1,6 +1,5 @@
 use std::{io, sync::Arc, time::Duration};
 
-use arboard::Clipboard;
 use futures::StreamExt;
 use promkit_widgets::{
     core::{
@@ -15,10 +14,8 @@ use promkit_widgets::{
         },
         grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
-        Widget,
     },
     spinner::{self, Spinner, State},
-    status::{self, Severity},
 };
 use tokio::{
     sync::{mpsc, RwLock},
@@ -27,6 +24,7 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, Keybinds, ReactivityControl},
+    guide::{self, GuideAction, GuideMessage},
     json_viewer::{self, RenderTrigger, SharedContext},
     search::IncrementalSearcher,
     Editor,
@@ -59,21 +57,6 @@ fn spawn_debouncer<T: Send + 'static>(
     })
 }
 
-fn copy_to_clipboard(content: &str) -> status::State {
-    match Clipboard::new() {
-        Ok(mut clipboard) => match clipboard.set_text(content) {
-            Ok(_) => status::State::new("Copied to clipboard", Severity::Success),
-            Err(e) => {
-                status::State::new(format!("Failed to copy to clipboard: {e}"), Severity::Error)
-            }
-        },
-        // arboard fails (in the specific environment like linux?) on Clipboard::new()
-        // suppress the errors (but still show them) not to break the prompt
-        // https://github.com/1Password/arboard/issues/153
-        Err(e) => status::State::new(format!("Failed to setup clipboard: {e}"), Severity::Error),
-    }
-}
-
 fn empty_pane() -> StyledGraphemes {
     StyledGraphemes::default()
 }
@@ -103,12 +86,6 @@ enum SearchAction {
     Start,
     UserEvent(Event),
     Leave,
-}
-
-enum JsonViewerAction {
-    CopyResult,
-    UserEvent(Event),
-    QueryChanged(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -183,7 +160,9 @@ pub async fn run(
     let mut focus = Focus::Editor;
     let (editor_action_tx, mut editor_action_rx) = mpsc::channel::<EditorAction>(1);
     let (search_action_tx, mut search_action_rx) = mpsc::channel::<SearchAction>(1);
-    let (json_viewer_action_tx, mut json_viewer_action_rx) = mpsc::channel::<JsonViewerAction>(8);
+    let (json_viewer_action_tx, json_viewer_action_rx) =
+        mpsc::channel::<json_viewer::ViewerAction>(8);
+    let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
     let text_diff = Arc::new(RwLock::new([editor.text(), editor.text()]));
     let shared_editor = Arc::new(RwLock::new(editor));
@@ -199,10 +178,10 @@ pub async fn run(
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
-        let shared_renderer = shared_renderer.clone();
         let ctx = ctx.clone();
         let editor_keybinds = editor_keybinds.clone();
         let json_viewer_action_tx = json_viewer_action_tx.clone();
+        let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
             'main: loop {
                 tokio::select! {
@@ -225,6 +204,7 @@ pub async fn run(
                             }
                             other => other,
                         };
+                        guide_action_tx.send(GuideAction::Clear).await?;
 
                         let global_action = if let Event::Resize(width, height) = event {
                             Some(GlobalAction::Resize(width, height))
@@ -252,20 +232,13 @@ pub async fn run(
                                 GlobalAction::CopyResult => {
                                     if ctx.is_idle().await {
                                         json_viewer_action_tx
-                                            .send(JsonViewerAction::CopyResult)
+                                            .send(json_viewer::ViewerAction::CopyResult)
                                             .await?;
-                                    } else if !no_hint {
-                                        let size = terminal::size()?;
-                                        shared_renderer
-                                            .update([(
-                                                Index::Guide,
-                                                status::State::new(
-                                                    "Failed to copy while rendering is in progress.",
-                                                    Severity::Warning,
-                                                )
-                                                .create_graphemes(size.0, size.1),
-                                            )])
-                                            .render()
+                                    } else {
+                                        guide_action_tx
+                                            .send(GuideAction::Show(
+                                                GuideMessage::FailedToCopyWhileRenderingInProgress,
+                                            ))
                                             .await?;
                                     }
                                 }
@@ -280,18 +253,11 @@ pub async fn run(
                                                 terminal::EnterAlternateScreen,
                                                 EnableMouseCapture,
                                             )?;
-                                        } else if !no_hint {
-                                            let size = terminal::size()?;
-                                            shared_renderer
-                                                .update([(
-                                                    Index::Guide,
-                                                    status::State::new(
-                                                        "Failed to switch pane while rendering is in progress.",
-                                                        Severity::Warning,
-                                                    )
-                                                    .create_graphemes(size.0, size.1),
-                                                )])
-                                                .render()
+                                        } else {
+                                            guide_action_tx
+                                                .send(GuideAction::Show(
+                                                    GuideMessage::FailedToSwitchPaneWhileRenderingInProgress,
+                                                ))
                                                 .await?;
                                         }
                                     }
@@ -341,7 +307,7 @@ pub async fn run(
                             }
                             Focus::Processor => {
                                 json_viewer_action_tx
-                                    .send(JsonViewerAction::UserEvent(event))
+                                    .send(json_viewer::ViewerAction::UserEvent(event))
                                     .await?;
                             }
                         }
@@ -360,11 +326,13 @@ pub async fn run(
         tokio::spawn(async move {
             while let Some(query) = last_query_rx.recv().await {
                 let _ = json_viewer_action_tx
-                    .send(JsonViewerAction::QueryChanged(query))
+                    .send(json_viewer::ViewerAction::QueryChanged(query))
                     .await;
             }
         })
     };
+
+    let guide_task = guide::start_guide_task(guide_action_rx, shared_renderer.clone(), no_hint);
 
     let editor_task: JoinHandle<anyhow::Result<()>> = {
         let shared_renderer = shared_renderer.clone();
@@ -372,12 +340,13 @@ pub async fn run(
         let shared_searcher = shared_searcher.clone();
         let text_diff = text_diff.clone();
         let debounce_query_tx = debounce_query_tx.clone();
+        let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(action) = editor_action_rx.recv() => {
                         let size = terminal::size()?;
-                        let (editor_pane, guide_pane, searcher_pane, maybe_text_for_debounce) = {
+                        let (editor_pane, searcher_pane, maybe_text_for_debounce) = {
                             let mut editor = shared_editor.write().await;
                             match action {
                                 EditorAction::Focus(focus) => {
@@ -390,8 +359,8 @@ pub async fn run(
                                     }
                                 }
                                 EditorAction::CopyQuery => {
-                                    let guide = copy_to_clipboard(&editor.text());
-                                    editor.set_guide(guide);
+                                    let message = guide::copy_to_clipboard_message(&editor.text());
+                                    guide_action_tx.send(GuideAction::Show(message)).await?;
                                 }
                                 EditorAction::UserEvent(event) => {
                                     editor.operate(&event).await?;
@@ -401,7 +370,6 @@ pub async fn run(
                             let current_text = editor.text();
                             (
                                 editor.create_editor_pane(size.0, size.1),
-                                editor.create_guide_pane(size.0, size.1),
                                 searcher.create_pane(size.0, size.1),
                                 current_text,
                             )
@@ -414,7 +382,6 @@ pub async fn run(
                         }
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
-                            (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                             (Index::Search, searcher_pane),
                         ]).render().await?;
                     }
@@ -434,12 +401,13 @@ pub async fn run(
         let text_diff = text_diff.clone();
         let debounce_query_tx = debounce_query_tx.clone();
         let editor_keybinds = editor_keybinds.clone();
+        let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(action) = search_action_rx.recv() => {
                         let size = terminal::size()?;
-                        let (editor_pane, guide_pane, searcher_pane) = {
+                        let (editor_pane, searcher_pane) = {
                             let mut editor = shared_editor.write().await;
                             let mut searcher = shared_searcher.write().await;
                             match action {
@@ -449,13 +417,23 @@ pub async fn run(
                                         searcher.start_search(&prefix).await;
                                     match head_item {
                                         Some(head) => {
-                                            editor.set_completion_found_guide(
-                                                load_progress.loaded_path_count,
-                                                load_progress.is_complete,
-                                            );
+                                            let message = if load_progress.is_complete {
+                                                GuideMessage::LoadedAllSuggestions(
+                                                    load_progress.loaded_path_count,
+                                                )
+                                            } else {
+                                                GuideMessage::LoadedPartiallySuggestions(
+                                                    load_progress.loaded_path_count,
+                                                )
+                                            };
+                                            guide_action_tx.send(GuideAction::Show(message)).await?;
                                             editor.replace_text(&head);
                                         }
-                                        None => editor.set_completion_empty_guide(&prefix),
+                                        None => {
+                                            guide_action_tx.send(GuideAction::Show(
+                                                GuideMessage::NoSuggestionFound(prefix),
+                                            )).await?;
+                                        }
                                     }
                                 }
                                 SearchAction::UserEvent(event) => {
@@ -483,14 +461,12 @@ pub async fn run(
                             }
                             (
                                 editor.create_editor_pane(size.0, size.1),
-                                editor.create_guide_pane(size.0, size.1),
                                 searcher.create_pane(size.0, size.1),
                             )
                         };
 
                         shared_renderer.update([
                             (Index::Editor, editor_pane),
-                            (Index::Guide, if !no_hint { guide_pane } else { empty_pane() }),
                             (Index::Search, searcher_pane),
                         ]).render().await?;
                     }
@@ -508,27 +484,20 @@ pub async fn run(
         let shared_searcher = shared_searcher.clone();
         let shared_viewer_state = shared_viewer_state.clone();
         let ctx = ctx.clone();
+        let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
             while let Some(area) = last_resize_rx.recv().await {
                 let size = terminal::size()?;
-                let (editor_pane, guide_pane, searcher_pane) = {
+                let (editor_pane, searcher_pane) = {
                     let editor = shared_editor.read().await;
                     let searcher = shared_searcher.read().await;
                     (
                         editor.create_editor_pane(size.0, size.1),
-                        editor.create_guide_pane(size.0, size.1),
                         searcher.create_pane(size.0, size.1),
                     )
                 };
                 shared_renderer
-                    .update([
-                        (Index::Editor, editor_pane),
-                        (
-                            Index::Guide,
-                            if !no_hint { guide_pane } else { empty_pane() },
-                        ),
-                        (Index::Search, searcher_pane),
-                    ])
+                    .update([(Index::Editor, editor_pane), (Index::Search, searcher_pane)])
                     .render()
                     .await?;
                 let text = {
@@ -539,6 +508,7 @@ pub async fn run(
                     shared_viewer_state.clone(),
                     shared_renderer.clone(),
                     ctx.clone(),
+                    guide_action_tx.clone(),
                     RenderTrigger::AreaResized { area, query: text },
                 )
                 .await;
@@ -547,54 +517,13 @@ pub async fn run(
         })
     };
 
-    let processor_task: JoinHandle<anyhow::Result<()>> = {
-        let shared_renderer = shared_renderer.clone();
-        let shared_viewer_state = shared_viewer_state.clone();
-        let ctx = ctx.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(action) = json_viewer_action_rx.recv() => {
-                        match action {
-                            JsonViewerAction::CopyResult => {
-                                let runtime = shared_viewer_state.lock().await;
-                                let guide = copy_to_clipboard(&runtime.formatted_content());
-                                if !no_hint {
-                                    let size = terminal::size()?;
-                                    let pane = guide.create_graphemes(size.0, size.1);
-                                    shared_renderer.update([
-                                        (Index::Guide, pane),
-                                    ]).render().await?;
-                                }
-                            }
-                            JsonViewerAction::UserEvent(event) => {
-                                json_viewer::render(
-                                    shared_viewer_state.clone(),
-                                    shared_renderer.clone(),
-                                    ctx.clone(),
-                                    RenderTrigger::UserAction(event),
-                                )
-                                .await;
-                            }
-                            JsonViewerAction::QueryChanged(query) => {
-                                json_viewer::render(
-                                    shared_viewer_state.clone(),
-                                    shared_renderer.clone(),
-                                    ctx.clone(),
-                                    RenderTrigger::QueryChanged { query },
-                                )
-                                .await;
-                            }
-                        }
-                    }
-                    else => {
-                        break
-                    }
-                }
-            }
-            Ok(())
-        })
-    };
+    let processor_task = json_viewer::start_viewer_task(
+        json_viewer_action_rx,
+        guide_action_tx.clone(),
+        shared_viewer_state.clone(),
+        shared_renderer.clone(),
+        ctx.clone(),
+    );
 
     main_task.await??;
 
@@ -610,6 +539,7 @@ pub async fn run(
     resize_debouncer.abort();
     query_action_forwarder.abort();
     resize_action_forwarder.abort();
+    guide_task.abort();
     editor_task.abort();
     searcher_task.abort();
     processor_task.abort();

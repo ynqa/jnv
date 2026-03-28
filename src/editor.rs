@@ -4,7 +4,6 @@ use promkit_widgets::{
         grapheme::StyledGraphemes,
         Widget,
     },
-    status::{self, Severity},
     text_editor,
 };
 
@@ -14,7 +13,6 @@ pub struct Editor {
     state: text_editor::State,
     focus_config: text_editor::Config,
     defocus_config: text_editor::Config,
-    guide: status::State,
     editor_keybinds: EditorKeybinds,
 }
 
@@ -29,7 +27,6 @@ impl Editor {
             state,
             focus_config,
             defocus_config,
-            guide: status::State::default(),
             editor_keybinds,
         }
     }
@@ -40,7 +37,6 @@ impl Editor {
 
     pub fn defocus(&mut self) {
         self.state.config = self.defocus_config.clone();
-        self.guide = status::State::default();
     }
 
     pub fn text(&self) -> String {
@@ -51,46 +47,11 @@ impl Editor {
         self.state.create_graphemes(width, height)
     }
 
-    pub fn create_guide_pane(&self, width: u16, height: u16) -> StyledGraphemes {
-        self.guide.create_graphemes(width, height)
-    }
-
-    pub fn clear_guide(&mut self) {
-        self.guide = status::State::default();
-    }
-
-    pub fn set_guide(&mut self, guide: status::State) {
-        self.guide = guide;
-    }
-
     pub fn replace_text(&mut self, text: &str) {
         self.state.texteditor.replace(text);
     }
 
-    pub fn set_completion_found_guide(&mut self, loaded_path_count: usize, is_complete: bool) {
-        if is_complete {
-            self.guide = status::State::new(
-                format!("Loaded all ({loaded_path_count}) suggestions"),
-                Severity::Success,
-            );
-        } else {
-            self.guide = status::State::new(
-                format!("Loaded partially ({loaded_path_count}) suggestions"),
-                Severity::Success,
-            );
-        }
-    }
-
-    pub fn set_completion_empty_guide(&mut self, prefix: &str) {
-        self.guide = status::State::new(
-            format!("No suggestion found for '{prefix}'"),
-            Severity::Warning,
-        );
-    }
-
     pub async fn operate(&mut self, event: &Event) -> anyhow::Result<()> {
-        self.clear_guide();
-
         match event {
             // Move cursor.
             key if self.editor_keybinds.backward.contains(key) => {
