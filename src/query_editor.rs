@@ -2,12 +2,9 @@ use std::sync::Arc;
 
 use promkit_widgets::{
     core::{
-        crossterm::{
-            event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-            terminal,
-        },
-        grapheme::StyledGraphemes,
-        Widget,
+        Widget, crossterm::{
+            cursor, event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers}, terminal
+        }, grapheme::StyledGraphemes
     },
     text_editor,
 };
@@ -151,16 +148,19 @@ pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     shared_editor: Arc<RwLock<QueryEditor>>,
-    text_diff: Arc<RwLock<[String; 2]>>,
     debounce_query_tx: mpsc::Sender<String>,
     guide_action_tx: mpsc::Sender<GuideAction>,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
+        let mut last_text = {
+            let editor = shared_editor.read().await;
+            editor.text()
+        };
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let size = terminal::size()?;
-                    let (editor_pane, maybe_text_for_debounce) = {
+                    let (editor_pane, current_text) = {
                         let mut editor = shared_editor.write().await;
                         match action {
                             QueryEditorAction::Focus(focus) => {
@@ -186,11 +186,9 @@ pub fn start_query_editor_task(
                     };
 
                     // If the text has changed, send it to the debounce channel for processing.
-                    let mut diff = text_diff.write().await;
-                    if maybe_text_for_debounce != diff[1] {
-                        debounce_query_tx.send(maybe_text_for_debounce.clone()).await?;
-                        diff[0] = diff[1].clone();
-                        diff[1] = maybe_text_for_debounce;
+                    if current_text != last_text {
+                        debounce_query_tx.send(current_text.clone()).await?;
+                        last_text = current_text;
                     }
 
                     // Update the renderer with the new editor pane and render it.
