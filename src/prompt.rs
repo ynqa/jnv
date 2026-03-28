@@ -148,7 +148,6 @@ pub async fn run(
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
-    let text_diff = Arc::new(RwLock::new([editor.text(), editor.text()]));
     let shared_editor = Arc::new(RwLock::new(editor));
     let shared_completion = Arc::new(RwLock::new(completion));
     let editor_keybinds = keybinds.on_editor.clone();
@@ -330,7 +329,6 @@ pub async fn run(
         editor_action_rx,
         shared_renderer.clone(),
         shared_editor.clone(),
-        text_diff.clone(),
         debounce_query_tx.clone(),
         guide_action_tx.clone(),
     );
