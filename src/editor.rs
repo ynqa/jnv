@@ -59,6 +59,10 @@ impl Editor {
         self.guide = status::State::default();
     }
 
+    pub fn set_guide(&mut self, guide: status::State) {
+        self.guide = guide;
+    }
+
     pub fn replace_text(&mut self, text: &str) {
         self.state.texteditor.replace(text);
     }
