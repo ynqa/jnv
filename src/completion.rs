@@ -113,7 +113,8 @@ pub struct CompletionNavigator {
     /// Number of suggestions to load in each chunk
     /// when the user scrolls near the end of the list.
     search_result_chunk_size: usize,
-    search_chunk_remaining: Vec<String>,
+    /// Buffered suggestions that are not yet visible in the listbox.
+    remaining_items: Vec<String>,
 }
 
 impl CompletionNavigator {
@@ -126,7 +127,7 @@ impl CompletionNavigator {
             shared_suggestions,
             state,
             search_result_chunk_size,
-            search_chunk_remaining: Default::default(),
+            remaining_items: Default::default(),
         }
     }
 
@@ -140,31 +141,35 @@ impl CompletionNavigator {
         self.state.create_graphemes(width, height)
     }
 
+    /// Returns true when the cursor is close enough to the visible tail
+    /// and preloading the next chunk is beneficial.
+    fn is_near_visible_tail(&self) -> bool {
+        self.state
+            .listbox
+            .len()
+            .saturating_sub(self.state.listbox.position())
+            < self.state.config.lines.unwrap_or(1)
+    }
+
     fn move_down(&mut self) {
         // First, move the cursor down by one item.
         self.state.listbox.forward();
 
         // Then, check if we need to load more items
         // when the cursor is close to the end.
-        if self
-            .state
-            .listbox
-            .len()
-            .saturating_sub(self.state.listbox.position())
-            < self.state.config.lines.unwrap_or(1)
-        {
+        if self.is_near_visible_tail() {
             self.append_next_chunk_if_needed();
         }
     }
 
     fn append_next_chunk_if_needed(&mut self) {
-        if self.search_chunk_remaining.is_empty() {
+        if self.remaining_items.is_empty() {
             return;
         }
-        let items = self.search_chunk_remaining.drain(
+        let items = self.remaining_items.drain(
             ..self
                 .search_result_chunk_size
-                .min(self.search_chunk_remaining.len()),
+                .min(self.remaining_items.len()),
         );
         for item in items {
             self.state.listbox.push_string(item);
@@ -192,27 +197,34 @@ impl CompletionNavigator {
         None
     }
 
-    fn apply_search_items(&mut self, mut items: Vec<String>) -> Option<String> {
+    async fn enter(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
+        let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
+        let head_item = self.initialize_session_items(items);
+        (head_item, progress)
+    }
+
+    /// Initialize a completion session with a new search result set.
+    /// This method always resets previous session state first.
+    fn initialize_session_items(&mut self, mut items: Vec<String>) -> Option<String> {
+        self.clear_session_state();
+
         if items.is_empty() {
             return None;
         }
+
         let used = items
             .drain(..self.search_result_chunk_size.min(items.len()))
             .collect::<Vec<_>>();
-        self.search_chunk_remaining = items;
+        self.remaining_items = items;
         self.state.listbox = Listbox::from(used);
         Some(self.state.listbox.get().to_string())
     }
 
-    async fn enter(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
-        let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
-        let head_item = self.apply_search_items(items);
-        (head_item, progress)
-    }
-
-    fn reset_session(&mut self) {
+    /// Reset completion session state.
+    /// This clears both visible list items and buffered remaining items.
+    fn clear_session_state(&mut self) {
         self.state.listbox = Listbox::from(Vec::<String>::new());
-        self.search_chunk_remaining = Vec::<String>::new();
+        self.remaining_items.clear();
     }
 }
 
@@ -267,7 +279,7 @@ pub fn start_completion_task(
                                 }
                             }
                             CompletionAction::Leave => {
-                                completion.reset_session();
+                                completion.clear_session_state();
                             }
                         }
                         completion.create_graphemes(size.0, size.1)
