@@ -14,7 +14,7 @@ use tokio::{
 };
 
 use crate::{
-    config::EditorKeybinds,
+    config::CompletionKeybinds,
     guide::{GuideAction, GuideMessage},
     json,
     prompt::Index,
@@ -105,9 +105,13 @@ pub async fn initialize(
     Ok(shared)
 }
 
+/// Navigator for managing the state of suggestions
+/// and interactions in the completion pane.
 pub struct CompletionNavigator {
     shared_suggestions: SharedSuggestionStore,
     state: listbox::State,
+    /// Number of suggestions to load in each chunk
+    /// when the user scrolls near the end of the list.
     search_result_chunk_size: usize,
     search_chunk_remaining: Vec<String>,
 }
@@ -143,6 +147,20 @@ impl CompletionNavigator {
         }
     }
 
+    fn load_more(&mut self) {
+        if self.search_chunk_remaining.is_empty() {
+            return;
+        }
+        let items = self.search_chunk_remaining.drain(
+            ..self
+                .search_result_chunk_size
+                .min(self.search_chunk_remaining.len()),
+        );
+        for item in items {
+            self.state.listbox.push_string(item);
+        }
+    }
+
     pub fn get_current_item(&self) -> String {
         self.state.listbox.get().to_string()
     }
@@ -154,6 +172,24 @@ impl CompletionNavigator {
     pub fn leave(&mut self) {
         self.state.listbox = Listbox::from(Vec::<String>::new());
         self.search_chunk_remaining = Vec::<String>::new();
+    }
+
+    fn handle_user_event(
+        &mut self,
+        event: &Event,
+        completion_keybinds: &CompletionKeybinds,
+    ) -> Option<String> {
+        if completion_keybinds.down.contains(event) {
+            self.down_with_load();
+            return Some(self.get_current_item());
+        }
+
+        if completion_keybinds.up.contains(event) {
+            self.up();
+            return Some(self.get_current_item());
+        }
+
+        None
     }
 
     fn apply_search_items(&mut self, mut items: Vec<String>) -> Option<String> {
@@ -173,20 +209,6 @@ impl CompletionNavigator {
         let head_item = self.apply_search_items(items);
         (head_item, progress)
     }
-
-    fn load_more(&mut self) {
-        if self.search_chunk_remaining.is_empty() {
-            return;
-        }
-        let items = self.search_chunk_remaining.drain(
-            ..self
-                .search_result_chunk_size
-                .min(self.search_chunk_remaining.len()),
-        );
-        for item in items {
-            self.state.listbox.push_string(item);
-        }
-    }
 }
 
 pub enum CompletionAction {
@@ -201,7 +223,7 @@ pub fn start_completion_task(
     shared_completion: Arc<RwLock<CompletionNavigator>>,
     query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
-    editor_keybinds: EditorKeybinds,
+    completion_keybinds: CompletionKeybinds,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
         loop {
@@ -233,17 +255,9 @@ pub fn start_completion_task(
                                 }
                             }
                             CompletionAction::UserEvent(event) => {
-                                if editor_keybinds.on_completion.down.contains(&event)
-                                    || editor_keybinds.completion.contains(&event)
-                                {
-                                    completion.down_with_load();
+                                if let Some(text) = completion.handle_user_event(&event, &completion_keybinds) {
                                     query_editor_action_tx
-                                        .send(QueryEditorAction::ReplaceText(completion.get_current_item()))
-                                        .await?;
-                                } else if editor_keybinds.on_completion.up.contains(&event) {
-                                    completion.up();
-                                    query_editor_action_tx
-                                        .send(QueryEditorAction::ReplaceText(completion.get_current_item()))
+                                        .send(QueryEditorAction::ReplaceText(text))
                                         .await?;
                                 }
                             }
