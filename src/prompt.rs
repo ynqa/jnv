@@ -12,9 +12,9 @@ use crate::{
     completion::{self, CompletionAction, CompletionNavigator},
     config::Keybinds,
     context::SharedContext,
+    event_dispatcher,
     guide::{self, GuideAction},
     json_viewer::{self, RenderTrigger, SharedJsonViewer},
-    prompt_event_loop,
     query_editor::{self, QueryEditor, QueryEditorAction},
 };
 
@@ -51,7 +51,7 @@ pub async fn run(
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
-    let main_task = prompt_event_loop::spawn_terminal_event_dispatch_task(
+    let main_task = event_dispatcher::spawn_terminal_event_dispatch_task(
         ctx.clone(),
         keybinds.clone(),
         debounce_resize_tx,
