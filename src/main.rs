@@ -2,11 +2,11 @@ use std::{
     fs::File,
     io::{self, Read, Write},
     path::PathBuf,
+    sync::Arc,
 };
 
 use anyhow::anyhow;
 use clap::Parser;
-use config::Config;
 use promkit_widgets::{
     core::{
         crossterm,
@@ -17,10 +17,12 @@ use promkit_widgets::{
     spinner::{self, Spinner},
     text_editor::{self, TextEditor},
 };
+use tokio::sync::RwLock;
 
 mod query_editor;
 use query_editor::QueryEditor;
 mod config;
+use config::Config;
 mod guide;
 mod json_viewer;
 mod stdout_redirect;
@@ -210,7 +212,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize the query editor with the default filter, configuration, and keybindings.
     let query_editor = QueryEditor::new(
         text_editor::State {
-            texteditor: if let Some(filter) = args.default_filter {
+            texteditor: if let Some(ref filter) = args.default_filter {
                 TextEditor::new(filter)
             } else {
                 Default::default()
@@ -261,16 +263,6 @@ async fn main() -> anyhow::Result<()> {
         ctx.clone(),
     );
 
-    // Set up the debouncer for the query editor input, which will manage the timing of query updates
-    // to prevent excessive processing while the user is typing.
-    let (debounce_query_tx, last_query_rx, query_debouncer) =
-        utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
-
-    // Set up the debouncer for terminal resize events, which will manage the timing of resize handling
-    // to prevent excessive re-rendering while the terminal is being resized.
-    let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
-        utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
-
     // Spawn the spinner task, which will display a loading spinner in JSON viewer while processing is ongoing.
     let spinner_task = tokio::spawn({
         let shared_renderer = renderer.clone();
@@ -281,12 +273,32 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // Wrap the query editor and completion navigator in Arc<Mutex<>> to allow shared mutable access across async tasks.
+    let shared_query_editor = Arc::new(RwLock::new(query_editor));
+    let shared_completion_navigator = Arc::new(RwLock::new(completion_navigator));
+
+    // Set up the debouncer for the query editor input, which will manage the timing of query updates
+    // to prevent excessive processing while the user is typing.
+    let (debounce_query_tx, last_query_rx, query_debouncer) =
+        utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
+
+    // If a default filter is provided via command-line arguments, send it to the query debouncer
+    // to initialize the interface with that filter applied.
+    if let Some(default_filter) = args.default_filter {
+        debounce_query_tx.send(default_filter).await?;
+    }
+
+    // Set up the debouncer for terminal resize events, which will manage the timing of resize handling
+    // to prevent excessive re-rendering while the terminal is being resized.
+    let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
+        utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
         renderer,
-        query_editor,
-        completion_navigator,
+        shared_query_editor,
+        shared_completion_navigator,
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,

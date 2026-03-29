@@ -54,8 +54,8 @@ pub enum Index {
 pub async fn run(
     ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
-    editor: QueryEditor,
-    completion: CompletionNavigator,
+    shared_editor: Arc<RwLock<QueryEditor>>,
+    shared_completion: Arc<RwLock<CompletionNavigator>>,
     no_hint: bool,
     keybinds: Keybinds,
     write_to_stdout: bool,
@@ -69,18 +69,12 @@ pub async fn run(
     spinning: JoinHandle<()>,
     json_viewer_bootstrap: impl std::future::Future<Output = anyhow::Result<SharedJsonViewer>>,
 ) -> anyhow::Result<Option<String>> {
-    if !editor.text().is_empty() {
-        debounce_query_tx.send(editor.text()).await?;
-    }
-
     let (editor_action_tx, editor_action_rx) = mpsc::channel::<QueryEditorAction>(1);
     let (completion_action_tx, completion_action_rx) = mpsc::channel::<CompletionAction>(1);
     let (json_viewer_action_tx, json_viewer_action_rx) =
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
-    let shared_editor = Arc::new(RwLock::new(editor));
-    let shared_completion = Arc::new(RwLock::new(completion));
     let editor_keybinds = keybinds.on_editor.clone();
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
