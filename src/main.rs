@@ -189,7 +189,8 @@ async fn main() -> anyhow::Result<()> {
     let _terminal_cleanup_guard = TerminalCleanupGuard;
     crossterm::execute!(io::stdout(), crossterm::cursor::Hide)?;
 
-    let shared_suggestions = completion::initialize(
+    // Spawn the completion loader task, which will asynchronously load suggestions based on the input data.
+    let (shared_suggestions, completion_loader_task) = completion::spawn_initialize(
         &input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
@@ -197,7 +198,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize the completion navigator with shared suggestions and configuration.
     let completion_navigator = CompletionNavigator::new(
-        shared_suggestions.clone(),
+        shared_suggestions,
         listbox::State {
             listbox: Listbox::default(),
             config: config.completion.listbox,
@@ -278,6 +279,7 @@ async fn main() -> anyhow::Result<()> {
         debounce_resize_tx,
         last_resize_rx,
         resize_debouncer,
+        completion_loader_task,
     )
     .await;
 

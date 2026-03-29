@@ -68,6 +68,7 @@ pub async fn run(
     debounce_resize_tx: mpsc::Sender<(u16, u16)>,
     mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
     resize_debouncer: JoinHandle<()>,
+    completion_loader_task: JoinHandle<()>,
 ) -> anyhow::Result<Option<String>> {
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
@@ -355,6 +356,7 @@ pub async fn run(
     spinning.abort();
     query_debouncer.abort();
     resize_debouncer.abort();
+    completion_loader_task.abort();
     query_action_forwarder.abort();
     resize_action_forwarder.abort();
     guide_task.abort();

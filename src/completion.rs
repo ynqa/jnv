@@ -49,19 +49,19 @@ impl SharedSuggestionStore {
     }
 }
 
-/// Initialize shared suggestion store by loading paths from JSON input
-pub fn initialize(
+/// Spawn a background loader and return shared suggestion store with task handle.
+pub fn spawn_initialize(
     item: &'static str,
     max_streams: Option<usize>,
     chunk_size: usize,
-) -> SharedSuggestionStore {
+) -> (SharedSuggestionStore, JoinHandle<()>) {
     let shared = SharedSuggestionStore(Arc::new(Mutex::new(SuggestionStore {
         paths: BTreeSet::new(),
         progress: SuggestionLoadProgress::default(),
     })));
 
     let shared_for_loading = shared.clone();
-    task::spawn(async move {
+    let loader_task = task::spawn(async move {
         // Load paths in a streaming manner and update the shared store incrementally
         let iter = match json::get_all_paths(item, max_streams).await {
             Ok(iter) => iter,
@@ -99,7 +99,7 @@ pub fn initialize(
         store.progress.is_complete = true;
     });
 
-    shared
+    (shared, loader_task)
 }
 
 /// Navigator for managing the state of suggestions
