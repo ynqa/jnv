@@ -80,7 +80,7 @@ pub enum Index {
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     item: &'static str,
-    terminal_size: (u16, u16),
+    ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
     json_config: JsonConfig,
     reactivity_control: ReactivityControl,
@@ -90,8 +90,6 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
 ) -> anyhow::Result<Option<String>> {
-    let ctx = SharedContext::new(terminal_size);
-
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
     let query_debouncer = spawn_debouncer(

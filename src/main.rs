@@ -29,7 +29,7 @@ mod prompt;
 use completion::CompletionNavigator;
 mod json;
 
-use crate::{config::DEFAULT_CONFIG, prompt::Index};
+use crate::{config::DEFAULT_CONFIG, json_viewer::SharedContext, prompt::Index};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -246,10 +246,14 @@ async fn main() -> anyhow::Result<()> {
         .await?,
     );
 
+    // Initialize the shared context with the terminal size,
+    // which can be used by various components for rendering and state management.
+    let ctx = SharedContext::new(terminal_size);
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
-        terminal_size,
+        ctx,
         shared_renderer,
         config.json,
         config.reactivity_control,
