@@ -14,6 +14,7 @@ use tokio::{
 };
 
 use crate::{
+    completion::CompletionAction,
     config::EditorKeybinds,
     context::SharedContext,
     guide::{self, GuideAction},
@@ -70,7 +71,12 @@ impl QueryEditor {
     }
 
     /// Handle a user input event to update the query editor's state accordingly.
-    fn handle_user_event(&mut self, event: &Event) {
+    /// Returns `true` if the event triggers the completion action, otherwise `false`.
+    fn handle_user_event(&mut self, event: &Event) -> bool {
+        if self.editor_keybinds.completion.contains(event) {
+            return true;
+        }
+
         match event {
             key if self.editor_keybinds.backward.contains(key) => {
                 self.state.texteditor.backward();
@@ -127,6 +133,7 @@ impl QueryEditor {
             },
             _ => {}
         }
+        false
     }
 }
 
@@ -151,6 +158,7 @@ pub fn start_query_editor_task(
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     shared_editor: Arc<RwLock<QueryEditor>>,
     shared_ctx: SharedContext,
+    completion_action_tx: mpsc::Sender<CompletionAction>,
     debounce_query_tx: mpsc::Sender<String>,
     guide_action_tx: mpsc::Sender<GuideAction>,
 ) -> JoinHandle<anyhow::Result<()>> {
@@ -176,7 +184,14 @@ pub fn start_query_editor_task(
                                 editor.replace_text(&text);
                             }
                             QueryEditorAction::UserEvent(event) => {
-                                editor.handle_user_event(&event);
+                                if editor.handle_user_event(&event) {
+                                    shared_ctx.set_active_index(Index::Completion).await;
+                                    completion_action_tx
+                                        .send(CompletionAction::Enter {
+                                            prefix: editor.text(),
+                                        })
+                                        .await?;
+                                }
                             }
                         }
                         let current_text = editor.text();

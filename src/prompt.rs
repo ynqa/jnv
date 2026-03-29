@@ -28,13 +28,6 @@ use crate::{
     query_editor::{self, QueryEditor, QueryEditorAction},
 };
 
-#[derive(Clone, Copy)]
-enum Focus {
-    Editor,
-    Searcher,
-    Processor,
-}
-
 enum GlobalAction {
     Resize(u16, u16),
     Exit,
@@ -43,7 +36,7 @@ enum GlobalAction {
     SwitchMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
     QueryEditor = 0,
     Guide = 1,
@@ -75,16 +68,13 @@ pub async fn run(
     let (json_viewer_action_tx, json_viewer_action_rx) =
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
-
-    let editor_keybinds = keybinds.on_editor.clone();
+    let editor_completion_keybinds = keybinds.on_editor.completion.clone();
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
-        let mut focus = Focus::Editor;
         let mut stream = EventStream::new();
         let ctx = ctx.clone();
-        let shared_editor = shared_editor.clone();
         let editor_action_tx = editor_action_tx.clone();
-        let editor_keybinds = editor_keybinds.clone();
+        let completion_action_tx = completion_action_tx.clone();
         let json_viewer_action_tx = json_viewer_action_tx.clone();
         let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
@@ -147,10 +137,10 @@ pub async fn run(
                                             .await?;
                                     }
                                 }
-                                GlobalAction::SwitchMode => match focus {
-                                    Focus::Editor | Focus::Searcher => {
+                                GlobalAction::SwitchMode => match ctx.active_index().await {
+                                    Index::QueryEditor | Index::Completion => {
                                         if ctx.is_idle().await {
-                                            focus = Focus::Processor;
+                                            ctx.set_active_index(Index::JsonViewer).await;
                                             completion_action_tx.send(CompletionAction::Leave).await?;
                                             editor_action_tx.send(QueryEditorAction::Leave).await?;
                                             execute!(
@@ -162,12 +152,12 @@ pub async fn run(
                                             guide_action_tx
                                                 .send(GuideAction::Show(
                                                     GuideMessage::FailedToSwitchPaneWhileRenderingInProgress,
-                                                ))
-                                                .await?;
+                                            ))
+                                            .await?;
                                         }
                                     }
-                                    Focus::Processor => {
-                                        focus = Focus::Editor;
+                                    Index::JsonViewer => {
+                                        ctx.set_active_index(Index::QueryEditor).await;
                                         editor_action_tx.send(QueryEditorAction::Enter).await?;
                                         execute!(
                                             io::stdout(),
@@ -175,53 +165,29 @@ pub async fn run(
                                             DisableMouseCapture,
                                         )?;
                                     }
+                                    Index::Guide => {}
                                 },
                             }
                             continue;
                         }
 
-                        match focus {
-                            Focus::Editor => {
-                                if editor_keybinds.completion.contains(&event) {
-                                    focus = Focus::Searcher;
-                                    let prefix = {
-                                        let editor = shared_editor.read().await;
-                                        editor.text()
-                                    };
-                                    completion_action_tx
-                                        .send(CompletionAction::Enter { prefix })
-                                        .await?;
-                                } else {
-                                    editor_action_tx
-                                        .send(QueryEditorAction::UserEvent(event))
-                                        .await?;
-                                }
+                        match ctx.active_index().await {
+                            Index::QueryEditor => {
+                                editor_action_tx
+                                    .send(QueryEditorAction::UserEvent(event))
+                                    .await?;
                             }
-                            Focus::Searcher => {
-                                if editor_keybinds.on_completion.down.contains(&event)
-                                {
-                                    completion_action_tx
-                                        .send(CompletionAction::UserEvent(event))
-                                        .await?;
-                                } else if editor_keybinds.on_completion.up.contains(&event) {
-                                    completion_action_tx
-                                        .send(CompletionAction::UserEvent(event))
-                                        .await?;
-                                } else {
-                                    focus = Focus::Editor;
-                                    completion_action_tx.send(CompletionAction::Leave).await?;
-                                    if !editor_keybinds.completion.contains(&event) {
-                                        editor_action_tx
-                                            .send(QueryEditorAction::UserEvent(event))
-                                            .await?;
-                                    }
-                                }
+                            Index::Completion => {
+                                completion_action_tx
+                                    .send(CompletionAction::UserEvent(event))
+                                    .await?;
                             }
-                            Focus::Processor => {
+                            Index::JsonViewer => {
                                 json_viewer_action_tx
                                     .send(json_viewer::ViewerAction::UserEvent(event))
                                     .await?;
                             }
+                            Index::Guide => {}
                         }
                     },
                     else => {
@@ -256,6 +222,7 @@ pub async fn run(
         shared_renderer.clone(),
         shared_editor.clone(),
         ctx.clone(),
+        completion_action_tx.clone(),
         debounce_query_tx.clone(),
         guide_action_tx.clone(),
     );
@@ -267,7 +234,8 @@ pub async fn run(
         ctx.clone(),
         editor_action_tx.clone(),
         guide_action_tx.clone(),
-        editor_keybinds.on_completion,
+        keybinds.on_editor.on_completion,
+        editor_completion_keybinds,
     );
 
     let shared_viewer_state = json_viewer_bootstrap.await?;

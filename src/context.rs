@@ -3,6 +3,8 @@ use std::{future::Future, sync::Arc};
 use promkit_widgets::spinner;
 use tokio::{sync::Mutex, task::JoinHandle};
 
+use crate::prompt::Index;
+
 #[derive(PartialEq)]
 /// Represent the current state of the JSON viewer,
 /// which can be used to control rendering behavior
@@ -17,18 +19,20 @@ pub enum State {
     Processing,
 }
 
-pub(crate) struct Context {
+pub struct Context {
     /// The current state of the processor, which can be Idle, Loading, or Processing.
-    pub(crate) state: State,
+    pub state: State,
+    /// Current active index for user input handling.
+    pub active_index: Index,
     /// The current size of the terminal area.
     ///
     /// PERF NOTE: This currently lives with `state/current_task` in the same mutex
     /// for simplicity. If lock contention becomes visible, this can be split into
     /// a dedicated shared store (e.g. `Arc<RwLock<(u16, u16)>>`) to reduce lock
     /// granularity.
-    pub(crate) area: (u16, u16),
+    pub area: (u16, u16),
     /// The current task being executed, if any.
-    pub(crate) current_task: Option<JoinHandle<()>>,
+    pub current_task: Option<JoinHandle<()>>,
 }
 
 #[derive(Clone)]
@@ -38,6 +42,7 @@ impl SharedContext {
     pub fn new(area: (u16, u16)) -> Self {
         Self(Arc::new(Mutex::new(Context {
             state: State::Idle,
+            active_index: Index::QueryEditor,
             area,
             current_task: None,
         })))
@@ -51,6 +56,21 @@ impl SharedContext {
     pub async fn set_area(&self, area: (u16, u16)) {
         let mut ctx = self.0.lock().await;
         ctx.area = area;
+    }
+
+    pub async fn active_index(&self) -> Index {
+        let ctx = self.0.lock().await;
+        ctx.active_index
+    }
+
+    /// Set the active index, which controls which input field is currently focused.
+    /// If the index is `Guide`, it will be ignored to prevent focus on the guide section.
+    pub async fn set_active_index(&self, index: Index) {
+        if index == Index::Guide {
+            return;
+        }
+        let mut ctx = self.0.lock().await;
+        ctx.active_index = index;
     }
 
     pub(crate) async fn lock(&self) -> tokio::sync::MutexGuard<'_, Context> {
