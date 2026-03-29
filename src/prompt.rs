@@ -68,7 +68,6 @@ pub async fn run(
     let (json_viewer_action_tx, json_viewer_action_rx) =
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
-    let editor_completion_keybinds = keybinds.on_editor.completion.clone();
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut stream = EventStream::new();
@@ -235,7 +234,6 @@ pub async fn run(
         editor_action_tx.clone(),
         guide_action_tx.clone(),
         keybinds.on_editor.on_completion,
-        editor_completion_keybinds,
     );
 
     let shared_viewer_state = json_viewer_bootstrap.await?;

@@ -1,4 +1,4 @@
-use std::{collections::{BTreeSet, HashSet}, sync::Arc};
+use std::{collections::BTreeSet, sync::Arc};
 
 use promkit_widgets::{
     core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
@@ -244,7 +244,6 @@ pub fn start_completion_task(
     query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
     completion_keybinds: CompletionKeybinds,
-    completion_trigger_keybinds: HashSet<Event>,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
         loop {
@@ -283,11 +282,9 @@ pub fn start_completion_task(
                                 } else {
                                     shared_ctx.set_active_index(Index::QueryEditor).await;
                                     completion.clear_session_state();
-                                    if !completion_trigger_keybinds.contains(&event) {
-                                        query_editor_action_tx
-                                            .send(QueryEditorAction::UserEvent(event))
-                                            .await?;
-                                    }
+                                    query_editor_action_tx
+                                        .send(QueryEditorAction::UserEvent(event))
+                                        .await?;
                                 }
                             }
                             CompletionAction::Leave => {
