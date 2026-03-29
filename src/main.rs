@@ -17,25 +17,28 @@ use promkit_widgets::{
     spinner::{self, Spinner},
     text_editor::{self, TextEditor},
 };
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, RwLock};
 
 mod query_editor;
 use query_editor::QueryEditor;
 mod config;
 use config::Config;
+mod context;
 mod guide;
 mod json_viewer;
-mod context;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod completion;
-mod prompt;
 mod event_dispatcher;
+mod prompt;
 use completion::CompletionNavigator;
 mod json;
 mod utils;
 
-use crate::{config::DEFAULT_CONFIG, context::SharedContext, prompt::Index};
+use crate::{
+    completion::CompletionAction, config::DEFAULT_CONFIG, context::SharedContext,
+    guide::GuideAction, prompt::Index, query_editor::QueryEditorAction,
+};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -196,7 +199,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn the completion loader task, which will asynchronously load suggestions based on the input data.
     let (shared_suggestions, completion_loader_task) = completion::spawn_initialize(
-        &input,
+        input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
     );
@@ -295,6 +298,14 @@ async fn main() -> anyhow::Result<()> {
     let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
         utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
 
+    // Create channels for communication between the main event loop and various components
+    // (query editor, completion navigator, JSON viewer, and guide).
+    let (editor_action_tx, editor_action_rx) = mpsc::channel::<QueryEditorAction>(1);
+    let (completion_action_tx, completion_action_rx) = mpsc::channel::<CompletionAction>(1);
+    let (json_viewer_action_tx, json_viewer_action_rx) =
+        mpsc::channel::<json_viewer::ViewerAction>(8);
+    let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
@@ -313,6 +324,14 @@ async fn main() -> anyhow::Result<()> {
         completion_loader_task,
         spinner_task,
         load_for_json_viewer,
+        editor_action_tx,
+        editor_action_rx,
+        completion_action_tx,
+        completion_action_rx,
+        json_viewer_action_tx,
+        json_viewer_action_rx,
+        guide_action_tx,
+        guide_action_rx,
     )
     .await;
 

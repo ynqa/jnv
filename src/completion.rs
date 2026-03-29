@@ -51,7 +51,7 @@ impl SharedSuggestionStore {
 
 /// Spawn a background loader and return shared suggestion store with task handle.
 pub fn spawn_initialize(
-    item: &'static str,
+    input: &'static str,
     max_streams: Option<usize>,
     chunk_size: usize,
 ) -> (SharedSuggestionStore, JoinHandle<()>) {
@@ -63,7 +63,7 @@ pub fn spawn_initialize(
     let shared_for_loading = shared.clone();
     let loader_task = task::spawn(async move {
         // Load paths in a streaming manner and update the shared store incrementally
-        let iter = match json::get_all_paths(item, max_streams).await {
+        let iter = match json::get_all_paths(input, max_streams).await {
             Ok(iter) => iter,
             Err(_) => {
                 let mut store = shared_for_loading.0.lock().await;

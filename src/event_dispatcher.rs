@@ -10,10 +10,7 @@ use promkit_widgets::{
     },
     spinner::State,
 };
-use tokio::{
-    sync::mpsc,
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::{
     completion::CompletionAction,

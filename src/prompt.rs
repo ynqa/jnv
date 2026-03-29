@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use promkit_widgets::{
-    core::render::SharedRenderer,
-};
+use promkit_widgets::core::render::SharedRenderer;
 use tokio::{
     sync::{mpsc, RwLock},
     task::JoinHandle,
@@ -44,13 +42,15 @@ pub async fn run(
     completion_loader_task: JoinHandle<()>,
     spinning: JoinHandle<()>,
     json_viewer_bootstrap: impl std::future::Future<Output = anyhow::Result<SharedJsonViewer>>,
+    editor_action_tx: mpsc::Sender<QueryEditorAction>,
+    editor_action_rx: mpsc::Receiver<QueryEditorAction>,
+    completion_action_tx: mpsc::Sender<CompletionAction>,
+    completion_action_rx: mpsc::Receiver<CompletionAction>,
+    json_viewer_action_tx: mpsc::Sender<json_viewer::ViewerAction>,
+    json_viewer_action_rx: mpsc::Receiver<json_viewer::ViewerAction>,
+    guide_action_tx: mpsc::Sender<GuideAction>,
+    guide_action_rx: mpsc::Receiver<GuideAction>,
 ) -> anyhow::Result<Option<String>> {
-    let (editor_action_tx, editor_action_rx) = mpsc::channel::<QueryEditorAction>(1);
-    let (completion_action_tx, completion_action_rx) = mpsc::channel::<CompletionAction>(1);
-    let (json_viewer_action_tx, json_viewer_action_rx) =
-        mpsc::channel::<json_viewer::ViewerAction>(8);
-    let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
-
     let main_task = event_dispatcher::spawn_terminal_event_dispatch_task(
         ctx.clone(),
         keybinds.clone(),
