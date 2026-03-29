@@ -73,10 +73,10 @@ enum GlobalAction {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
-    Editor = 0,
+    QueryEditor = 0,
     Guide = 1,
-    Search = 2,
-    Processor = 3,
+    Completion = 2,
+    JsonViewer = 3,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -95,10 +95,10 @@ pub async fn run(
     let shared_renderer = SharedRenderer::new(
         Renderer::try_new_with_graphemes(
             [
-                (Index::Editor, editor.create_graphemes(size.0, size.1)),
+                (Index::QueryEditor, editor.create_graphemes(size.0, size.1)),
                 (Index::Guide, StyledGraphemes::default()),
-                (Index::Search, StyledGraphemes::default()),
-                (Index::Processor, StyledGraphemes::default()),
+                (Index::Completion, StyledGraphemes::default()),
+                (Index::JsonViewer, StyledGraphemes::default()),
             ]
             .into_iter(),
             true,
@@ -133,7 +133,7 @@ pub async fn run(
         let spin_duration = reactivity_control.spin_duration;
         async move {
             let spinner = Spinner::default().duration(spin_duration);
-            let _ = spinner::run(&spinner, ctx, Index::Processor, shared_renderer).await;
+            let _ = spinner::run(&spinner, ctx, Index::JsonViewer, shared_renderer).await;
         }
     });
 
@@ -360,8 +360,8 @@ pub async fn run(
                 };
                 shared_renderer
                     .update([
-                        (Index::Editor, editor_pane),
-                        (Index::Search, completion_pane),
+                        (Index::QueryEditor, editor_pane),
+                        (Index::Completion, completion_pane),
                     ])
                     .render()
                     .await?;

@@ -286,7 +286,7 @@ pub fn start_completion_task(
                     };
 
                     shared_renderer
-                        .update([(Index::Search, completion_pane)])
+                        .update([(Index::Completion, completion_pane)])
                         .render()
                         .await?;
                 }

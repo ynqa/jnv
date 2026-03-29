@@ -208,7 +208,7 @@ pub async fn initialize(
 
         // TODO: error handling
         let _ = shared_renderer
-            .update([(Index::Processor, state.create_graphemes(area.0, area.1))])
+            .update([(Index::JsonViewer, state.create_graphemes(area.0, area.1))])
             .render()
             .await;
     }
@@ -274,7 +274,7 @@ async fn handle_user_event(
 
     // TODO: error handling
     let _ = shared_renderer
-        .update([(Index::Processor, graphemes)])
+        .update([(Index::JsonViewer, graphemes)])
         .render()
         .await;
 }
@@ -387,7 +387,7 @@ fn spawn_query_update_task(
         // TODO: error handling
         let _ = shared_renderer
             .update([(
-                Index::Processor,
+                Index::JsonViewer,
                 maybe_resp.unwrap_or(StyledGraphemes::default()),
             )])
             .render()

@@ -193,7 +193,7 @@ pub fn start_query_editor_task(
 
                     // Update the renderer with the new editor pane and render it.
                     shared_renderer
-                        .update([(Index::Editor, editor_pane)])
+                        .update([(Index::QueryEditor, editor_pane)])
                         .render()
                         .await?;
                 }
