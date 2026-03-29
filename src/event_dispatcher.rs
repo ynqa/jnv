@@ -118,7 +118,7 @@ pub fn spawn_terminal_event_dispatch_task(
                                     } else {
                                         guide_action_tx
                                             .send(GuideAction::Show(
-                                                GuideMessage::FailedToSwitchPaneWhileRenderingInProgress,
+                                                GuideMessage::FailedToSwitchModeWhileRenderingInProgress,
                                         ))
                                         .await?;
                                     }

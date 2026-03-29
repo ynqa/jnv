@@ -42,7 +42,7 @@ pub fn spawn_resize_render_task(
     tokio::spawn(async move {
         while let Some(area) = last_resize_rx.recv().await {
             ctx.set_area(area).await;
-            let (editor_pane, completion_pane) = {
+            let (editor_view, completion_view) = {
                 let editor = shared_editor.read().await;
                 let completion = shared_completion.read().await;
                 (
@@ -52,8 +52,8 @@ pub fn spawn_resize_render_task(
             };
             shared_renderer
                 .update([
-                    (Index::QueryEditor, editor_pane),
-                    (Index::Completion, completion_pane),
+                    (Index::QueryEditor, editor_view),
+                    (Index::Completion, completion_view),
                 ])
                 .render()
                 .await?;

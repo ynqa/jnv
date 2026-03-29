@@ -102,7 +102,7 @@ pub fn spawn_initialize(
 }
 
 /// Navigator for managing the state of suggestions
-/// and interactions in the completion pane.
+/// and interactions in the completion view.
 pub struct CompletionNavigator {
     shared_suggestions: SharedSuggestionStore,
     state: listbox::State,
@@ -226,11 +226,11 @@ impl CompletionNavigator {
 }
 
 pub enum CompletionAction {
-    /// Triggered when the user enters the completion pane with a current query as prefix.
+    /// Triggered when the user enters the completion view with a current query as prefix.
     Enter { prefix: String },
-    /// Triggered when the user leaves the completion pane.
+    /// Triggered when the user leaves the completion view.
     Leave,
-    /// Triggered on user input events within the completion pane, such as navigation keys.
+    /// Triggered on user input events within the completion view, such as navigation keys.
     UserEvent(Event),
 }
 
@@ -249,7 +249,7 @@ pub fn start_completion_task(
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let area = shared_ctx.area().await;
-                    let completion_pane = {
+                    let completion_view = {
                         let mut completion = shared_completion.write().await;
                         match action {
                             CompletionAction::Enter { prefix } => {
@@ -294,7 +294,7 @@ pub fn start_completion_task(
                     };
 
                     shared_renderer
-                        .update([(Index::Completion, completion_pane)])
+                        .update([(Index::Completion, completion_view)])
                         .render()
                         .await?;
                 }

@@ -170,7 +170,7 @@ pub fn start_query_editor_task(
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let area = shared_ctx.area().await;
-                    let (editor_pane, current_text) = {
+                    let (editor_view, current_text) = {
                         let mut editor = shared_editor.write().await;
                         match action {
                             QueryEditorAction::Enter => editor.focus(),
@@ -203,9 +203,9 @@ pub fn start_query_editor_task(
                         last_text = current_text;
                     }
 
-                    // Update the renderer with the new editor pane and render it.
+                    // Update the renderer with the new editor view and render it.
                     shared_renderer
-                        .update([(Index::QueryEditor, editor_pane)])
+                        .update([(Index::QueryEditor, editor_view)])
                         .render()
                         .await?;
                 }

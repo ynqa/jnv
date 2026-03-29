@@ -7,12 +7,14 @@ use tokio::{sync::mpsc, task::JoinHandle};
 
 use crate::context::{Index, SharedContext};
 
+/// Represent a message to be shown in the guide.
+/// This is used to decouple the logic of generating messages from the logic of rendering them.
 pub enum GuideMessage {
     CopiedToClipboard,
     FailedToCopyToClipboard(String),
     FailedToSetupClipboard(String),
     FailedToCopyWhileRenderingInProgress,
-    FailedToSwitchPaneWhileRenderingInProgress,
+    FailedToSwitchModeWhileRenderingInProgress,
     LoadedAllSuggestions(usize),
     LoadedPartiallySuggestions(usize),
     NoSuggestionFound(String),
@@ -40,8 +42,8 @@ fn message_to_state(message: GuideMessage) -> status::State {
             "Failed to copy while rendering is in progress.",
             Severity::Warning,
         ),
-        GuideMessage::FailedToSwitchPaneWhileRenderingInProgress => status::State::new(
-            "Failed to switch pane while rendering is in progress.",
+        GuideMessage::FailedToSwitchModeWhileRenderingInProgress => status::State::new(
+            "Failed to switch mode while rendering is in progress.",
             Severity::Warning,
         ),
         GuideMessage::LoadedAllSuggestions(count) => status::State::new(
@@ -87,7 +89,7 @@ pub fn start_guide_task(
             tokio::select! {
                 Some(action) = action_rx.recv() => {
                     let area = shared_ctx.area().await;
-                    let pane = if no_hint {
+                    let view = if no_hint {
                         Default::default()
                     } else {
                         match action {
@@ -95,7 +97,7 @@ pub fn start_guide_task(
                             GuideAction::Show(message) => message_to_state(message).create_graphemes(area.0, area.1),
                         }
                     };
-                    shared_renderer.update([(Index::Guide, pane)]).render().await?;
+                    shared_renderer.update([(Index::Guide, view)]).render().await?;
                 }
                 else => break,
             }
