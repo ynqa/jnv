@@ -30,7 +30,6 @@ mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod completion;
 mod event_dispatcher;
-mod prompt;
 mod runtime_tasks;
 use completion::CompletionNavigator;
 mod json;
@@ -382,35 +381,34 @@ async fn main() -> anyhow::Result<()> {
         guide_action_tx.clone(),
     );
 
-    // TODO: put all logics here.
-    let maybe_output = prompt::run(
-        ctx,
-        renderer,
-        shared_query_editor,
-        shared_completion_navigator,
-        shared_json_viewer.clone(),
-        config.no_hint,
-        config.keybinds,
-        args.write_to_stdout,
-        debounce_query_tx,
-        query_debouncer,
-        resize_debouncer,
-        completion_loader_task,
-        spinner_task,
-        event_dispacher_task,
-        query_change_forward_task,
-        guide_task,
-        query_editor_task,
-        completion_navigator_task,
-        json_viewer_task,
-        resize_render_task,
-    )
-    .await;
+    let maybe_output_result: anyhow::Result<Option<String>> = match event_dispacher_task.await {
+        Ok(Ok(())) if args.write_to_stdout => {
+            let runtime = shared_json_viewer.lock().await;
+            Ok(Some(runtime.formatted_content()))
+        }
+        Ok(Ok(())) => Ok(None),
+        // `event_dispacher_task` itself joined successfully, but the task body returned an application error.
+        Ok(Err(err)) => Err(err),
+        // The join operation failed (e.g. panic/cancel) before the task body could return its own result.
+        Err(err) => Err(err.into()),
+    };
 
+    spinner_task.abort();
+    query_debouncer.abort();
+    resize_debouncer.abort();
+    completion_loader_task.abort();
+    query_change_forward_task.abort();
+    resize_render_task.abort();
+    guide_task.abort();
+    query_editor_task.abort();
+    completion_navigator_task.abort();
+    json_viewer_task.abort();
+
+    // Restore terminal state and write output to stdout if the option is enabled.
     stdout_redirect.restore()?;
-    let maybe_output = maybe_output?;
 
-    if let Some(output) = maybe_output {
+    // If the user has enabled the option to write the current JSON result to stdout on exit, output it now.
+    if let Some(output) = maybe_output_result? {
         let mut stdout = io::stdout();
         stdout.write_all(output.as_bytes())?;
         if !output.ends_with('\n') {
