@@ -218,6 +218,7 @@ async fn main() -> anyhow::Result<()> {
         config.keybinds.on_editor.clone(),
     );
 
+    // Redirects stdout to prevent interference with TUI interface.
     let mut stdout_redirect = StdoutRedirect::try_new_for_tui(args.write_to_stdout)?;
 
     // TODO: put all logics here.
