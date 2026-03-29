@@ -306,6 +306,18 @@ async fn main() -> anyhow::Result<()> {
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
+    // Spawn the terminal event dispatcher task, which will listen for user input and terminal events,
+    // and forward them to the appropriate channels for handling by the main event loop and components.
+    let event_dispacher_task = event_dispatcher::spawn_terminal_event_dispatch_task(
+        ctx.clone(),
+        config.keybinds.clone(),
+        debounce_resize_tx,
+        editor_action_tx.clone(),
+        completion_action_tx.clone(),
+        json_viewer_action_tx.clone(),
+        guide_action_tx.clone(),
+    );
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
@@ -318,7 +330,6 @@ async fn main() -> anyhow::Result<()> {
         debounce_query_tx,
         last_query_rx,
         query_debouncer,
-        debounce_resize_tx,
         last_resize_rx,
         resize_debouncer,
         completion_loader_task,
@@ -332,6 +343,7 @@ async fn main() -> anyhow::Result<()> {
         json_viewer_action_rx,
         guide_action_tx,
         guide_action_rx,
+        event_dispacher_task,
     )
     .await;
 

@@ -10,7 +10,6 @@ use crate::{
     completion::{self, CompletionAction, CompletionNavigator},
     config::Keybinds,
     context::SharedContext,
-    event_dispatcher,
     guide::{self, GuideAction},
     json_viewer::{self, RenderTrigger, SharedJsonViewer},
     query_editor::{self, QueryEditor, QueryEditorAction},
@@ -36,7 +35,6 @@ pub async fn run(
     debounce_query_tx: mpsc::Sender<String>,
     mut last_query_rx: mpsc::Receiver<String>,
     query_debouncer: JoinHandle<()>,
-    debounce_resize_tx: mpsc::Sender<(u16, u16)>,
     mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
     resize_debouncer: JoinHandle<()>,
     completion_loader_task: JoinHandle<()>,
@@ -50,17 +48,8 @@ pub async fn run(
     json_viewer_action_rx: mpsc::Receiver<json_viewer::ViewerAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
     guide_action_rx: mpsc::Receiver<GuideAction>,
+    main_task: JoinHandle<anyhow::Result<()>>,
 ) -> anyhow::Result<Option<String>> {
-    let main_task = event_dispatcher::spawn_terminal_event_dispatch_task(
-        ctx.clone(),
-        keybinds.clone(),
-        debounce_resize_tx,
-        editor_action_tx.clone(),
-        completion_action_tx.clone(),
-        json_viewer_action_tx.clone(),
-        guide_action_tx.clone(),
-    );
-
     let query_action_forwarder = {
         let json_viewer_action_tx = json_viewer_action_tx.clone();
         tokio::spawn(async move {
