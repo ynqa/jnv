@@ -33,7 +33,6 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
     debounce_query_tx: mpsc::Sender<String>,
-    mut last_query_rx: mpsc::Receiver<String>,
     query_debouncer: JoinHandle<()>,
     mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
     resize_debouncer: JoinHandle<()>,
@@ -49,17 +48,8 @@ pub async fn run(
     guide_action_tx: mpsc::Sender<GuideAction>,
     guide_action_rx: mpsc::Receiver<GuideAction>,
     main_task: JoinHandle<anyhow::Result<()>>,
+    query_action_forwarder: JoinHandle<()>,
 ) -> anyhow::Result<Option<String>> {
-    let query_action_forwarder = {
-        let json_viewer_action_tx = json_viewer_action_tx.clone();
-        tokio::spawn(async move {
-            while let Some(query) = last_query_rx.recv().await {
-                let _ = json_viewer_action_tx
-                    .send(json_viewer::ViewerAction::QueryChanged(query))
-                    .await;
-            }
-        })
-    };
 
     let guide_task = guide::start_guide_task(
         guide_action_rx,

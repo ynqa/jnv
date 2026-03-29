@@ -284,7 +284,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Set up the debouncer for the query editor input, which will manage the timing of query updates
     // to prevent excessive processing while the user is typing.
-    let (debounce_query_tx, last_query_rx, query_debouncer) =
+    let (debounce_query_tx, mut last_query_rx, query_debouncer) =
         utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
 
     // If a default filter is provided via command-line arguments, send it to the query debouncer
@@ -318,6 +318,19 @@ async fn main() -> anyhow::Result<()> {
         guide_action_tx.clone(),
     );
 
+    // Spawn a task to forward query changes from the debouncer to the JSON viewer, ensuring that
+    // the viewer updates in response to user input in the query editor.
+    let query_change_forward_task = {
+        let json_viewer_action_tx = json_viewer_action_tx.clone();
+        tokio::spawn(async move {
+            while let Some(query) = last_query_rx.recv().await {
+                let _ = json_viewer_action_tx
+                    .send(json_viewer::ViewerAction::QueryChanged(query))
+                    .await;
+            }
+        })
+    };
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
@@ -328,7 +341,6 @@ async fn main() -> anyhow::Result<()> {
         config.keybinds,
         args.write_to_stdout,
         debounce_query_tx,
-        last_query_rx,
         query_debouncer,
         last_resize_rx,
         resize_debouncer,
@@ -344,6 +356,7 @@ async fn main() -> anyhow::Result<()> {
         guide_action_tx,
         guide_action_rx,
         event_dispacher_task,
+        query_change_forward_task,
     )
     .await;
 
