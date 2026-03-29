@@ -25,7 +25,6 @@ use crate::{
     guide::{self, GuideAction, GuideMessage},
     json_viewer::{self, RenderTrigger, SharedContext},
     query_editor::{self, QueryEditor, QueryEditorAction},
-    utils::setup_debouncer,
 };
 
 #[derive(Clone, Copy)]
@@ -66,13 +65,13 @@ pub async fn run(
     debounce_query_tx: mpsc::Sender<String>,
     mut last_query_rx: mpsc::Receiver<String>,
     query_debouncer: JoinHandle<()>,
+    debounce_resize_tx: mpsc::Sender<(u16, u16)>,
+    mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
+    resize_debouncer: JoinHandle<()>,
 ) -> anyhow::Result<Option<String>> {
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
     }
-
-    let (debounce_resize_tx, mut last_resize_rx, resize_debouncer) =
-        setup_debouncer::<(u16, u16)>(reactivity_control.resize_debounce_duration);
 
     let spinning = tokio::spawn({
         let shared_renderer = shared_renderer.clone();

@@ -256,6 +256,11 @@ async fn main() -> anyhow::Result<()> {
     let (debounce_query_tx, last_query_rx, query_debouncer) =
         utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
 
+    // Set up the debouncer for terminal resize events, which will manage the timing of resize handling
+    // to prevent excessive re-rendering while the terminal is being resized.
+    let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
+        utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
@@ -271,6 +276,9 @@ async fn main() -> anyhow::Result<()> {
         debounce_query_tx,
         last_query_rx,
         query_debouncer,
+        debounce_resize_tx,
+        last_resize_rx,
+        resize_debouncer,
     )
     .await;
 
