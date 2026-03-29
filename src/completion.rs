@@ -140,8 +140,12 @@ impl CompletionNavigator {
         self.state.create_graphemes(width, height)
     }
 
-    fn down_with_load(&mut self) {
+    fn move_down(&mut self) {
+        // First, move the cursor down by one item.
         self.state.listbox.forward();
+
+        // Then, check if we need to load more items
+        // when the cursor is close to the end.
         if self
             .state
             .listbox
@@ -149,11 +153,11 @@ impl CompletionNavigator {
             .saturating_sub(self.state.listbox.position())
             < self.state.config.lines.unwrap_or(1)
         {
-            self.load_more();
+            self.append_next_chunk_if_needed();
         }
     }
 
-    fn load_more(&mut self) {
+    fn append_next_chunk_if_needed(&mut self) {
         if self.search_chunk_remaining.is_empty() {
             return;
         }
@@ -165,11 +169,6 @@ impl CompletionNavigator {
         for item in items {
             self.state.listbox.push_string(item);
         }
-    }
-
-    pub fn leave(&mut self) {
-        self.state.listbox = Listbox::from(Vec::<String>::new());
-        self.search_chunk_remaining = Vec::<String>::new();
     }
 
     /// Handle a user input event to update the completion navigator's state accordingly.
@@ -186,7 +185,7 @@ impl CompletionNavigator {
 
         // Move down (and load more if near the end).
         if completion_keybinds.down.contains(event) {
-            self.down_with_load();
+            self.move_down();
             return Some(self.get_current_item());
         }
 
@@ -205,10 +204,15 @@ impl CompletionNavigator {
         Some(self.state.listbox.get().to_string())
     }
 
-    pub async fn start(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
+    async fn enter(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
         let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
         let head_item = self.apply_search_items(items);
         (head_item, progress)
+    }
+
+    fn reset_session(&mut self) {
+        self.state.listbox = Listbox::from(Vec::<String>::new());
+        self.search_chunk_remaining = Vec::<String>::new();
     }
 }
 
@@ -235,7 +239,7 @@ pub fn start_completion_task(
                         let mut completion = shared_completion.write().await;
                         match action {
                             CompletionAction::Enter { prefix } => {
-                                let (head_item, load_progress) = completion.start(&prefix).await;
+                                let (head_item, load_progress) = completion.enter(&prefix).await;
                                 match head_item {
                                     Some(head) => {
                                         let message = if load_progress.is_complete {
@@ -263,7 +267,7 @@ pub fn start_completion_task(
                                 }
                             }
                             CompletionAction::Leave => {
-                                completion.leave();
+                                completion.reset_session();
                             }
                         }
                         completion.create_graphemes(size.0, size.1)
