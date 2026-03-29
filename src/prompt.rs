@@ -21,9 +21,9 @@ use tokio::{
 
 use crate::{
     completion::{self, CompletionAction, CompletionNavigator},
-    config::{JsonConfig, Keybinds, ReactivityControl},
+    config::Keybinds,
     guide::{self, GuideAction, GuideMessage},
-    json_viewer::{self, RenderTrigger, SharedContext},
+    json_viewer::{self, RenderTrigger, SharedContext, SharedJsonViewer},
     query_editor::{self, QueryEditor, QueryEditorAction},
 };
 
@@ -52,11 +52,8 @@ pub enum Index {
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
-    item: &'static str,
     ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
-    json_config: JsonConfig,
-    _reactivity_control: ReactivityControl,
     editor: QueryEditor,
     completion: CompletionNavigator,
     no_hint: bool,
@@ -70,6 +67,7 @@ pub async fn run(
     resize_debouncer: JoinHandle<()>,
     completion_loader_task: JoinHandle<()>,
     spinning: JoinHandle<()>,
+    json_viewer_bootstrap: impl std::future::Future<Output = anyhow::Result<SharedJsonViewer>>,
 ) -> anyhow::Result<Option<String>> {
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
@@ -84,13 +82,6 @@ pub async fn run(
     let shared_editor = Arc::new(RwLock::new(editor));
     let shared_completion = Arc::new(RwLock::new(completion));
     let editor_keybinds = keybinds.on_editor.clone();
-    let initializing = json_viewer::initialize(
-        item,
-        json_config,
-        keybinds.on_json_viewer,
-        shared_renderer.clone(),
-        ctx.clone(),
-    );
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
         let mut focus = Focus::Editor;
@@ -284,7 +275,7 @@ pub async fn run(
         editor_keybinds.on_completion,
     );
 
-    let shared_viewer_state = initializing.await?;
+    let shared_viewer_state = json_viewer_bootstrap.await?;
     let resize_action_forwarder = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();

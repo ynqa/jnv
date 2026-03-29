@@ -252,6 +252,15 @@ async fn main() -> anyhow::Result<()> {
     // which can be used by various components for rendering and state management.
     let ctx = SharedContext::new(terminal_size);
 
+    // Load input data into JSON viewer, initializing it with the provided configuration and keybindings.
+    let load_for_json_viewer = json_viewer::initialize(
+        input,
+        config.json,
+        config.keybinds.on_json_viewer.clone(),
+        renderer.clone(),
+        ctx.clone(),
+    );
+
     // Set up the debouncer for the query editor input, which will manage the timing of query updates
     // to prevent excessive processing while the user is typing.
     let (debounce_query_tx, last_query_rx, query_debouncer) =
@@ -274,11 +283,8 @@ async fn main() -> anyhow::Result<()> {
 
     // TODO: put all logics here.
     let maybe_output = prompt::run(
-        &input,
         ctx,
         renderer,
-        config.json,
-        config.reactivity_control,
         query_editor,
         completion_navigator,
         config.no_hint,
@@ -292,6 +298,7 @@ async fn main() -> anyhow::Result<()> {
         resize_debouncer,
         completion_loader_task,
         spinner_task,
+        load_for_json_viewer,
     )
     .await;
 
