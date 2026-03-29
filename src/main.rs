@@ -10,6 +10,7 @@ use config::Config;
 use promkit_widgets::{
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
+    core::crossterm,
 };
 
 mod query_editor;
@@ -145,6 +146,20 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
     Ok(default_path)
 }
 
+/// A guard that ensures terminal state is restored when dropped.
+struct TerminalCleanupGuard;
+
+impl Drop for TerminalCleanupGuard {
+    fn drop(&mut self) {
+        let _ = crossterm::execute!(
+            io::stdout(),
+            crossterm::cursor::Show,
+            crossterm::event::DisableMouseCapture
+        );
+        let _ = crossterm::terminal::disable_raw_mode();
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
@@ -163,6 +178,11 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_e| {
             Config::load_from(DEFAULT_CONFIG).expect("Failed to load default configuration")
         });
+
+    // Set up terminal
+    crossterm::terminal::enable_raw_mode()?;
+    let _terminal_cleanup_guard = TerminalCleanupGuard;
+    crossterm::execute!(io::stdout(), crossterm::cursor::Hide)?;
 
     let listbox_state = listbox::State {
         listbox: Listbox::default(),

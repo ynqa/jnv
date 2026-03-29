@@ -4,13 +4,12 @@ use futures::StreamExt;
 use promkit_widgets::{
     core::{
         crossterm::{
-            cursor,
             event::{
                 DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
                 MouseEventKind,
             },
             execute,
-            terminal::{self, disable_raw_mode, enable_raw_mode},
+            terminal,
         },
         grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
@@ -91,9 +90,6 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
 ) -> anyhow::Result<Option<String>> {
-    enable_raw_mode()?;
-    execute!(io::stdout(), cursor::Hide)?;
-
     let size = terminal::size()?;
 
     let shared_renderer = SharedRenderer::new(
@@ -412,9 +408,6 @@ pub async fn run(
     editor_task.abort();
     completion_task.abort();
     processor_task.abort();
-
-    execute!(io::stdout(), cursor::Show, DisableMouseCapture)?;
-    disable_raw_mode()?;
 
     Ok(output)
 }
