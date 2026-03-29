@@ -238,9 +238,9 @@ pub enum CompletionAction {
 /// Spawn a background task to manage the completion navigator's state and interactions.
 pub fn start_completion_task(
     mut action_rx: mpsc::Receiver<CompletionAction>,
-    shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
-    shared_completion: Arc<RwLock<CompletionNavigator>>,
     shared_ctx: SharedContext,
+    shared_completion: Arc<RwLock<CompletionNavigator>>,
+    shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
     completion_keybinds: CompletionKeybinds,

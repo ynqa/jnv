@@ -260,8 +260,8 @@ async fn main() -> anyhow::Result<()> {
         input,
         config.json,
         config.keybinds.on_json_viewer.clone(),
-        renderer.clone(),
         ctx.clone(),
+        renderer.clone(),
     );
 
     // Spawn the spinner task, which will display a loading spinner in JSON viewer while processing is ongoing.

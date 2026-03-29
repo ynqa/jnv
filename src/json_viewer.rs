@@ -120,8 +120,8 @@ pub async fn initialize(
     input: &'static str,
     config: JsonConfig,
     keybinds: JsonViewerKeybinds,
-    shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
+    shared_renderer: SharedRenderer<Index>,
 ) -> anyhow::Result<SharedJsonViewer> {
     // Set state to Loading to prevent overwriting by spinner frames in terminal.
     {
@@ -165,11 +165,11 @@ pub async fn initialize(
 }
 
 pub async fn render(
+    trigger: RenderTrigger,
+    shared_ctx: SharedContext,
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: SharedContext,
     guide_action_tx: mpsc::Sender<GuideAction>,
-    trigger: RenderTrigger,
 ) {
     match trigger {
         RenderTrigger::UserAction(event) => {
@@ -347,10 +347,10 @@ pub enum ViewerAction {
 /// and update the viewer state and rendered view accordingly.
 pub fn start_viewer_task(
     mut action_rx: mpsc::Receiver<ViewerAction>,
-    guide_action_tx: mpsc::Sender<GuideAction>,
+    shared_ctx: SharedContext,
     shared_viewer_state: SharedJsonViewer,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: SharedContext,
+    guide_action_tx: mpsc::Sender<GuideAction>,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
         loop {
@@ -364,21 +364,21 @@ pub fn start_viewer_task(
                         }
                         ViewerAction::UserEvent(event) => {
                             render(
+                                RenderTrigger::UserAction(event),
+                                shared_ctx.clone(),
                                 shared_viewer_state.clone(),
                                 shared_renderer.clone(),
-                                shared_ctx.clone(),
                                 guide_action_tx.clone(),
-                                RenderTrigger::UserAction(event),
                             )
                             .await;
                         }
                         ViewerAction::QueryChanged(query) => {
                             render(
+                                RenderTrigger::QueryChanged { query },
+                                shared_ctx.clone(),
                                 shared_viewer_state.clone(),
                                 shared_renderer.clone(),
-                                shared_ctx.clone(),
                                 guide_action_tx.clone(),
-                                RenderTrigger::QueryChanged { query },
                             )
                             .await;
                         }

@@ -218,9 +218,9 @@ pub async fn run(
 
     let editor_task = query_editor::start_query_editor_task(
         editor_action_rx,
-        shared_renderer.clone(),
-        shared_editor.clone(),
         ctx.clone(),
+        shared_editor.clone(),
+        shared_renderer.clone(),
         completion_action_tx.clone(),
         debounce_query_tx.clone(),
         guide_action_tx.clone(),
@@ -228,9 +228,9 @@ pub async fn run(
 
     let completion_task = completion::start_completion_task(
         completion_action_rx,
-        shared_renderer.clone(),
-        shared_completion.clone(),
         ctx.clone(),
+        shared_completion.clone(),
+        shared_renderer.clone(),
         editor_action_tx.clone(),
         guide_action_tx.clone(),
         keybinds.on_editor.on_completion,
@@ -267,11 +267,11 @@ pub async fn run(
                     editor.text()
                 };
                 json_viewer::render(
+                    RenderTrigger::AreaResized { query: text },
+                    ctx.clone(),
                     shared_viewer_state.clone(),
                     shared_renderer.clone(),
-                    ctx.clone(),
                     guide_action_tx.clone(),
-                    RenderTrigger::AreaResized { query: text },
                 )
                 .await;
             }
@@ -281,10 +281,10 @@ pub async fn run(
 
     let processor_task = json_viewer::start_viewer_task(
         json_viewer_action_rx,
-        guide_action_tx.clone(),
+        ctx.clone(),
         shared_viewer_state.clone(),
         shared_renderer.clone(),
-        ctx.clone(),
+        guide_action_tx.clone(),
     );
 
     main_task.await??;

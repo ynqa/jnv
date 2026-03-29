@@ -155,9 +155,9 @@ pub enum QueryEditorAction {
 /// Spawn a background task to manage the query editor's state and interactions.
 pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
-    shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
-    shared_editor: Arc<RwLock<QueryEditor>>,
     shared_ctx: SharedContext,
+    shared_editor: Arc<RwLock<QueryEditor>>,
+    shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     completion_action_tx: mpsc::Sender<CompletionAction>,
     debounce_query_tx: mpsc::Sender<String>,
     guide_action_tx: mpsc::Sender<GuideAction>,
