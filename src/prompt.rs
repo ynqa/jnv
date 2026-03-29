@@ -75,7 +75,6 @@ pub async fn run(
         debounce_query_tx.send(editor.text()).await?;
     }
 
-    let mut focus = Focus::Editor;
     let (editor_action_tx, editor_action_rx) = mpsc::channel::<QueryEditorAction>(1);
     let (completion_action_tx, completion_action_rx) = mpsc::channel::<CompletionAction>(1);
     let (json_viewer_action_tx, json_viewer_action_rx) =
@@ -94,6 +93,7 @@ pub async fn run(
     );
 
     let main_task: JoinHandle<anyhow::Result<()>> = {
+        let mut focus = Focus::Editor;
         let mut stream = EventStream::new();
         let ctx = ctx.clone();
         let shared_editor = shared_editor.clone();
