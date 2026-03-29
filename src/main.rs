@@ -371,6 +371,17 @@ async fn main() -> anyhow::Result<()> {
         guide_action_tx.clone(),
     );
 
+    // Spawn the resize render task, which will listen for terminal resize events and trigger re-rendering of the UI components accordingly.
+    let resize_render_task = runtime_tasks::spawn_resize_render_task(
+        last_resize_rx,
+        ctx.clone(),
+        renderer.clone(),
+        shared_query_editor.clone(),
+        shared_completion_navigator.clone(),
+        shared_json_viewer.clone(),
+        guide_action_tx.clone(),
+    );
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
@@ -383,17 +394,16 @@ async fn main() -> anyhow::Result<()> {
         args.write_to_stdout,
         debounce_query_tx,
         query_debouncer,
-        last_resize_rx,
         resize_debouncer,
         completion_loader_task,
         spinner_task,
-        guide_action_tx.clone(),
         event_dispacher_task,
         query_change_forward_task,
         guide_task,
         query_editor_task,
         completion_navigator_task,
         json_viewer_task,
+        resize_render_task,
     )
     .await;
 
