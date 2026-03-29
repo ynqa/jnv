@@ -8,11 +8,9 @@ use promkit_widgets::{
                 DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
                 MouseEventKind,
             },
-            execute,
-            terminal,
+            execute, terminal,
         },
-        grapheme::StyledGraphemes,
-        render::{Renderer, SharedRenderer},
+        render::SharedRenderer,
     },
     spinner::{self, Spinner, State},
 };
@@ -82,6 +80,7 @@ pub enum Index {
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     item: &'static str,
+    shared_renderer: SharedRenderer<Index>,
     json_config: JsonConfig,
     reactivity_control: ReactivityControl,
     editor: QueryEditor,
@@ -90,22 +89,6 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
 ) -> anyhow::Result<Option<String>> {
-    let size = terminal::size()?;
-
-    let shared_renderer = SharedRenderer::new(
-        Renderer::try_new_with_graphemes(
-            [
-                (Index::QueryEditor, editor.create_graphemes(size.0, size.1)),
-                (Index::Guide, StyledGraphemes::default()),
-                (Index::Completion, StyledGraphemes::default()),
-                (Index::JsonViewer, StyledGraphemes::default()),
-            ]
-            .into_iter(),
-            true,
-        )
-        .await?,
-    );
-
     let ctx = SharedContext::try_default()?;
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);

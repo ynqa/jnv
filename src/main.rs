@@ -8,9 +8,13 @@ use anyhow::anyhow;
 use clap::Parser;
 use config::Config;
 use promkit_widgets::{
+    core::{
+        crossterm,
+        grapheme::StyledGraphemes,
+        render::{Renderer, SharedRenderer},
+    },
     listbox::{self, Listbox},
     text_editor::{self, TextEditor},
-    core::crossterm,
 };
 
 mod query_editor;
@@ -25,7 +29,7 @@ mod prompt;
 use completion::CompletionNavigator;
 mod json;
 
-use crate::config::DEFAULT_CONFIG;
+use crate::{config::DEFAULT_CONFIG, prompt::Index};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
@@ -221,9 +225,31 @@ async fn main() -> anyhow::Result<()> {
     // Redirects stdout to prevent interference with TUI interface.
     let mut stdout_redirect = StdoutRedirect::try_new_for_tui(args.write_to_stdout)?;
 
+    // Get terminal size for rendering purposes.
+    let terminal_size = crossterm::terminal::size()?;
+
+    // Initialize the shared renderer with graphemes for each UI component.
+    let shared_renderer = SharedRenderer::new(
+        Renderer::try_new_with_graphemes(
+            [
+                (
+                    Index::QueryEditor,
+                    query_editor.create_graphemes(terminal_size.0, terminal_size.1),
+                ),
+                (Index::Guide, StyledGraphemes::default()),
+                (Index::Completion, StyledGraphemes::default()),
+                (Index::JsonViewer, StyledGraphemes::default()),
+            ]
+            .into_iter(),
+            true,
+        )
+        .await?,
+    );
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
+        shared_renderer,
         config.json,
         config.reactivity_control,
         query_editor,
