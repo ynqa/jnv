@@ -50,11 +50,11 @@ impl SharedSuggestionStore {
 }
 
 /// Initialize shared suggestion store by loading paths from JSON input
-pub async fn initialize(
+pub fn initialize(
     item: &'static str,
     max_streams: Option<usize>,
     chunk_size: usize,
-) -> anyhow::Result<SharedSuggestionStore> {
+) -> SharedSuggestionStore {
     let shared = SharedSuggestionStore(Arc::new(Mutex::new(SuggestionStore {
         paths: BTreeSet::new(),
         progress: SuggestionLoadProgress::default(),
@@ -99,7 +99,7 @@ pub async fn initialize(
         store.progress.is_complete = true;
     });
 
-    Ok(shared)
+    shared
 }
 
 /// Navigator for managing the state of suggestions

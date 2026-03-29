@@ -193,8 +193,7 @@ async fn main() -> anyhow::Result<()> {
         &input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
-    )
-    .await?;
+    );
 
     // Initialize the completion navigator with shared suggestions and configuration.
     let completion_navigator = CompletionNavigator::new(
