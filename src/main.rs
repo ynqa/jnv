@@ -30,6 +30,7 @@ mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod completion;
 mod prompt;
+mod prompt_event_loop;
 use completion::CompletionNavigator;
 mod json;
 mod utils;

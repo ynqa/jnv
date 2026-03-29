@@ -1,18 +1,7 @@
-use std::{io, sync::Arc};
+use std::sync::Arc;
 
-use futures::StreamExt;
 use promkit_widgets::{
-    core::{
-        crossterm::{
-            event::{
-                DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent,
-                MouseEventKind,
-            },
-            execute, terminal,
-        },
-        render::SharedRenderer,
-    },
-    spinner::State,
+    core::render::SharedRenderer,
 };
 use tokio::{
     sync::{mpsc, RwLock},
@@ -23,18 +12,11 @@ use crate::{
     completion::{self, CompletionAction, CompletionNavigator},
     config::Keybinds,
     context::SharedContext,
-    guide::{self, GuideAction, GuideMessage},
+    guide::{self, GuideAction},
     json_viewer::{self, RenderTrigger, SharedJsonViewer},
+    prompt_event_loop,
     query_editor::{self, QueryEditor, QueryEditorAction},
 };
-
-enum GlobalAction {
-    Resize(u16, u16),
-    Exit,
-    CopyQuery,
-    CopyResult,
-    SwitchMode,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Index {
@@ -69,134 +51,15 @@ pub async fn run(
         mpsc::channel::<json_viewer::ViewerAction>(8);
     let (guide_action_tx, guide_action_rx) = mpsc::channel::<GuideAction>(8);
 
-    let main_task: JoinHandle<anyhow::Result<()>> = {
-        let mut stream = EventStream::new();
-        let ctx = ctx.clone();
-        let editor_action_tx = editor_action_tx.clone();
-        let completion_action_tx = completion_action_tx.clone();
-        let json_viewer_action_tx = json_viewer_action_tx.clone();
-        let guide_action_tx = guide_action_tx.clone();
-        tokio::spawn(async move {
-            'main: loop {
-                tokio::select! {
-                    Some(Ok(event)) = stream.next() => {
-                        // Note: `HashSet<Event>::contains` compares full mouse events (including `column`/`row`),
-                        // so wheel events are normalized to `(0, 0)` to match configured `ScrollUp`/`ScrollDown` bindings.
-                        let event = match event {
-                            Event::Mouse(mouse)
-                                if matches!(
-                                    mouse.kind,
-                                    MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-                                ) =>
-                            {
-                                Event::Mouse(MouseEvent {
-                                    kind: mouse.kind,
-                                    column: 0,
-                                    row: 0,
-                                    modifiers: mouse.modifiers,
-                                })
-                            }
-                            other => other,
-                        };
-                        guide_action_tx.send(GuideAction::Clear).await?;
-
-                        let global_action = if let Event::Resize(width, height) = event {
-                            Some(GlobalAction::Resize(width, height))
-                        } else if keybinds.exit.contains(&event) {
-                            Some(GlobalAction::Exit)
-                        } else if keybinds.copy_query.contains(&event) {
-                            Some(GlobalAction::CopyQuery)
-                        } else if keybinds.copy_result.contains(&event) {
-                            Some(GlobalAction::CopyResult)
-                        } else if keybinds.switch_mode.contains(&event) {
-                            Some(GlobalAction::SwitchMode)
-                        } else {
-                            None
-                        };
-
-                        if let Some(action) = global_action {
-                            match action {
-                                GlobalAction::Resize(width, height) => {
-                                    debounce_resize_tx.send((width, height)).await?;
-                                }
-                                GlobalAction::Exit => break 'main,
-                                GlobalAction::CopyQuery => {
-                                    editor_action_tx.send(QueryEditorAction::CopyQuery).await?;
-                                }
-                                GlobalAction::CopyResult => {
-                                    if ctx.is_idle().await {
-                                        json_viewer_action_tx
-                                            .send(json_viewer::ViewerAction::CopyResult)
-                                            .await?;
-                                    } else {
-                                        guide_action_tx
-                                            .send(GuideAction::Show(
-                                                GuideMessage::FailedToCopyWhileRenderingInProgress,
-                                            ))
-                                            .await?;
-                                    }
-                                }
-                                GlobalAction::SwitchMode => match ctx.active_index().await {
-                                    Index::QueryEditor | Index::Completion => {
-                                        if ctx.is_idle().await {
-                                            ctx.set_active_index(Index::JsonViewer).await;
-                                            completion_action_tx.send(CompletionAction::Leave).await?;
-                                            editor_action_tx.send(QueryEditorAction::Leave).await?;
-                                            execute!(
-                                                io::stdout(),
-                                                terminal::EnterAlternateScreen,
-                                                EnableMouseCapture,
-                                            )?;
-                                        } else {
-                                            guide_action_tx
-                                                .send(GuideAction::Show(
-                                                    GuideMessage::FailedToSwitchPaneWhileRenderingInProgress,
-                                            ))
-                                            .await?;
-                                        }
-                                    }
-                                    Index::JsonViewer => {
-                                        ctx.set_active_index(Index::QueryEditor).await;
-                                        editor_action_tx.send(QueryEditorAction::Enter).await?;
-                                        execute!(
-                                            io::stdout(),
-                                            terminal::LeaveAlternateScreen,
-                                            DisableMouseCapture,
-                                        )?;
-                                    }
-                                    Index::Guide => {}
-                                },
-                            }
-                            continue;
-                        }
-
-                        match ctx.active_index().await {
-                            Index::QueryEditor => {
-                                editor_action_tx
-                                    .send(QueryEditorAction::UserEvent(event))
-                                    .await?;
-                            }
-                            Index::Completion => {
-                                completion_action_tx
-                                    .send(CompletionAction::UserEvent(event))
-                                    .await?;
-                            }
-                            Index::JsonViewer => {
-                                json_viewer_action_tx
-                                    .send(json_viewer::ViewerAction::UserEvent(event))
-                                    .await?;
-                            }
-                            Index::Guide => {}
-                        }
-                    },
-                    else => {
-                        break 'main;
-                    }
-                }
-            }
-            Ok(())
-        })
-    };
+    let main_task = prompt_event_loop::spawn_terminal_event_dispatch_task(
+        ctx.clone(),
+        keybinds.clone(),
+        debounce_resize_tx,
+        editor_action_tx.clone(),
+        completion_action_tx.clone(),
+        json_viewer_action_tx.clone(),
+        guide_action_tx.clone(),
+    );
 
     let query_action_forwarder = {
         let json_viewer_action_tx = json_viewer_action_tx.clone();
