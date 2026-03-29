@@ -8,10 +8,9 @@ use tokio::{
 
 use crate::{
     completion::CompletionNavigator,
-    context::SharedContext,
+    context::{Index, SharedContext},
     guide::GuideAction,
     json_viewer::{self, RenderTrigger, SharedJsonViewer},
-    prompt::Index,
     query_editor::QueryEditor,
 };
 

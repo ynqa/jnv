@@ -15,10 +15,9 @@ use tokio::{sync::mpsc, task::JoinHandle};
 use crate::{
     completion::CompletionAction,
     config::Keybinds,
-    context::SharedContext,
+    context::{Index, SharedContext},
     guide::{GuideAction, GuideMessage},
     json_viewer,
-    prompt::Index,
     query_editor::QueryEditorAction,
 };
 

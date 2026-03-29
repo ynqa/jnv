@@ -37,8 +37,11 @@ mod json;
 mod utils;
 
 use crate::{
-    completion::CompletionAction, config::DEFAULT_CONFIG, context::SharedContext,
-    guide::GuideAction, prompt::Index, query_editor::QueryEditorAction,
+    completion::CompletionAction,
+    config::DEFAULT_CONFIG,
+    context::{Index, SharedContext},
+    guide::GuideAction,
+    query_editor::QueryEditorAction,
 };
 
 /// JSON navigator and interactive filter leveraging jq

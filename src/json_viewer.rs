@@ -12,10 +12,9 @@ use tokio::{
 
 use crate::{
     config::{JsonConfig, JsonViewerKeybinds},
-    context::{SharedContext, State},
+    context::{Index, SharedContext, State},
     guide::{self, GuideAction, GuideMessage},
     json,
-    prompt::Index,
 };
 
 /// Represent the trigger for rendering views.

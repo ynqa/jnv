@@ -7,17 +7,14 @@ use tokio::{
 };
 
 use crate::{
-    completion::CompletionNavigator, config::Keybinds, context::SharedContext, guide::GuideAction,
-    json_viewer::SharedJsonViewer, query_editor::QueryEditor, runtime_tasks,
+    completion::CompletionNavigator,
+    config::Keybinds,
+    context::{Index, SharedContext},
+    guide::GuideAction,
+    json_viewer::SharedJsonViewer,
+    query_editor::QueryEditor,
+    runtime_tasks,
 };
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Index {
-    QueryEditor = 0,
-    Guide = 1,
-    Completion = 2,
-    JsonViewer = 3,
-}
 
 #[allow(clippy::too_many_arguments)]
 pub async fn run(

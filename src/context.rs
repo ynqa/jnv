@@ -3,7 +3,14 @@ use std::{future::Future, sync::Arc};
 use promkit_widgets::spinner;
 use tokio::{sync::Mutex, task::JoinHandle};
 
-use crate::prompt::Index;
+/// Represent the different sections of the UI, which can be used to manage focus and input handling.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Index {
+    QueryEditor = 0,
+    Guide = 1,
+    Completion = 2,
+    JsonViewer = 3,
+}
 
 #[derive(PartialEq)]
 /// Represent the current state of the JSON viewer,

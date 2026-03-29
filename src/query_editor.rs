@@ -16,9 +16,8 @@ use tokio::{
 use crate::{
     completion::CompletionAction,
     config::EditorKeybinds,
-    context::SharedContext,
+    context::{Index, SharedContext},
     guide::{self, GuideAction},
-    prompt::Index,
 };
 
 /// Editor for inputting jq query. It manages the state of the text editor

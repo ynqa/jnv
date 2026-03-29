@@ -5,7 +5,7 @@ use promkit_widgets::{
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 
-use crate::{context::SharedContext, prompt::Index};
+use crate::context::{Index, SharedContext};
 
 pub enum GuideMessage {
     CopiedToClipboard,
