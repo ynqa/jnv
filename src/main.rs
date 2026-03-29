@@ -249,6 +249,7 @@ async fn main() -> anyhow::Result<()> {
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
+        terminal_size,
         shared_renderer,
         config.json,
         config.reactivity_control,

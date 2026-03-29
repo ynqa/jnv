@@ -1,11 +1,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use promkit_widgets::{
-    core::{
-        crossterm::{event::Event, terminal},
-        grapheme::StyledGraphemes,
-        Widget,
-    },
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
 };
 use tokio::{
@@ -17,6 +13,7 @@ use crate::{
     config::CompletionKeybinds,
     guide::{GuideAction, GuideMessage},
     json,
+    json_viewer::SharedContext,
     prompt::Index,
     query_editor::QueryEditorAction,
 };
@@ -238,6 +235,7 @@ pub fn start_completion_task(
     mut action_rx: mpsc::Receiver<CompletionAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     shared_completion: Arc<RwLock<CompletionNavigator>>,
+    shared_ctx: SharedContext,
     query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
     completion_keybinds: CompletionKeybinds,
@@ -246,7 +244,7 @@ pub fn start_completion_task(
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let size = terminal::size()?;
+                    let area = shared_ctx.area().await;
                     let completion_pane = {
                         let mut completion = shared_completion.write().await;
                         match action {
@@ -282,7 +280,7 @@ pub fn start_completion_task(
                                 completion.clear_session_state();
                             }
                         }
-                        completion.create_graphemes(size.0, size.1)
+                        completion.create_graphemes(area.0, area.1)
                     };
 
                     shared_renderer

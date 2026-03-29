@@ -1,11 +1,11 @@
 use arboard::Clipboard;
 use promkit_widgets::{
-    core::{crossterm::terminal, render::SharedRenderer, Widget},
+    core::{render::SharedRenderer, Widget},
     status::{self, Severity},
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 
-use crate::prompt::Index;
+use crate::{json_viewer::SharedContext, prompt::Index};
 
 pub enum GuideMessage {
     CopiedToClipboard,
@@ -79,19 +79,20 @@ pub fn copy_to_clipboard_message(content: &str) -> GuideMessage {
 pub fn start_guide_task(
     mut action_rx: mpsc::Receiver<GuideAction>,
     shared_renderer: SharedRenderer<Index>,
+    shared_ctx: SharedContext,
     no_hint: bool,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let size = terminal::size()?;
+                    let area = shared_ctx.area().await;
                     let pane = if no_hint {
                         Default::default()
                     } else {
                         match action {
-                            GuideAction::Clear => status::State::default().create_graphemes(size.0, size.1),
-                            GuideAction::Show(message) => message_to_state(message).create_graphemes(size.0, size.1),
+                            GuideAction::Clear => status::State::default().create_graphemes(area.0, area.1),
+                            GuideAction::Show(message) => message_to_state(message).create_graphemes(area.0, area.1),
                         }
                     };
                     shared_renderer.update([(Index::Guide, pane)]).render().await?;

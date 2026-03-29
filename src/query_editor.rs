@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use promkit_widgets::{
     core::{
-        crossterm::{
-            event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-            terminal,
-        },
+        crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
         grapheme::StyledGraphemes,
         Widget,
     },
@@ -19,6 +16,7 @@ use tokio::{
 use crate::{
     config::EditorKeybinds,
     guide::{self, GuideAction},
+    json_viewer::SharedContext,
     prompt::Index,
 };
 
@@ -153,6 +151,7 @@ pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     shared_editor: Arc<RwLock<QueryEditor>>,
+    shared_ctx: SharedContext,
     debounce_query_tx: mpsc::Sender<String>,
     guide_action_tx: mpsc::Sender<GuideAction>,
 ) -> JoinHandle<anyhow::Result<()>> {
@@ -164,7 +163,7 @@ pub fn start_query_editor_task(
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let size = terminal::size()?;
+                    let area = shared_ctx.area().await;
                     let (editor_pane, current_text) = {
                         let mut editor = shared_editor.write().await;
                         match action {
@@ -182,7 +181,7 @@ pub fn start_query_editor_task(
                             }
                         }
                         let current_text = editor.text();
-                        (editor.create_graphemes(size.0, size.1), current_text)
+                        (editor.create_graphemes(area.0, area.1), current_text)
                     };
 
                     // If the text has changed, send it to the debounce channel for processing.

@@ -80,6 +80,7 @@ pub enum Index {
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     item: &'static str,
+    terminal_size: (u16, u16),
     shared_renderer: SharedRenderer<Index>,
     json_config: JsonConfig,
     reactivity_control: ReactivityControl,
@@ -89,7 +90,7 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
 ) -> anyhow::Result<Option<String>> {
-    let ctx = SharedContext::try_default()?;
+    let ctx = SharedContext::new(terminal_size);
 
     let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
     let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
@@ -303,12 +304,18 @@ pub async fn run(
         })
     };
 
-    let guide_task = guide::start_guide_task(guide_action_rx, shared_renderer.clone(), no_hint);
+    let guide_task = guide::start_guide_task(
+        guide_action_rx,
+        shared_renderer.clone(),
+        ctx.clone(),
+        no_hint,
+    );
 
     let editor_task = query_editor::start_query_editor_task(
         editor_action_rx,
         shared_renderer.clone(),
         shared_editor.clone(),
+        ctx.clone(),
         debounce_query_tx.clone(),
         guide_action_tx.clone(),
     );
@@ -317,6 +324,7 @@ pub async fn run(
         completion_action_rx,
         shared_renderer.clone(),
         shared_completion.clone(),
+        ctx.clone(),
         editor_action_tx.clone(),
         guide_action_tx.clone(),
         editor_keybinds.on_completion,
@@ -332,13 +340,13 @@ pub async fn run(
         let guide_action_tx = guide_action_tx.clone();
         tokio::spawn(async move {
             while let Some(area) = last_resize_rx.recv().await {
-                let size = terminal::size()?;
+                ctx.set_area(area).await;
                 let (editor_pane, completion_pane) = {
                     let editor = shared_editor.read().await;
                     let completion = shared_completion.read().await;
                     (
-                        editor.create_graphemes(size.0, size.1),
-                        completion.create_graphemes(size.0, size.1),
+                        editor.create_graphemes(area.0, area.1),
+                        completion.create_graphemes(area.0, area.1),
                     )
                 };
                 shared_renderer
@@ -357,7 +365,7 @@ pub async fn run(
                     shared_renderer.clone(),
                     ctx.clone(),
                     guide_action_tx.clone(),
-                    RenderTrigger::AreaResized { area, query: text },
+                    RenderTrigger::AreaResized { query: text },
                 )
                 .await;
             }

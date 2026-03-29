@@ -1,12 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use promkit_widgets::{
-    core::{
-        crossterm::{event::Event, terminal},
-        grapheme::StyledGraphemes,
-        render::SharedRenderer,
-        Widget,
-    },
+    core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
     jsonstream::{self, JsonStream},
     serde_json::{self, Value},
     spinner,
@@ -41,6 +36,11 @@ struct Context {
     /// The current state of the processor, which can be Idle, Loading, or Processing.
     state: State,
     /// The current size of the terminal area.
+    ///
+    /// PERF NOTE: This currently lives with `state/current_task` in the same mutex
+    /// for simplicity. If lock contention becomes visible, this can be split into
+    /// a dedicated shared store (e.g. `Arc<RwLock<(u16, u16)>>`) to reduce lock
+    /// granularity.
     area: (u16, u16),
     /// The current task being executed, if any.
     current_task: Option<JoinHandle<()>>,
@@ -50,13 +50,22 @@ struct Context {
 pub struct SharedContext(Arc<Mutex<Context>>);
 
 impl SharedContext {
-    pub fn try_default() -> anyhow::Result<Self> {
-        let area = terminal::size()?;
-        Ok(Self(Arc::new(Mutex::new(Context {
+    pub fn new(area: (u16, u16)) -> Self {
+        Self(Arc::new(Mutex::new(Context {
             state: State::Idle,
             area,
             current_task: None,
-        }))))
+        })))
+    }
+
+    pub async fn area(&self) -> (u16, u16) {
+        let ctx = self.0.lock().await;
+        ctx.area
+    }
+
+    pub async fn set_area(&self, area: (u16, u16)) {
+        let mut ctx = self.0.lock().await;
+        ctx.area = area;
     }
 
     async fn lock(&self) -> tokio::sync::MutexGuard<'_, Context> {
@@ -81,7 +90,7 @@ pub enum RenderTrigger {
     /// Query changes such as new jq filter input
     QueryChanged { query: String },
     /// Terminal resize events
-    AreaResized { area: (u16, u16), query: String },
+    AreaResized { query: String },
 }
 
 /// JSON viewer that maintains the state of JSON stream
@@ -241,13 +250,12 @@ pub async fn render(
             )
             .await;
         }
-        RenderTrigger::AreaResized { area, query } => {
+        RenderTrigger::AreaResized { query } => {
             handle_area_resized(
                 shared_viewer_state,
                 shared_renderer,
                 shared_ctx,
                 guide_action_tx,
-                area,
                 query,
             )
             .await;
@@ -316,15 +324,10 @@ async fn handle_area_resized(
     shared_renderer: SharedRenderer<Index>,
     shared_ctx: SharedContext,
     guide_action_tx: mpsc::Sender<GuideAction>,
-    area: (u16, u16),
     query: String,
 ) {
     {
         let mut ctx = shared_ctx.lock().await;
-
-        // Update the terminal area in shared context for accurate rendering.
-        ctx.area = area;
-
         // Abort any ongoing processing task to prevent race conditions
         // and ensure the new render reflects the latest terminal size.
         if let Some(task) = ctx.current_task.take() {
