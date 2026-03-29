@@ -1,4 +1,4 @@
-use std::{io, sync::Arc, time::Duration};
+use std::{io, sync::Arc};
 
 use futures::StreamExt;
 use promkit_widgets::{
@@ -25,34 +25,8 @@ use crate::{
     guide::{self, GuideAction, GuideMessage},
     json_viewer::{self, RenderTrigger, SharedContext},
     query_editor::{self, QueryEditor, QueryEditorAction},
+    utils::debounce::setup_debouncer,
 };
-
-fn spawn_debouncer<T: Send + 'static>(
-    mut debounce_rx: mpsc::Receiver<T>,
-    last_tx: mpsc::Sender<T>,
-    duration: Duration,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        let mut last_query = None;
-        let mut delay = tokio::time::interval(duration);
-        loop {
-            tokio::select! {
-                maybe_query = debounce_rx.recv() => {
-                    if let Some(query) = maybe_query {
-                        last_query = Some(query);
-                    } else {
-                        break;
-                    }
-                },
-                _ = delay.tick() => {
-                    if let Some(text) = last_query.take() {
-                        let _ = last_tx.send(text).await;
-                    }
-                },
-            }
-        }
-    })
-}
 
 #[derive(Clone, Copy)]
 enum Focus {
@@ -90,24 +64,14 @@ pub async fn run(
     keybinds: Keybinds,
     write_to_stdout: bool,
 ) -> anyhow::Result<Option<String>> {
-    let (last_query_tx, mut last_query_rx) = mpsc::channel(1);
-    let (debounce_query_tx, debounce_query_rx) = mpsc::channel(1);
-    let query_debouncer = spawn_debouncer(
-        debounce_query_rx,
-        last_query_tx,
-        reactivity_control.query_debounce_duration,
-    );
+    let (debounce_query_tx, mut last_query_rx, query_debouncer) =
+        setup_debouncer(reactivity_control.query_debounce_duration);
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
     }
 
-    let (last_resize_tx, mut last_resize_rx) = mpsc::channel::<(u16, u16)>(1);
-    let (debounce_resize_tx, debounce_resize_rx) = mpsc::channel(1);
-    let resize_debouncer = spawn_debouncer(
-        debounce_resize_rx,
-        last_resize_tx,
-        reactivity_control.resize_debounce_duration,
-    );
+    let (debounce_resize_tx, mut last_resize_rx, resize_debouncer) =
+        setup_debouncer::<(u16, u16)>(reactivity_control.resize_debounce_duration);
 
     let spinning = tokio::spawn({
         let shared_renderer = shared_renderer.clone();

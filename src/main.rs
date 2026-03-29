@@ -28,6 +28,7 @@ mod completion;
 mod prompt;
 use completion::CompletionNavigator;
 mod json;
+mod utils;
 
 use crate::{config::DEFAULT_CONFIG, json_viewer::SharedContext, prompt::Index};
 
