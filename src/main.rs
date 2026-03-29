@@ -262,7 +262,8 @@ async fn main() -> anyhow::Result<()> {
     let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
         utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
 
-    let spinning = tokio::spawn({
+    // Spawn the spinner task, which will display a loading spinner in JSON viewer while processing is ongoing.
+    let spinner_task = tokio::spawn({
         let shared_renderer = renderer.clone();
         let ctx = ctx.clone();
         async move {
@@ -290,7 +291,7 @@ async fn main() -> anyhow::Result<()> {
         last_resize_rx,
         resize_debouncer,
         completion_loader_task,
-        spinning,
+        spinner_task,
     )
     .await;
 
