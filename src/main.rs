@@ -251,6 +251,11 @@ async fn main() -> anyhow::Result<()> {
     // which can be used by various components for rendering and state management.
     let ctx = SharedContext::new(terminal_size);
 
+    // Set up the debouncer for the query editor input, which will manage the timing of query updates
+    // to prevent excessive processing while the user is typing.
+    let (debounce_query_tx, last_query_rx, query_debouncer) =
+        utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
@@ -263,6 +268,9 @@ async fn main() -> anyhow::Result<()> {
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,
+        debounce_query_tx,
+        last_query_rx,
+        query_debouncer,
     )
     .await;
 

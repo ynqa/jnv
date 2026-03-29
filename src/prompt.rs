@@ -25,7 +25,7 @@ use crate::{
     guide::{self, GuideAction, GuideMessage},
     json_viewer::{self, RenderTrigger, SharedContext},
     query_editor::{self, QueryEditor, QueryEditorAction},
-    utils::debounce::setup_debouncer,
+    utils::setup_debouncer,
 };
 
 #[derive(Clone, Copy)]
@@ -63,9 +63,10 @@ pub async fn run(
     no_hint: bool,
     keybinds: Keybinds,
     write_to_stdout: bool,
+    debounce_query_tx: mpsc::Sender<String>,
+    mut last_query_rx: mpsc::Receiver<String>,
+    query_debouncer: JoinHandle<()>,
 ) -> anyhow::Result<Option<String>> {
-    let (debounce_query_tx, mut last_query_rx, query_debouncer) =
-        setup_debouncer(reactivity_control.query_debounce_duration);
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
     }
