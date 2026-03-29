@@ -226,11 +226,15 @@ impl CompletionNavigator {
 }
 
 pub enum CompletionAction {
+    /// Triggered when the user enters the completion pane with a current query as prefix.
     Enter { prefix: String },
+    /// Triggered when the user leaves the completion pane.
     Leave,
+    /// Triggered on user input events within the completion pane, such as navigation keys.
     UserEvent(Event),
 }
 
+/// Spawn a background task to manage the completion navigator's state and interactions.
 pub fn start_completion_task(
     mut action_rx: mpsc::Receiver<CompletionAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,

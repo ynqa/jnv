@@ -351,9 +351,8 @@ async fn handle_area_resized(
     }
 }
 
-/// Spawn a background task to process jq query
-/// and update the viewer state
-/// and rendered view accordingly.
+// Spawn a background task to process the jq query and update the viewer state with the results,
+// while managing the viewer state to prevent race conditions and ensure the view reflects the latest terminal size.
 fn spawn_query_update_task(
     shared_viewer_state: SharedJsonViewer,
     shared_ctx: SharedContext,

@@ -146,7 +146,6 @@ pub enum QueryEditorAction {
 }
 
 /// Spawn a background task to manage the query editor's state and interactions.
-/// It listens for actions such as focusing, copying the query, or handling user events.
 pub fn start_query_editor_task(
     mut action_rx: mpsc::Receiver<QueryEditorAction>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
