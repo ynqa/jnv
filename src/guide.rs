@@ -22,6 +22,7 @@ pub enum GuideMessage {
     JqFailed(String),
 }
 
+/// Represent an action to be performed on the guide.
 pub enum GuideAction {
     Clear,
     Show(GuideMessage),
@@ -68,6 +69,7 @@ fn message_to_state(message: GuideMessage) -> status::State {
     }
 }
 
+/// Copy the given content to the clipboard and return a message indicating the result.
 pub fn copy_to_clipboard_message(content: &str) -> GuideMessage {
     match Clipboard::new() {
         Ok(mut clipboard) => match clipboard.set_text(content) {
@@ -78,6 +80,7 @@ pub fn copy_to_clipboard_message(content: &str) -> GuideMessage {
     }
 }
 
+/// Spawn a task that listens for guide actions and updates the guide view accordingly.
 pub fn start_guide_task(
     mut action_rx: mpsc::Receiver<GuideAction>,
     shared_renderer: SharedRenderer<Index>,
