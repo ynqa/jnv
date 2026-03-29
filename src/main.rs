@@ -404,6 +404,18 @@ async fn main() -> anyhow::Result<()> {
     completion_navigator_task.abort();
     json_viewer_task.abort();
 
+    // Ensure all aborted tasks are fully stopped before terminal cleanup runs.
+    let _ = spinner_task.await;
+    let _ = query_debouncer.await;
+    let _ = resize_debouncer.await;
+    let _ = completion_loader_task.await;
+    let _ = query_change_forward_task.await;
+    let _ = resize_render_task.await;
+    let _ = guide_task.await;
+    let _ = query_editor_task.await;
+    let _ = completion_navigator_task.await;
+    let _ = json_viewer_task.await;
+
     // Restore terminal state and write output to stdout if the option is enabled.
     stdout_redirect.restore()?;
 
