@@ -12,7 +12,7 @@ use promkit_widgets::{
         },
         render::SharedRenderer,
     },
-    spinner::{self, Spinner, State},
+    spinner::State,
 };
 use tokio::{
     sync::{mpsc, RwLock},
@@ -56,7 +56,7 @@ pub async fn run(
     ctx: SharedContext,
     shared_renderer: SharedRenderer<Index>,
     json_config: JsonConfig,
-    reactivity_control: ReactivityControl,
+    _reactivity_control: ReactivityControl,
     editor: QueryEditor,
     completion: CompletionNavigator,
     no_hint: bool,
@@ -69,20 +69,11 @@ pub async fn run(
     mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
     resize_debouncer: JoinHandle<()>,
     completion_loader_task: JoinHandle<()>,
+    spinning: JoinHandle<()>,
 ) -> anyhow::Result<Option<String>> {
     if !editor.text().is_empty() {
         debounce_query_tx.send(editor.text()).await?;
     }
-
-    let spinning = tokio::spawn({
-        let shared_renderer = shared_renderer.clone();
-        let ctx = ctx.clone();
-        let spin_duration = reactivity_control.spin_duration;
-        async move {
-            let spinner = Spinner::default().duration(spin_duration);
-            let _ = spinner::run(&spinner, ctx, Index::JsonViewer, shared_renderer).await;
-        }
-    });
 
     let mut focus = Focus::Editor;
     let (editor_action_tx, editor_action_rx) = mpsc::channel::<QueryEditorAction>(1);

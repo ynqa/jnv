@@ -14,6 +14,7 @@ use promkit_widgets::{
         render::{Renderer, SharedRenderer},
     },
     listbox::{self, Listbox},
+    spinner::{self, Spinner},
     text_editor::{self, TextEditor},
 };
 
@@ -230,7 +231,7 @@ async fn main() -> anyhow::Result<()> {
     let terminal_size = crossterm::terminal::size()?;
 
     // Initialize the shared renderer with graphemes for each UI component.
-    let shared_renderer = SharedRenderer::new(
+    let renderer = SharedRenderer::new(
         Renderer::try_new_with_graphemes(
             [
                 (
@@ -261,11 +262,20 @@ async fn main() -> anyhow::Result<()> {
     let (debounce_resize_tx, last_resize_rx, resize_debouncer) =
         utils::setup_debouncer::<(u16, u16)>(config.reactivity_control.resize_debounce_duration);
 
+    let spinning = tokio::spawn({
+        let shared_renderer = renderer.clone();
+        let ctx = ctx.clone();
+        async move {
+            let spinner = Spinner::default().duration(config.reactivity_control.spin_duration);
+            let _ = spinner::run(&spinner, ctx, Index::JsonViewer, shared_renderer).await;
+        }
+    });
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         &input,
         ctx,
-        shared_renderer,
+        renderer,
         config.json,
         config.reactivity_control,
         query_editor,
@@ -280,6 +290,7 @@ async fn main() -> anyhow::Result<()> {
         last_resize_rx,
         resize_debouncer,
         completion_loader_task,
+        spinning,
     )
     .await;
 
