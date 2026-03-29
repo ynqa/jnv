@@ -130,11 +130,17 @@ impl CompletionNavigator {
         }
     }
 
-    pub fn up(&mut self) {
-        self.state.listbox.backward();
+    /// Get the currently selected item in listbox.
+    fn get_current_item(&self) -> String {
+        self.state.listbox.get().to_string()
     }
 
-    pub fn down_with_load(&mut self) {
+    /// Create graphemes for rendering the completion navigator.
+    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
+        self.state.create_graphemes(width, height)
+    }
+
+    fn down_with_load(&mut self) {
         self.state.listbox.forward();
         if self
             .state
@@ -161,31 +167,26 @@ impl CompletionNavigator {
         }
     }
 
-    pub fn get_current_item(&self) -> String {
-        self.state.listbox.get().to_string()
-    }
-
-    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
-        self.state.create_graphemes(width, height)
-    }
-
     pub fn leave(&mut self) {
         self.state.listbox = Listbox::from(Vec::<String>::new());
         self.search_chunk_remaining = Vec::<String>::new();
     }
 
+    /// Handle a user input event to update the completion navigator's state accordingly.
     fn handle_user_event(
         &mut self,
         event: &Event,
         completion_keybinds: &CompletionKeybinds,
     ) -> Option<String> {
-        if completion_keybinds.down.contains(event) {
-            self.down_with_load();
+        // Move up.
+        if completion_keybinds.up.contains(event) {
+            self.state.listbox.backward();
             return Some(self.get_current_item());
         }
 
-        if completion_keybinds.up.contains(event) {
-            self.up();
+        // Move down (and load more if near the end).
+        if completion_keybinds.down.contains(event) {
+            self.down_with_load();
             return Some(self.get_current_item());
         }
 
