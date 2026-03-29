@@ -25,6 +25,7 @@ mod config;
 use config::Config;
 mod guide;
 mod json_viewer;
+mod context;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
 mod completion;
@@ -33,7 +34,7 @@ use completion::CompletionNavigator;
 mod json;
 mod utils;
 
-use crate::{config::DEFAULT_CONFIG, json_viewer::SharedContext, prompt::Index};
+use crate::{config::DEFAULT_CONFIG, context::SharedContext, prompt::Index};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]

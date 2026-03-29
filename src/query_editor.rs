@@ -15,8 +15,8 @@ use tokio::{
 
 use crate::{
     config::EditorKeybinds,
+    context::SharedContext,
     guide::{self, GuideAction},
-    json_viewer::SharedContext,
     prompt::Index,
 };
 

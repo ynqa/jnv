@@ -11,9 +11,9 @@ use tokio::{
 
 use crate::{
     config::CompletionKeybinds,
+    context::SharedContext,
     guide::{GuideAction, GuideMessage},
     json,
-    json_viewer::SharedContext,
     prompt::Index,
     query_editor::QueryEditorAction,
 };

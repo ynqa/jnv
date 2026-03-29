@@ -22,8 +22,9 @@ use tokio::{
 use crate::{
     completion::{self, CompletionAction, CompletionNavigator},
     config::Keybinds,
+    context::SharedContext,
     guide::{self, GuideAction, GuideMessage},
-    json_viewer::{self, RenderTrigger, SharedContext, SharedJsonViewer},
+    json_viewer::{self, RenderTrigger, SharedJsonViewer},
     query_editor::{self, QueryEditor, QueryEditorAction},
 };
 
