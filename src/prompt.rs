@@ -232,7 +232,7 @@ pub async fn run(
                                         if ctx.is_idle().await {
                                             focus = Focus::Processor;
                                             completion_action_tx.send(CompletionAction::Leave).await?;
-                                            editor_action_tx.send(QueryEditorAction::Focus(false)).await?;
+                                            editor_action_tx.send(QueryEditorAction::Leave).await?;
                                             execute!(
                                                 io::stdout(),
                                                 terminal::EnterAlternateScreen,
@@ -248,7 +248,7 @@ pub async fn run(
                                     }
                                     Focus::Processor => {
                                         focus = Focus::Editor;
-                                        editor_action_tx.send(QueryEditorAction::Focus(true)).await?;
+                                        editor_action_tx.send(QueryEditorAction::Enter).await?;
                                         execute!(
                                             io::stdout(),
                                             terminal::LeaveAlternateScreen,
@@ -268,7 +268,9 @@ pub async fn run(
                                         let editor = shared_editor.read().await;
                                         editor.text()
                                     };
-                                    completion_action_tx.send(CompletionAction::Start(prefix)).await?;
+                                    completion_action_tx
+                                        .send(CompletionAction::Enter { prefix })
+                                        .await?;
                                 } else {
                                     editor_action_tx
                                         .send(QueryEditorAction::UserEvent(event))

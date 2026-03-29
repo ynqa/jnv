@@ -190,9 +190,9 @@ impl CompletionNavigator {
 }
 
 pub enum CompletionAction {
-    Start(String),
-    UserEvent(Event),
+    Enter { prefix: String },
     Leave,
+    UserEvent(Event),
 }
 
 pub fn start_completion_task(
@@ -211,7 +211,7 @@ pub fn start_completion_task(
                     let completion_pane = {
                         let mut completion = shared_completion.write().await;
                         match action {
-                            CompletionAction::Start(prefix) => {
+                            CompletionAction::Enter { prefix } => {
                                 let (head_item, load_progress) = completion.start(&prefix).await;
                                 match head_item {
                                     Some(head) => {
