@@ -279,7 +279,6 @@ pub async fn run(
                             }
                             Focus::Searcher => {
                                 if editor_keybinds.on_completion.down.contains(&event)
-                                    || editor_keybinds.completion.contains(&event)
                                 {
                                     completion_action_tx
                                         .send(CompletionAction::UserEvent(event))
@@ -341,7 +340,7 @@ pub async fn run(
         shared_completion.clone(),
         editor_action_tx.clone(),
         guide_action_tx.clone(),
-        editor_keybinds.clone(),
+        editor_keybinds.on_completion,
     );
 
     let shared_viewer_state = initializing.await?;
