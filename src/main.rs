@@ -31,6 +31,7 @@ use stdout_redirect::StdoutRedirect;
 mod completion;
 mod event_dispatcher;
 mod prompt;
+mod runtime_tasks;
 use completion::CompletionNavigator;
 mod json;
 mod utils;
@@ -280,7 +281,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Set up the debouncer for the query editor input, which will manage the timing of query updates
     // to prevent excessive processing while the user is typing.
-    let (debounce_query_tx, mut last_query_rx, query_debouncer) =
+    let (debounce_query_tx, last_query_rx, query_debouncer) =
         utils::setup_debouncer::<String>(config.reactivity_control.query_debounce_duration);
 
     // If a default filter is provided via command-line arguments, send it to the query debouncer
@@ -316,16 +317,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn a task to forward query changes from the debouncer to the JSON viewer, ensuring that
     // the viewer updates in response to user input in the query editor.
-    let query_change_forward_task = {
-        let json_viewer_action_tx = json_viewer_action_tx.clone();
-        tokio::spawn(async move {
-            while let Some(query) = last_query_rx.recv().await {
-                let _ = json_viewer_action_tx
-                    .send(json_viewer::ViewerAction::QueryChanged(query))
-                    .await;
-            }
-        })
-    };
+    let query_change_forward_task = runtime_tasks::spawn_query_change_forward_task(
+        last_query_rx,
+        json_viewer_action_tx.clone(),
+    );
 
     // Spawn the guide task, which will manage the display of hints and guidance
     // to the user based on their interactions with the interface.
