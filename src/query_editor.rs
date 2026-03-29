@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use promkit_widgets::{
     core::{
-        Widget, crossterm::{
-            cursor, event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers}, terminal
-        }, grapheme::StyledGraphemes
+        crossterm::{
+            event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
+            terminal,
+        },
+        grapheme::StyledGraphemes,
+        Widget,
     },
     text_editor,
 };
@@ -132,8 +135,10 @@ impl QueryEditor {
 /// Represent the actions that can be performed on the query editor,
 /// such as focusing, copying the query, or handling user events.
 pub enum QueryEditorAction {
-    /// Focus or defocus the query editor based on the boolean value.
-    Focus(bool),
+    /// Focus the query editor.
+    Enter,
+    /// Defocus the query editor.
+    Leave,
     /// Copy the current query text to clipboard.
     CopyQuery,
     /// Replace the current query text.
@@ -163,13 +168,8 @@ pub fn start_query_editor_task(
                     let (editor_pane, current_text) = {
                         let mut editor = shared_editor.write().await;
                         match action {
-                            QueryEditorAction::Focus(focus) => {
-                                if focus {
-                                    editor.focus();
-                                } else {
-                                    editor.defocus();
-                                }
-                            }
+                            QueryEditorAction::Enter => editor.focus(),
+                            QueryEditorAction::Leave => editor.defocus(),
                             QueryEditorAction::CopyQuery => {
                                 let message = guide::copy_to_clipboard_message(&editor.text());
                                 guide_action_tx.send(GuideAction::Show(message)).await?;
