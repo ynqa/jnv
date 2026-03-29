@@ -278,10 +278,6 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Wrap the query editor and completion navigator in Arc<Mutex<>> to allow shared mutable access across async tasks.
-    let shared_query_editor = Arc::new(RwLock::new(query_editor));
-    let shared_completion_navigator = Arc::new(RwLock::new(completion_navigator));
-
     // Set up the debouncer for the query editor input, which will manage the timing of query updates
     // to prevent excessive processing while the user is typing.
     let (debounce_query_tx, mut last_query_rx, query_debouncer) =
@@ -331,12 +327,59 @@ async fn main() -> anyhow::Result<()> {
         })
     };
 
+    // Spawn the guide task, which will manage the display of hints and guidance
+    // to the user based on their interactions with the interface.
+    let guide_task = guide::start_guide_task(
+        guide_action_rx,
+        renderer.clone(),
+        ctx.clone(),
+        config.no_hint,
+    );
+
+    // Wrap the query editor and completion navigator in Arc<Mutex<>> to allow shared mutable access across async tasks.
+    let shared_query_editor = Arc::new(RwLock::new(query_editor));
+    let shared_completion_navigator = Arc::new(RwLock::new(completion_navigator));
+
+    // Spawn the query editor task, which will handle user input in the query editor and update the interface accordingly.
+    let query_editor_task = query_editor::start_query_editor_task(
+        editor_action_rx,
+        ctx.clone(),
+        shared_query_editor.clone(),
+        renderer.clone(),
+        completion_action_tx.clone(),
+        debounce_query_tx.clone(),
+        guide_action_tx.clone(),
+    );
+
+    // Spawn the completion task, which will handle user input in the completion navigator and update the interface accordingly.
+    let completion_navigator_task = completion::start_completion_task(
+        completion_action_rx,
+        ctx.clone(),
+        shared_completion_navigator.clone(),
+        renderer.clone(),
+        editor_action_tx.clone(),
+        guide_action_tx.clone(),
+        config.keybinds.on_editor.on_completion.clone(),
+    );
+
+    // Await JSON viewer bootstrap to complete, which will initialize the viewer with the input data and configuration.
+    let shared_json_viewer = load_for_json_viewer.await?;
+    // Spawn the JSON viewer processor task, which will handle updates to the JSON viewer based on user input and query changes.
+    let json_viewer_task = json_viewer::start_viewer_task(
+        json_viewer_action_rx,
+        ctx.clone(),
+        shared_json_viewer.clone(),
+        renderer.clone(),
+        guide_action_tx.clone(),
+    );
+
     // TODO: put all logics here.
     let maybe_output = prompt::run(
         ctx,
         renderer,
         shared_query_editor,
         shared_completion_navigator,
+        shared_json_viewer.clone(),
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,
@@ -346,17 +389,13 @@ async fn main() -> anyhow::Result<()> {
         resize_debouncer,
         completion_loader_task,
         spinner_task,
-        load_for_json_viewer,
-        editor_action_tx,
-        editor_action_rx,
-        completion_action_tx,
-        completion_action_rx,
-        json_viewer_action_tx,
-        json_viewer_action_rx,
-        guide_action_tx,
-        guide_action_rx,
+        guide_action_tx.clone(),
         event_dispacher_task,
         query_change_forward_task,
+        guide_task,
+        query_editor_task,
+        completion_navigator_task,
+        json_viewer_task,
     )
     .await;
 

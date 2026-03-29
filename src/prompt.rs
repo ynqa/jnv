@@ -7,12 +7,12 @@ use tokio::{
 };
 
 use crate::{
-    completion::{self, CompletionAction, CompletionNavigator},
+    completion::CompletionNavigator,
     config::Keybinds,
     context::SharedContext,
-    guide::{self, GuideAction},
+    guide::GuideAction,
     json_viewer::{self, RenderTrigger, SharedJsonViewer},
-    query_editor::{self, QueryEditor, QueryEditorAction},
+    query_editor::QueryEditor,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -29,56 +29,24 @@ pub async fn run(
     shared_renderer: SharedRenderer<Index>,
     shared_editor: Arc<RwLock<QueryEditor>>,
     shared_completion: Arc<RwLock<CompletionNavigator>>,
-    no_hint: bool,
-    keybinds: Keybinds,
+    shared_viewer_state: SharedJsonViewer,
+    _no_hint: bool,
+    _keybinds: Keybinds,
     write_to_stdout: bool,
-    debounce_query_tx: mpsc::Sender<String>,
+    _debounce_query_tx: mpsc::Sender<String>,
     query_debouncer: JoinHandle<()>,
     mut last_resize_rx: mpsc::Receiver<(u16, u16)>,
     resize_debouncer: JoinHandle<()>,
     completion_loader_task: JoinHandle<()>,
     spinning: JoinHandle<()>,
-    json_viewer_bootstrap: impl std::future::Future<Output = anyhow::Result<SharedJsonViewer>>,
-    editor_action_tx: mpsc::Sender<QueryEditorAction>,
-    editor_action_rx: mpsc::Receiver<QueryEditorAction>,
-    completion_action_tx: mpsc::Sender<CompletionAction>,
-    completion_action_rx: mpsc::Receiver<CompletionAction>,
-    json_viewer_action_tx: mpsc::Sender<json_viewer::ViewerAction>,
-    json_viewer_action_rx: mpsc::Receiver<json_viewer::ViewerAction>,
     guide_action_tx: mpsc::Sender<GuideAction>,
-    guide_action_rx: mpsc::Receiver<GuideAction>,
     main_task: JoinHandle<anyhow::Result<()>>,
     query_action_forwarder: JoinHandle<()>,
+    guide_task: JoinHandle<anyhow::Result<()>>,
+    editor_task: JoinHandle<anyhow::Result<()>>,
+    completion_task: JoinHandle<anyhow::Result<()>>,
+    processor_task: JoinHandle<anyhow::Result<()>>,
 ) -> anyhow::Result<Option<String>> {
-
-    let guide_task = guide::start_guide_task(
-        guide_action_rx,
-        shared_renderer.clone(),
-        ctx.clone(),
-        no_hint,
-    );
-
-    let editor_task = query_editor::start_query_editor_task(
-        editor_action_rx,
-        ctx.clone(),
-        shared_editor.clone(),
-        shared_renderer.clone(),
-        completion_action_tx.clone(),
-        debounce_query_tx.clone(),
-        guide_action_tx.clone(),
-    );
-
-    let completion_task = completion::start_completion_task(
-        completion_action_rx,
-        ctx.clone(),
-        shared_completion.clone(),
-        shared_renderer.clone(),
-        editor_action_tx.clone(),
-        guide_action_tx.clone(),
-        keybinds.on_editor.on_completion,
-    );
-
-    let shared_viewer_state = json_viewer_bootstrap.await?;
     let resize_action_forwarder = {
         let shared_renderer = shared_renderer.clone();
         let shared_editor = shared_editor.clone();
@@ -120,14 +88,6 @@ pub async fn run(
             Ok::<(), anyhow::Error>(())
         })
     };
-
-    let processor_task = json_viewer::start_viewer_task(
-        json_viewer_action_rx,
-        ctx.clone(),
-        shared_viewer_state.clone(),
-        shared_renderer.clone(),
-        guide_action_tx.clone(),
-    );
 
     main_task.await??;
 
