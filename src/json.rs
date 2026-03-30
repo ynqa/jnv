@@ -41,7 +41,9 @@ pub fn run_jaq(
     json_stream: &[serde_json::Value],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let arena = Arena::default();
-    let defs = jaq_core::defs().chain(jaq_std::defs()).chain(jaq_json::defs());
+    let defs = jaq_core::defs()
+        .chain(jaq_std::defs())
+        .chain(jaq_json::defs());
     let loader = Loader::new(defs);
     let modules = loader
         .load(
