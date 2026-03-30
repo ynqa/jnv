@@ -179,7 +179,7 @@ impl CompletionNavigator {
         event: &Event,
         completion_keybinds: &CompletionKeybinds,
     ) -> Option<String> {
-        if self.state.listbox.len() == 0 {
+        if self.state.listbox.is_empty() {
             return None;
         }
 
