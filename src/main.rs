@@ -19,29 +19,23 @@ use promkit_widgets::{
 };
 use tokio::sync::{mpsc, RwLock};
 
-mod query_editor;
-use query_editor::QueryEditor;
+mod completion;
+use completion::{CompletionAction, CompletionNavigator};
 mod config;
-use config::Config;
+use config::{Config, DEFAULT_CONFIG};
 mod context;
+use context::{Index, SharedContext};
+mod event_dispatcher;
 mod guide;
+use guide::GuideAction;
+mod json;
 mod json_viewer;
+mod query_editor;
+use query_editor::{QueryEditor, QueryEditorAction};
+mod runtime_tasks;
 mod stdout_redirect;
 use stdout_redirect::StdoutRedirect;
-mod completion;
-mod event_dispatcher;
-mod runtime_tasks;
-use completion::CompletionNavigator;
-mod json;
 mod utils;
-
-use crate::{
-    completion::CompletionAction,
-    config::DEFAULT_CONFIG,
-    context::{Index, SharedContext},
-    guide::GuideAction,
-    query_editor::QueryEditorAction,
-};
 
 /// JSON navigator and interactive filter leveraging jq
 #[derive(Parser)]
