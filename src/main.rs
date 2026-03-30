@@ -184,38 +184,34 @@ async fn main() -> anyhow::Result<()> {
     let _terminal_cleanup_guard = TerminalCleanupGuard;
     crossterm::execute!(io::stdout(), crossterm::cursor::Hide)?;
 
-    let listbox_state = listbox::State {
-        listbox: Listbox::default(),
-        config: config.completion.listbox.clone(),
-    };
-
-    let text_editor_state = text_editor::State {
-        texteditor: if let Some(filter) = args.default_filter {
-            TextEditor::new(filter)
-        } else {
-            Default::default()
-        },
-        history: Default::default(),
-        config: config.editor.on_focus.clone(),
-    };
-
     let shared_suggestions = completion::initialize(
         &input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
     )
     .await?;
-    let completion = CompletionNavigator::new(
+
+    // Initialize the completion navigator with shared suggestions and configuration.
+    let completion_navigator = CompletionNavigator::new(
         shared_suggestions.clone(),
-        listbox_state,
+        listbox::State {
+            listbox: Listbox::default(),
+            config: config.completion.listbox,
+        },
         config.completion.search_result_chunk_size,
     );
 
-    // TODO: re-consider put editor_task of prompt::run into Editor construction time.
-    // Overall, there are several cases where it would be sufficient to
-    // launch a background thread during construction.
-    let editor = QueryEditor::new(
-        text_editor_state,
+    // Initialize the query editor with the default filter, configuration, and keybindings.
+    let query_editor = QueryEditor::new(
+        text_editor::State {
+            texteditor: if let Some(filter) = args.default_filter {
+                TextEditor::new(filter)
+            } else {
+                Default::default()
+            },
+            history: Default::default(),
+            config: config.editor.on_focus.clone(),
+        },
         config.editor.on_focus,
         config.editor.on_defocus,
         // TODO: remove clones
@@ -229,8 +225,8 @@ async fn main() -> anyhow::Result<()> {
         &input,
         config.json,
         config.reactivity_control,
-        editor,
-        completion,
+        query_editor,
+        completion_navigator,
         config.no_hint,
         config.keybinds,
         args.write_to_stdout,
