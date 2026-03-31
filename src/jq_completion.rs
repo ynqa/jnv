@@ -120,20 +120,6 @@ impl CompletionEngine {
     }
 }
 
-/// Build builtin completion index.
-///
-/// Current status:
-/// - Shell only (returns empty index)
-/// - Intended to be backed by `jaq` metadata in a follow-up implementation.
-pub fn build_builtin_index() -> BuiltinIndex {
-    BuiltinIndex::default()
-}
-
-/// Build path completion index from discovered JSON paths.
-pub fn build_path_index(paths: BTreeSet<String>) -> PathIndex {
-    PathIndex { paths }
-}
-
 /// Spawn completion indexes and start lazy background loading of JSON paths.
 pub fn spawn_initialize(
     input: &'static str,
@@ -141,9 +127,9 @@ pub fn spawn_initialize(
     chunk_size: usize,
 ) -> (CompletionEngine, JoinHandle<()>) {
     let engine = CompletionEngine {
-        builtins: std::sync::Arc::new(build_builtin_index()),
+        builtins: std::sync::Arc::new(BuiltinIndex::default()),
         state: std::sync::Arc::new(RwLock::new(LazyPathIndexStore {
-            path_index: build_path_index(Default::default()),
+            path_index: PathIndex::default(),
             progress: LoadProgress::default(),
         })),
     };
@@ -197,14 +183,6 @@ fn complete(
 ) -> CompletionResponse {
     let _ = req;
     CompletionResponse::default()
-}
-
-/// Resolve deferred completion fields (shell).
-///
-/// Current status:
-/// - No deferred candidates exist yet, so this returns `None`.
-pub fn resolve(_candidate_id: u64, _builtins: &BuiltinIndex) -> Option<CompletionCandidate> {
-    None
 }
 
 /// Apply one completion candidate to query text.
