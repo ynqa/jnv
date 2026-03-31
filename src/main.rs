@@ -28,6 +28,7 @@ use context::{Index, SharedContext};
 mod event_dispatcher;
 mod guide;
 use guide::GuideAction;
+mod jq_completion;
 mod json;
 mod json_viewer;
 mod query_editor;
@@ -195,15 +196,14 @@ async fn main() -> anyhow::Result<()> {
     crossterm::execute!(io::stdout(), crossterm::cursor::Hide)?;
 
     // Spawn the completion loader task, which will asynchronously load suggestions based on the input data.
-    let (shared_suggestions, completion_loader_task) = completion::spawn_initialize(
+    let (completion_engine, completion_loader_task) = jq_completion::spawn_initialize(
         input,
         config.json.max_streams,
         config.completion.search_load_chunk_size,
     );
 
-    // Initialize the completion navigator with shared suggestions and configuration.
+    // Initialize the completion navigator with configuration.
     let completion_navigator = CompletionNavigator::new(
-        shared_suggestions,
         listbox::State {
             listbox: Listbox::default(),
             config: config.completion.listbox,
@@ -346,6 +346,7 @@ async fn main() -> anyhow::Result<()> {
     let completion_navigator_task = completion::start_completion_task(
         completion_action_rx,
         ctx.clone(),
+        completion_engine,
         shared_completion_navigator.clone(),
         renderer.clone(),
         editor_action_tx.clone(),

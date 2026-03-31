@@ -1,110 +1,25 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 
 use promkit_widgets::{
     core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
     listbox::{self, Listbox},
 };
 use tokio::{
-    sync::{mpsc, Mutex, RwLock},
-    task::{self, JoinHandle},
+    sync::{mpsc, RwLock},
+    task::JoinHandle,
 };
 
 use crate::{
     config::CompletionKeybinds,
     context::{Index, SharedContext},
     guide::{GuideAction, GuideMessage},
-    json,
+    jq_completion,
     query_editor::QueryEditorAction,
 };
-
-/// Progress information for loading suggestions
-#[derive(Clone, Default)]
-pub struct SuggestionLoadProgress {
-    pub is_complete: bool,
-    pub loaded_path_count: usize,
-}
-
-/// Store for suggestions with thread-safe access
-struct SuggestionStore {
-    /// Set of all paths extracted from JSON input
-    paths: BTreeSet<String>,
-    progress: SuggestionLoadProgress,
-}
-
-#[derive(Clone)]
-pub struct SharedSuggestionStore(Arc<Mutex<SuggestionStore>>);
-
-impl SharedSuggestionStore {
-    /// Collect suggestions that start with the given prefix
-    pub async fn collect_matches(&self, prefix: &str) -> (Vec<String>, SuggestionLoadProgress) {
-        let store = self.0.lock().await;
-        let items = store
-            .paths
-            .iter()
-            .filter(|p| p.starts_with(prefix))
-            .cloned()
-            .collect::<Vec<_>>();
-        (items, store.progress.clone())
-    }
-}
-
-/// Spawn a background loader and return shared suggestion store with task handle.
-pub fn spawn_initialize(
-    input: &'static str,
-    max_streams: Option<usize>,
-    chunk_size: usize,
-) -> (SharedSuggestionStore, JoinHandle<()>) {
-    let shared = SharedSuggestionStore(Arc::new(Mutex::new(SuggestionStore {
-        paths: BTreeSet::new(),
-        progress: SuggestionLoadProgress::default(),
-    })));
-
-    let shared_for_loading = shared.clone();
-    let loader_task = task::spawn(async move {
-        // Load paths in a streaming manner and update the shared store incrementally
-        let iter = match json::get_all_paths(input, max_streams).await {
-            Ok(iter) => iter,
-            Err(_) => {
-                let mut store = shared_for_loading.0.lock().await;
-                store.progress.is_complete = true;
-                return;
-            }
-        };
-
-        // Process paths in chunks to avoid holding the lock for too long
-        let mut batch = Vec::with_capacity(chunk_size);
-        for path in iter {
-            batch.push(path);
-
-            if batch.len() >= chunk_size {
-                let loaded = batch.len();
-                let mut store = shared_for_loading.0.lock().await;
-                for item in batch.drain(..) {
-                    store.paths.insert(item);
-                }
-                store.progress.loaded_path_count += loaded;
-            }
-        }
-
-        // Insert any remaining paths after the loop
-        let remaining = batch.len();
-        let mut store = shared_for_loading.0.lock().await;
-        for item in batch {
-            store.paths.insert(item);
-        }
-
-        // Mark loading as complete and update progress
-        store.progress.loaded_path_count += remaining;
-        store.progress.is_complete = true;
-    });
-
-    (shared, loader_task)
-}
 
 /// Navigator for managing the state of suggestions
 /// and interactions in the completion view.
 pub struct CompletionNavigator {
-    shared_suggestions: SharedSuggestionStore,
     state: listbox::State,
     /// Number of suggestions to load in each chunk
     /// when the user scrolls near the end of the list.
@@ -115,12 +30,10 @@ pub struct CompletionNavigator {
 
 impl CompletionNavigator {
     pub fn new(
-        shared_suggestions: SharedSuggestionStore,
         state: listbox::State,
         search_result_chunk_size: usize,
     ) -> Self {
         Self {
-            shared_suggestions,
             state,
             search_result_chunk_size,
             remaining_items: Default::default(),
@@ -198,8 +111,13 @@ impl CompletionNavigator {
         None
     }
 
-    async fn enter(&mut self, prefix: &str) -> (Option<String>, SuggestionLoadProgress) {
-        let (items, progress) = self.shared_suggestions.collect_matches(prefix).await;
+    async fn enter(
+        &mut self,
+        completion_engine: &jq_completion::CompletionEngine,
+        query: &str,
+        cursor_char: usize,
+    ) -> (Option<String>, jq_completion::LoadProgress) {
+        let (items, progress) = completion_engine.suggest_strings(query, cursor_char).await;
         let head_item = self.initialize_session_items(items);
         (head_item, progress)
     }
@@ -230,8 +148,8 @@ impl CompletionNavigator {
 }
 
 pub enum CompletionAction {
-    /// Triggered when the user enters the completion view with a current query as prefix.
-    Enter { prefix: String },
+    /// Triggered when the user enters completion with current query and cursor position.
+    Enter { query: String, cursor_char: usize },
     /// Triggered when the user leaves the completion view.
     Leave,
     /// Triggered on user input events within the completion view, such as navigation keys.
@@ -242,6 +160,7 @@ pub enum CompletionAction {
 pub fn start_completion_task(
     mut action_rx: mpsc::Receiver<CompletionAction>,
     shared_ctx: SharedContext,
+    completion_engine: jq_completion::CompletionEngine,
     shared_completion: Arc<RwLock<CompletionNavigator>>,
     shared_renderer: promkit_widgets::core::render::SharedRenderer<Index>,
     query_editor_action_tx: mpsc::Sender<QueryEditorAction>,
@@ -256,8 +175,10 @@ pub fn start_completion_task(
                     let completion_view = {
                         let mut completion = shared_completion.write().await;
                         match action {
-                            CompletionAction::Enter { prefix } => {
-                                let (head_item, load_progress) = completion.enter(&prefix).await;
+                            CompletionAction::Enter { query, cursor_char } => {
+                                let (head_item, load_progress) = completion
+                                    .enter(&completion_engine, &query, cursor_char)
+                                    .await;
                                 match head_item {
                                     Some(head) => {
                                         let message = if load_progress.is_complete {
@@ -272,7 +193,7 @@ pub fn start_completion_task(
                                     }
                                     None => {
                                         guide_action_tx
-                                            .send(GuideAction::Show(GuideMessage::NoSuggestionFound(prefix)))
+                                            .send(GuideAction::Show(GuideMessage::NoSuggestionFound(query)))
                                             .await?;
                                         shared_ctx.set_active_index(Index::QueryEditor).await;
                                         completion.clear_session_state();

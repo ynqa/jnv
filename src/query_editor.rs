@@ -59,6 +59,12 @@ impl QueryEditor {
         self.state.texteditor.text_without_cursor().to_string()
     }
 
+    /// Get current cursor position as a character index in the current text.
+    pub fn cursor_char_position(&self) -> usize {
+        let char_len = self.state.texteditor.text_without_cursor().chars().len();
+        self.state.texteditor.position().min(char_len)
+    }
+
     /// Create graphemes for rendering the query editor.
     pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
         self.state.create_graphemes(width, height)
@@ -187,7 +193,8 @@ pub fn start_query_editor_task(
                                     shared_ctx.set_active_index(Index::Completion).await;
                                     completion_action_tx
                                         .send(CompletionAction::Enter {
-                                            prefix: editor.text(),
+                                            query: editor.text(),
+                                            cursor_char: editor.cursor_char_position(),
                                         })
                                         .await?;
                                 }
