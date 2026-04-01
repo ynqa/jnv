@@ -5,140 +5,39 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
-    jsonstream::{self, config::Config as JsonStreamConfig, jsonz, JsonStream},
+    jsonstream::jsonz,
     serde_json::{self, Deserializer, Value},
-    status::{self, Severity},
 };
 
-use crate::{
-    config::JsonViewerKeybinds,
-    processor::{ViewProvider, Visualizer},
-    search::SearchProvider,
-};
-
-// #[derive(Clone)]
-pub struct Json {
-    state: jsonstream::State,
-    json: &'static [serde_json::Value],
-    keybinds: JsonViewerKeybinds,
+/// Get all JSON paths from the input JSON string,
+/// respecting the max_streams limit if provided.
+pub async fn get_all_paths(
+    json_str: &str,
+    max_streams: Option<usize>,
+) -> anyhow::Result<impl Iterator<Item = String>> {
+    let stream = deserialize(json_str, max_streams)?;
+    let paths = jsonz::get_all_paths(stream.iter()).collect::<Vec<_>>();
+    Ok(paths.into_iter())
 }
 
-impl Json {
-    pub fn new(
-        formatter: JsonStreamConfig,
-        input_stream: &'static [serde_json::Value],
-        keybinds: JsonViewerKeybinds,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            json: input_stream,
-            state: jsonstream::State {
-                stream: JsonStream::new(input_stream.iter()),
-                config: formatter,
-            },
-            keybinds,
-        })
-    }
-
-    fn operate(&mut self, event: &Event) {
-        match event {
-            // Move up.
-            event if self.keybinds.up.contains(event) => {
-                self.state.stream.up();
-            }
-
-            // Move down.
-            event if self.keybinds.down.contains(event) => {
-                self.state.stream.down();
-            }
-
-            // Move to head
-            event if self.keybinds.move_to_head.contains(event) => {
-                self.state.stream.head();
-            }
-
-            // Move to tail
-            event if self.keybinds.move_to_tail.contains(event) => {
-                self.state.stream.tail();
-            }
-
-            // Toggle collapse/expand
-            event if self.keybinds.toggle.contains(event) => {
-                self.state.stream.toggle();
-            }
-
-            event if self.keybinds.expand.contains(event) => {
-                self.state.stream.set_nodes_visibility(false);
-            }
-
-            event if self.keybinds.collapse.contains(event) => {
-                self.state.stream.set_nodes_visibility(true);
-            }
-
-            _ => (),
-        }
-    }
+/// Deserialize JSON string into a vector of serde_json::Value.
+/// If max_streams is given, only deserialize up to that many JSON values.
+pub fn deserialize(
+    json_str: &str,
+    max_streams: Option<usize>,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let deserializer: serde_json::StreamDeserializer<'_, serde_json::de::StrRead<'_>, Value> =
+        Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
+    let results = match max_streams {
+        Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
+        None => deserializer.collect::<Result<Vec<_>, _>>(),
+    };
+    results.map_err(anyhow::Error::from)
 }
 
-#[async_trait::async_trait]
-impl Visualizer for Json {
-    async fn content_to_copy(&self) -> String {
-        self.state.config.format_raw_json(self.state.stream.rows())
-    }
-
-    async fn create_init_pane(&mut self, area: (u16, u16)) -> StyledGraphemes {
-        self.state.create_graphemes(area.0, area.1)
-    }
-
-    async fn create_pane_from_event(&mut self, area: (u16, u16), event: &Event) -> StyledGraphemes {
-        self.operate(event);
-        self.state.create_graphemes(area.0, area.1)
-    }
-
-    async fn create_panes_from_query(
-        &mut self,
-        area: (u16, u16),
-        input: String,
-    ) -> (Option<StyledGraphemes>, Option<StyledGraphemes>) {
-        match run_jaq(&input, self.json) {
-            Ok(ret) => {
-                let mut guide = None;
-                if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(
-                        status::State::new(
-                            format!(
-                                "jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"
-                            ),
-                            Severity::Warning,
-                        )
-                        .create_graphemes(area.0, area.1),
-                    );
-
-                    self.state.stream = JsonStream::new(self.json.iter());
-                } else {
-                    self.state.stream = JsonStream::new(ret.iter());
-                }
-
-                (guide, Some(self.state.create_graphemes(area.0, area.1)))
-            }
-            Err(e) => {
-                self.state.stream = JsonStream::new(self.json.iter());
-
-                (
-                    Some(
-                        status::State::new(format!("jq failed: `{e}`"), Severity::Error)
-                            .create_graphemes(area.0, area.1),
-                    ),
-                    Some(self.state.create_graphemes(area.0, area.1)),
-                )
-            }
-        }
-    }
-}
-
-fn run_jaq(
+pub fn run_jaq(
     query: &str,
-    json_stream: &'static [serde_json::Value],
+    json_stream: &[serde_json::Value],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let arena = Arena::default();
     let loader = Loader::new(jaq_std::defs().chain(jaq_json::defs()));
@@ -170,54 +69,4 @@ fn run_jaq(
     }
 
     Ok(ret)
-}
-
-#[derive(Clone)]
-pub struct JsonStreamProvider {
-    formatter: JsonStreamConfig,
-    max_streams: Option<usize>,
-}
-
-impl JsonStreamProvider {
-    pub fn new(formatter: JsonStreamConfig, max_streams: Option<usize>) -> Self {
-        Self {
-            formatter,
-            max_streams,
-        }
-    }
-
-    fn deserialize_json(&self, json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
-        let deserializer: serde_json::StreamDeserializer<'_, serde_json::de::StrRead<'_>, Value> =
-            Deserializer::from_str(json_str).into_iter::<serde_json::Value>();
-        let results = match self.max_streams {
-            Some(l) => deserializer.take(l).collect::<Result<Vec<_>, _>>(),
-            None => deserializer.collect::<Result<Vec<_>, _>>(),
-        };
-        results.map_err(anyhow::Error::from)
-    }
-}
-
-#[async_trait::async_trait]
-impl ViewProvider for JsonStreamProvider {
-    async fn provide(
-        &mut self,
-        item: &'static str,
-        keybinds: JsonViewerKeybinds,
-    ) -> anyhow::Result<Json> {
-        let stream = self.deserialize_json(item)?;
-        let static_stream = Box::leak(stream.into_boxed_slice());
-        Json::new(std::mem::take(&mut self.formatter), static_stream, keybinds)
-    }
-}
-
-#[async_trait::async_trait]
-impl SearchProvider for JsonStreamProvider {
-    async fn provide(
-        &mut self,
-        item: &str,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = String> + Send>> {
-        let stream = self.deserialize_json(item)?;
-        let static_stream = Box::leak(stream.into_boxed_slice());
-        Ok(Box::new(jsonz::get_all_paths(static_stream.iter())))
-    }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "jnv"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["ynqa <un.pensiero.vano@gmail.com>"]
 edition = "2021"
 description = "JSON navigator and interactive filter leveraging jq"
@@ -11,18 +11,15 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.102"
 arboard = { version = "3.6.1", features =  ["wayland-data-control"] }
-async-trait = "0.1.89"
 clap = { version = "4.6.0", features = ["derive"] }
 duration-string = { version = "0.5.3", features = ["serde"] }
-derive_builder = "0.20.2"
 dirs = "6.0.0"
 futures = "0.3.32"
 rustix = { version = "1.1.4", features = ["stdio"] }
 serde = "1.0.228"
 termcfg = { version = "0.2.0", features = ["crossterm_0_29_0"] }
 tokio = { version = "1.50.0", features = ["full"] }
-tokio-stream = "0.1.18"
-toml = "0.9.8"
+toml = "1.1.0"
 
 # jaq dependencies
 jaq-core = "2.2.1"
