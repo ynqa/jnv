@@ -179,6 +179,10 @@ impl CompletionNavigator {
         event: &Event,
         completion_keybinds: &CompletionKeybinds,
     ) -> Option<String> {
+        if self.state.listbox.is_empty() {
+            return None;
+        }
+
         // Move up.
         if completion_keybinds.up.contains(event) {
             self.state.listbox.backward();
@@ -270,6 +274,8 @@ pub fn start_completion_task(
                                         guide_action_tx
                                             .send(GuideAction::Show(GuideMessage::NoSuggestionFound(prefix)))
                                             .await?;
+                                        shared_ctx.set_active_index(Index::QueryEditor).await;
+                                        completion.clear_session_state();
                                     }
                                 }
                             }

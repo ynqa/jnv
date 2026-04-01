@@ -19,7 +19,7 @@ rustix = { version = "1.1.4", features = ["stdio"] }
 serde = "1.0.228"
 termcfg = { version = "0.2.0", features = ["crossterm_0_29_0"] }
 tokio = { version = "1.50.0", features = ["full"] }
-toml = "1.1.0+spec-1.1.0"
+toml = "1.1.0"
 
 # jaq dependencies
 jaq-core = "2.2.1"
