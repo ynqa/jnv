@@ -13,8 +13,8 @@ use crate::{
     config::CompletionKeybinds,
     context::{Index, SharedContext},
     guide::{GuideAction, GuideMessage},
-    json,
     query_editor::QueryEditorAction,
+    utils::json as json_utils,
 };
 
 /// Progress information for loading suggestions
@@ -62,7 +62,7 @@ pub fn spawn_initialize(
     let shared_for_loading = shared.clone();
     let loader_task = task::spawn(async move {
         // Load paths in a streaming manner and update the shared store incrementally
-        let iter = match json::get_all_paths(input, max_streams).await {
+        let iter = match json_utils::get_all_paths(input, max_streams).await {
             Ok(iter) => iter,
             Err(_) => {
                 let mut store = shared_for_loading.0.lock().await;

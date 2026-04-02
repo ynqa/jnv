@@ -28,7 +28,8 @@ jaq-std = "2.1.2"
 
 [dependencies.promkit-widgets]
 version = "0.5.0"
-features = ["jsonstream", "listbox", "serde", "spinner", "status", "texteditor"]
+path = "../promkit/promkit-widgets"
+features = ["json", "listbox", "serde", "spinner", "status", "texteditor"]
 default-features = false
 
 # The profile that 'cargo dist' will build with

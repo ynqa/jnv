@@ -65,7 +65,7 @@ inactive_char_style = "attr=dim"
 # max_streams =
 
 # JSON display settings
-# Uses promkit_widgets::jsonstream::Config directly
+# Uses promkit_widgets::json::Config directly
 [json.stream]
 # Number of spaces to use for indentation
 indent = 2

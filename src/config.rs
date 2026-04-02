@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use promkit_widgets::{core::crossterm::event::Event, jsonstream, listbox, text_editor};
+use promkit_widgets::{core::crossterm::event::Event, json, listbox, text_editor};
 use serde::{Deserialize, Serialize};
 use termcfg::crossterm_config::event_set_serde;
 use tokio::time::Duration;
@@ -17,7 +17,7 @@ pub struct EditorConfig {
 #[derive(Serialize, Deserialize)]
 pub struct JsonConfig {
     pub max_streams: Option<usize>,
-    pub stream: jsonstream::Config,
+    pub stream: json::Config,
 }
 
 #[derive(Serialize, Deserialize)]

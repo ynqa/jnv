@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use promkit_widgets::{
     core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
-    jsonstream::{self, JsonStream},
+    json::{self, Document},
     serde_json::{self, Value},
 };
 use tokio::{
@@ -14,7 +14,7 @@ use crate::{
     config::{JsonConfig, JsonViewerKeybinds},
     context::{Index, SharedContext, State},
     guide::{self, GuideAction, GuideMessage},
-    json,
+    utils::json as json_utils,
 };
 
 /// Represent the trigger for rendering views.
@@ -30,7 +30,7 @@ pub enum RenderTrigger {
 /// JSON viewer that maintains the state of JSON stream
 /// and handles user interactions and query processing.
 pub struct JsonViewer {
-    state: jsonstream::State,
+    state: json::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
 }
@@ -40,7 +40,7 @@ pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {
-        self.state.config.format_raw_json(self.state.stream.rows())
+        self.state.render_pretty_json()
     }
 
     /// Handle user event and update the viewer state accordingly.
@@ -48,35 +48,35 @@ impl JsonViewer {
         match event {
             // Move up.
             event if self.keybinds.up.contains(event) => {
-                self.state.stream.up();
+                self.state.document.up();
             }
 
             // Move down.
             event if self.keybinds.down.contains(event) => {
-                self.state.stream.down();
+                self.state.document.down();
             }
 
             // Move to head
             event if self.keybinds.move_to_head.contains(event) => {
-                self.state.stream.head();
+                self.state.document.head();
             }
 
             // Move to tail
             event if self.keybinds.move_to_tail.contains(event) => {
-                self.state.stream.tail();
+                self.state.document.tail();
             }
 
             // Toggle collapse/expand
             event if self.keybinds.toggle.contains(event) => {
-                self.state.stream.toggle();
+                self.state.document.toggle();
             }
 
             event if self.keybinds.expand.contains(event) => {
-                self.state.stream.set_nodes_visibility(false);
+                self.state.document.set_nodes_visibility(false);
             }
 
             event if self.keybinds.collapse.contains(event) => {
-                self.state.stream.set_nodes_visibility(true);
+                self.state.document.set_nodes_visibility(true);
             }
 
             _ => (),
@@ -89,21 +89,21 @@ impl JsonViewer {
         area: (u16, u16),
         input: String,
     ) -> (Option<GuideMessage>, Option<StyledGraphemes>) {
-        match json::run_jaq(&input, &self.json) {
+        match json_utils::run_jaq(&input, &self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
                     guide = Some(GuideMessage::JqReturnedNull(input));
 
-                    self.state.stream = JsonStream::new(self.json.iter());
+                    self.state.document = Document::new(self.json.iter());
                 } else {
-                    self.state.stream = JsonStream::new(ret.iter());
+                    self.state.document = Document::new(ret.iter());
                 }
 
                 (guide, Some(self.state.create_graphemes(area.0, area.1)))
             }
             Err(e) => {
-                self.state.stream = JsonStream::new(self.json.iter());
+                self.state.document = Document::new(self.json.iter());
 
                 (
                     Some(GuideMessage::JqFailed(e.to_string())),
@@ -131,10 +131,10 @@ pub async fn initialize(
         ctx.state = State::Loading;
     }
 
-    let input_stream = json::deserialize(input, config.max_streams)?;
-    let stream = JsonStream::new(input_stream.iter());
-    let state = jsonstream::State {
-        stream,
+    let input_stream = json_utils::deserialize(input, config.max_streams)?;
+    let document = Document::new(input_stream.iter());
+    let state = json::State {
+        document,
         config: config.stream,
     };
 

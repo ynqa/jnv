@@ -28,7 +28,6 @@ use context::{Index, SharedContext};
 mod event_dispatcher;
 mod guide;
 use guide::GuideAction;
-mod json;
 mod json_viewer;
 mod query_editor;
 use query_editor::{QueryEditor, QueryEditorAction};
