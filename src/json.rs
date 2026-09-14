@@ -35,6 +35,16 @@ pub fn deserialize(
     results.map_err(anyhow::Error::from)
 }
 
+/// Collect a stream of JSON values into a single JSON array, mirroring `jq --slurp`.
+///
+/// This lets a filter run against JSON Lines (or any whitespace-separated stream)
+/// as one array rather than value by value. `max_streams` bounds how many values
+/// are read, the same as [`deserialize`].
+pub fn slurp(json_str: &str, max_streams: Option<usize>) -> anyhow::Result<String> {
+    let values = deserialize(json_str, max_streams)?;
+    serde_json::to_string(&Value::Array(values)).map_err(anyhow::Error::from)
+}
+
 pub fn run_jaq(
     query: &str,
     json_stream: &[serde_json::Value],
@@ -69,4 +79,46 @@ pub fn run_jaq(
     }
 
     Ok(ret)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slurp_wraps_whitespace_separated_values_into_one_array() {
+        assert_eq!(slurp("1 2 3", None).unwrap(), "[1,2,3]");
+    }
+
+    #[test]
+    fn slurp_wraps_json_lines_into_one_array() {
+        let out = slurp("{\"a\":1}\n{\"a\":2}\n", None).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        let expected: Value = serde_json::from_str("[{\"a\":1},{\"a\":2}]").unwrap();
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn slurp_wraps_a_single_value_into_a_one_element_array() {
+        let out = slurp("{\"a\":1}", None).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        let expected: Value = serde_json::from_str("[{\"a\":1}]").unwrap();
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn slurp_of_empty_input_is_an_empty_array() {
+        assert_eq!(slurp("", None).unwrap(), "[]");
+        assert_eq!(slurp("  \n  ", None).unwrap(), "[]");
+    }
+
+    #[test]
+    fn slurp_honors_max_streams() {
+        assert_eq!(slurp("1 2 3 4", Some(2)).unwrap(), "[1,2]");
+    }
+
+    #[test]
+    fn slurp_reports_invalid_json() {
+        assert!(slurp("{ not json", None).is_err());
+    }
 }

@@ -85,6 +85,13 @@ pub struct Args {
         help = "Write the current JSON result to stdout when exiting"
     )]
     write_to_stdout: bool,
+
+    #[arg(
+        short = 's',
+        long = "slurp",
+        help = "Read the whole input stream into an array and apply the filter to it as a whole"
+    )]
+    slurp: bool,
 }
 
 /// Parses the input based on the provided arguments.
@@ -174,12 +181,8 @@ impl Drop for TerminalCleanupGuard {
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    // Load input data
-    let input = parse_input(&args)?;
-    let input: &'static str = Box::leak(input.into_boxed_str());
-
     // Load configuration
-    let config = determine_config_file(args.config_file)
+    let config = determine_config_file(args.config_file.clone())
         .and_then(|config_file| {
             std::fs::read_to_string(&config_file)
                 .map_err(|e| anyhow!("Failed to read configuration file: {e}"))
@@ -188,6 +191,17 @@ async fn main() -> anyhow::Result<()> {
         // a missing file is already seeded with the defaults by ensure_file_exists,
         // so anything failing here is a real problem the user should hear about
         .map_err(|e| anyhow!("{e}"))?;
+
+    // Load input data
+    let input = parse_input(&args)?;
+    // With --slurp, fold the whole input stream into a single array so the filter
+    // runs against the array as a whole, the same as `jq --slurp`.
+    let input = if args.slurp {
+        json::slurp(&input, config.json.max_streams)?
+    } else {
+        input
+    };
+    let input: &'static str = Box::leak(input.into_boxed_str());
 
     // Set up terminal
     crossterm::terminal::enable_raw_mode()?;

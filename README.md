@@ -35,6 +35,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
     that can be deserialized with 
     [StreamDeserializer](https://docs.rs/serde_json/latest/serde_json/struct.StreamDeserializer.html),
     such as [JSON Lines](https://jsonlines.org/)
+    - `--slurp` reads the whole stream into a single array before filtering,
+      like `jq --slurp`
 - Auto-completion for the filter
   - Only supports:
     - [Identity](https://jqlang.github.io/jq/manual/#identity)
@@ -122,6 +124,9 @@ jnv data.json
 cat data.json | jnv --write-to-stdout | some-command
 # and also output to file
 cat data.json | jnv -- --write-to-stdout > result.json
+
+# or slurp JSON Lines into a single array before filtering (like jq --slurp)
+cat data.jsonl | jnv --slurp
 ```
 
 ## Keymap
@@ -190,6 +195,7 @@ Options:
   -c, --config <CONFIG_FILE>             Path to the configuration file.
       --default-filter <DEFAULT_FILTER>  Default jq filter to apply to the input data
       --write-to-stdout                  Write the current JSON result to stdout when exiting
+  -s, --slurp                            Read the whole input stream into an array and apply the filter to it as a whole
   -h, --help                             Print help (see more with '--help')
   -V, --version                          Print version
 ```
