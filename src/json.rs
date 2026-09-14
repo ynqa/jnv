@@ -9,6 +9,30 @@ use promkit_widgets::{
     serde_json::{self, Deserializer, Value},
 };
 
+/// An error from running a jq filter, split by phase so callers can treat an
+/// incomplete or syntactically invalid expression — common while the user is
+/// still typing — differently from a genuine runtime failure.
+#[derive(Debug)]
+pub enum JaqError {
+    /// The filter could not be parsed or compiled. This is the expected state
+    /// for a half-typed expression (e.g. a trailing `|`), so callers typically
+    /// stay quiet rather than surfacing it as an error.
+    Invalid(String),
+    /// The filter parsed and compiled but failed during execution. This is a
+    /// real error worth reporting, since the filter itself is well-formed.
+    Execution(String),
+}
+
+impl std::fmt::Display for JaqError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JaqError::Invalid(msg) | JaqError::Execution(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for JaqError {}
+
 /// Get all JSON paths from the input JSON string,
 /// respecting the max_streams limit if provided.
 pub async fn get_all_paths(
@@ -38,7 +62,7 @@ pub fn deserialize(
 pub fn run_jaq(
     query: &str,
     json_stream: &[serde_json::Value],
-) -> anyhow::Result<Vec<serde_json::Value>> {
+) -> Result<Vec<serde_json::Value>, JaqError> {
     let arena = Arena::default();
     let loader = Loader::new(jaq_std::defs().chain(jaq_json::defs()));
     let modules = loader
@@ -49,11 +73,12 @@ pub fn run_jaq(
                 path: (),
             },
         )
-        .map_err(|errs| anyhow::anyhow!("jq filter parsing failed: {errs:?}"))?;
+        // Parse failures are usually just an incomplete expression mid-typing.
+        .map_err(|_| JaqError::Invalid("incomplete or invalid jq filter".to_string()))?;
     let filter = Compiler::default()
         .with_funs(jaq_std::funs().chain(jaq_json::funs()))
         .compile(modules)
-        .map_err(|errs| anyhow::anyhow!("jq filter compilation failed: {errs:?}"))?;
+        .map_err(|_| JaqError::Invalid("invalid jq filter".to_string()))?;
 
     let mut ret = Vec::<serde_json::Value>::new();
 
@@ -63,7 +88,7 @@ pub fn run_jaq(
         for item in out {
             match item {
                 Ok(val) => ret.push(val.into()),
-                Err(err) => return Err(anyhow::anyhow!("jq filter execution failed: {err}")),
+                Err(err) => return Err(JaqError::Execution(err.to_string())),
             }
         }
     }
