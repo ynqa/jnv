@@ -41,6 +41,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
     - [Object Identifier-Index](https://jqlang.github.io/jq/manual/#object-identifier-index)
     - [Array Index](https://jqlang.github.io/jq/manual/#array-index)
 - Hint message to evaluate the filter
+- Result summary showing the current result's type and length
+  (e.g. `object · 3 keys`) in the status line
 
 ## Installation
 

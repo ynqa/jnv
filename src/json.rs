@@ -70,3 +70,75 @@ pub fn run_jaq(
 
     Ok(ret)
 }
+
+/// Summarize a jq result stream as a short `type · length` string, mirroring
+/// what `| type` and `| length` would report. Used for a status-line hint so
+/// users don't have to append those filters manually.
+///
+/// A single value is described by its type and (where meaningful) its length;
+/// a multi-value stream is reported as a count.
+pub fn summarize(values: &[serde_json::Value]) -> String {
+    match values {
+        [] => "empty (0 results)".to_string(),
+        [value] => summarize_value(value),
+        many => format!("stream · {} values", many.len()),
+    }
+}
+
+fn summarize_value(value: &serde_json::Value) -> String {
+    match value {
+        Value::Object(map) => format!("object · {} {}", map.len(), pluralize(map.len(), "key")),
+        Value::Array(items) => {
+            format!("array · {} {}", items.len(), pluralize(items.len(), "item"))
+        }
+        Value::String(s) => {
+            let count = s.chars().count();
+            format!("string · {} {}", count, pluralize(count, "char"))
+        }
+        Value::Number(_) => "number".to_string(),
+        Value::Bool(_) => "boolean".to_string(),
+        Value::Null => "null".to_string(),
+    }
+}
+
+fn pluralize(count: usize, noun: &str) -> String {
+    if count == 1 {
+        noun.to_string()
+    } else {
+        format!("{noun}s")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use promkit_widgets::serde_json::json;
+
+    #[test]
+    fn summarize_object_array_string() {
+        assert_eq!(summarize(&[json!({"a": 1, "b": 2})]), "object · 2 keys");
+        assert_eq!(summarize(&[json!({"a": 1})]), "object · 1 key");
+        assert_eq!(summarize(&[json!([1, 2, 3])]), "array · 3 items");
+        assert_eq!(summarize(&[json!([1])]), "array · 1 item");
+        assert_eq!(summarize(&[json!("hello")]), "string · 5 chars");
+    }
+
+    #[test]
+    fn summarize_scalars() {
+        assert_eq!(summarize(&[json!(42)]), "number");
+        assert_eq!(summarize(&[json!(true)]), "boolean");
+        assert_eq!(summarize(&[json!(null)]), "null");
+    }
+
+    #[test]
+    fn summarize_stream_and_empty() {
+        assert_eq!(summarize(&[json!(1), json!(2)]), "stream · 2 values");
+        assert_eq!(summarize(&[]), "empty (0 results)");
+    }
+
+    #[test]
+    fn summarize_string_counts_unicode_scalar_values() {
+        // "café" is 4 chars even though 'é' is multi-byte.
+        assert_eq!(summarize(&[json!("café")]), "string · 4 chars");
+    }
+}
