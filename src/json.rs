@@ -1,8 +1,9 @@
 use jaq_core::{
+    data,
     load::{Arena, File, Loader},
-    Compiler, Ctx, RcIter,
+    unwrap_valr, Compiler, Ctx, Vars,
 };
-use jaq_json::Val;
+use jaq_json::{read, Val};
 
 use promkit_widgets::{
     jsonstream::jsonz,
@@ -40,7 +41,10 @@ pub fn run_jaq(
     json_stream: &[serde_json::Value],
 ) -> anyhow::Result<Vec<serde_json::Value>> {
     let arena = Arena::default();
-    let loader = Loader::new(jaq_std::defs().chain(jaq_json::defs()));
+    let defs = jaq_core::defs()
+        .chain(jaq_std::defs())
+        .chain(jaq_json::defs());
+    let loader = Loader::new(defs);
     let modules = loader
         .load(
             &arena,
@@ -50,21 +54,34 @@ pub fn run_jaq(
             },
         )
         .map_err(|errs| anyhow::anyhow!("jq filter parsing failed: {errs:?}"))?;
+    let funs = jaq_core::funs::<data::JustLut<Val>>()
+        .chain(jaq_std::funs::<data::JustLut<Val>>())
+        .chain(jaq_json::funs::<data::JustLut<Val>>());
     let filter = Compiler::default()
-        .with_funs(jaq_std::funs().chain(jaq_json::funs()))
+        .with_funs(funs)
         .compile(modules)
         .map_err(|errs| anyhow::anyhow!("jq filter compilation failed: {errs:?}"))?;
 
     let mut ret = Vec::<serde_json::Value>::new();
 
     for input in json_stream {
-        let inputs = RcIter::new(core::iter::empty());
-        let out = filter.run((Ctx::new([], &inputs), Val::from(input.clone())));
+        let input = serde_json::to_vec(input)
+            .map_err(|e| anyhow::anyhow!("failed to serialize input JSON: {e}"))?;
+        let input = read::parse_single(&input)
+            .map_err(|e| anyhow::anyhow!("failed to parse input into jaq value: {e}"))?;
+
+        let ctx = Ctx::<data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
+        let out = filter.id.run((ctx, input)).map(unwrap_valr);
+
         for item in out {
-            match item {
-                Ok(val) => ret.push(val.into()),
-                Err(err) => return Err(anyhow::anyhow!("jq filter execution failed: {err}")),
-            }
+            let val = item.map_err(|err| anyhow::anyhow!("jq filter execution failed: {err}"))?;
+            let text = val.to_string();
+            let json = serde_json::from_str(&text).map_err(|e| {
+                anyhow::anyhow!(
+                    "failed to convert jaq output to JSON value (possibly non-JSON output): {e}"
+                )
+            })?;
+            ret.push(json);
         }
     }
 
