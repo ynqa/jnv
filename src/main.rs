@@ -242,7 +242,10 @@ async fn main() -> anyhow::Result<()> {
                     Index::QueryEditor,
                     query_editor.create_graphemes(terminal_size.0, terminal_size.1),
                 ),
-                (Index::Guide, StyledGraphemes::default()),
+                (
+                    Index::Guide,
+                    guide::initial_graphemes(config.no_hint, terminal_size.0, terminal_size.1),
+                ),
                 (Index::Completion, StyledGraphemes::default()),
                 (Index::JsonViewer, StyledGraphemes::default()),
             ]
