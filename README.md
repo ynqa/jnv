@@ -157,6 +157,28 @@ cat data.json | jnv -- --write-to-stdout > result.json
 | <kbd>↑</kbd> | Select previous suggestion |
 | Others | Return to editor |
 
+### Editor mode (vi-style)
+
+Optional modal editing for the query editor, disabled by default. Enable it by
+setting `enable = true` under `[editor.vi]` in the configuration file. The
+editor then starts in NORMAL mode; the prefix (`❮❮ ` by default) indicates the
+mode. Press <kbd>i</kbd>/<kbd>a</kbd>/<kbd>I</kbd>/<kbd>A</kbd> to enter INSERT
+mode — where typing, completion, and the keybindings above all work as usual —
+and <kbd>Esc</kbd> to return to NORMAL mode.
+
+The query buffer is single-line, so linewise commands (`dd`, `cc`, `yy`) act on
+the whole line, and `o`/`O`/`.`/multi-line motions are not supported.
+
+| Category | Keys |
+| :- | :- |
+| Motions | `h` `l` `0` `$` `^` `w` `W` `b` `B` `e` `E` `f{char}` `F{char}` `t{char}` `T{char}` `gg` `G` |
+| Insert | `i` `I` `a` `A` |
+| Operators | `d`/`c`/`y` + motion, and linewise `dd` `cc` `yy` |
+| Edits | `x` `X` `D` `C` `s` `S` `r{char}` `~` |
+| Paste | `p` `P` (from the last delete/yank) |
+| Counts | prefix a motion or operator, e.g. `3w`, `d2w`, `5x` |
+| Undo / redo | `u` / <kbd>Ctrl + R</kbd> |
+
 ### JSON viewer mode
 
 | Key | Action |

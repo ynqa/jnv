@@ -12,6 +12,32 @@ use duration::duration_serde;
 pub struct EditorConfig {
     pub on_focus: text_editor::Config,
     pub on_defocus: text_editor::Config,
+    /// vi-style modal editing settings. Optional so existing configuration
+    /// files written before this feature continue to load.
+    #[serde(default)]
+    pub vi: ViConfig,
+}
+
+/// Settings for vi-style modal editing in the query editor.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ViConfig {
+    /// When `true`, the query editor starts in NORMAL mode and interprets keys
+    /// as vi motions, operators, and edit commands. Press `i`/`a` to insert and
+    /// <kbd>Esc</kbd> to return to NORMAL mode.
+    pub enable: bool,
+    /// Prefix shown while in NORMAL mode, so the current mode is visible. The
+    /// configured `on_focus.prefix` is shown while in INSERT mode.
+    pub normal_prefix: String,
+}
+
+impl Default for ViConfig {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            normal_prefix: "❮❮ ".to_string(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -138,5 +164,75 @@ pub struct Config {
 impl Config {
     pub fn load_from(content: &str) -> anyhow::Result<Self> {
         toml::from_str(content).map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_parses() {
+        let config = Config::load_from(DEFAULT_CONFIG).expect("default config must parse");
+        // vi editing ships disabled so existing keybindings are unchanged.
+        assert!(!config.editor.vi.enable);
+        assert_eq!(config.editor.vi.normal_prefix, "❮❮ ");
+    }
+
+    #[test]
+    fn vi_section_is_optional_for_backward_compatibility() {
+        // A config written before the vi feature has no `[editor.vi]` table; it
+        // must still load, falling back to the vi defaults.
+        let without_vi = r#"
+no_hint = false
+
+[reactivity_control]
+query_debounce_duration = "600ms"
+resize_debounce_duration = "200ms"
+spin_duration = "300ms"
+
+[editor.on_focus]
+[editor.on_defocus]
+
+[json]
+[json.stream]
+
+[completion]
+search_result_chunk_size = 100
+search_load_chunk_size = 50000
+[completion.listbox]
+
+[keybinds]
+exit = ["Ctrl+C"]
+copy_query = ["Ctrl+Q"]
+copy_result = ["Ctrl+O"]
+switch_mode = ["Shift+Down"]
+
+[keybinds.on_editor]
+backward = ["Left"]
+forward = ["Right"]
+move_to_head = ["Ctrl+A"]
+move_to_tail = ["Ctrl+E"]
+move_to_previous_nearest = ["Alt+B"]
+move_to_next_nearest = ["Alt+F"]
+erase = ["Backspace"]
+erase_all = ["Ctrl+U"]
+erase_to_previous_nearest = ["Ctrl+W"]
+erase_to_next_nearest = ["Alt+D"]
+completion = ["Tab"]
+on_completion.up = ["Up"]
+on_completion.down = ["Down"]
+
+[keybinds.on_json_viewer]
+up = ["Up"]
+down = ["Down"]
+move_to_head = ["Ctrl+L"]
+move_to_tail = ["Ctrl+H"]
+toggle = ["Enter"]
+expand = ["Ctrl+P"]
+collapse = ["Ctrl+N"]
+"#;
+        let config = Config::load_from(without_vi).expect("config without [editor.vi] must parse");
+        assert!(!config.editor.vi.enable);
     }
 }

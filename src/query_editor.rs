@@ -15,9 +15,10 @@ use tokio::{
 
 use crate::{
     completion::CompletionAction,
-    config::EditorKeybinds,
+    config::{EditorKeybinds, ViConfig},
     context::{Index, SharedContext},
     guide::{self, GuideAction},
+    vi,
 };
 
 /// Editor for inputting jq query. It manages the state of the text editor
@@ -27,6 +28,15 @@ pub struct QueryEditor {
     focus_config: text_editor::Config,
     defocus_config: text_editor::Config,
     editor_keybinds: EditorKeybinds,
+    /// vi modal state, present only when vi-style editing is enabled.
+    vi: Option<vi::Editor>,
+    /// Prefix shown in NORMAL mode (vi only).
+    vi_normal_prefix: String,
+    /// Prefix shown in INSERT mode (the configured focus prefix).
+    insert_prefix: String,
+    /// Undo / redo stacks of `(text, cursor)` snapshots (vi only).
+    undo_stack: Vec<(String, usize)>,
+    redo_stack: Vec<(String, usize)>,
 }
 
 impl QueryEditor {
@@ -35,18 +45,34 @@ impl QueryEditor {
         focus_config: text_editor::Config,
         defocus_config: text_editor::Config,
         editor_keybinds: EditorKeybinds,
+        vi_config: ViConfig,
     ) -> Self {
-        Self {
+        let insert_prefix = focus_config.prefix.clone();
+        let mut editor = Self {
             state,
             focus_config,
             defocus_config,
             editor_keybinds,
+            vi: vi_config.enable.then(|| vi::Editor::new(vi::Mode::Normal)),
+            vi_normal_prefix: vi_config.normal_prefix,
+            insert_prefix,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+        };
+        if editor.vi.is_some() {
+            // NORMAL-mode cursor rests on a char, not the trailing append slot.
+            let len = editor.text().chars().count();
+            let cursor = editor.cursor().min(len.saturating_sub(1));
+            editor.set_cursor(cursor);
+            editor.refresh_prefix();
         }
+        editor
     }
 
     /// Focus the query editor, applying the focus configuration.
     pub fn focus(&mut self) {
         self.state.config = self.focus_config.clone();
+        self.refresh_prefix();
     }
 
     /// Defocus the query editor, applying the defocus configuration.
@@ -69,6 +95,57 @@ impl QueryEditor {
         self.state.texteditor.replace(text);
     }
 
+    /// The current cursor position as a `char` index.
+    fn cursor(&self) -> usize {
+        self.state.texteditor.position()
+    }
+
+    /// Move the cursor to an absolute `char` index.
+    fn set_cursor(&mut self, pos: usize) {
+        self.state.texteditor.move_to_head();
+        for _ in 0..pos {
+            if !self.state.texteditor.forward() {
+                break;
+            }
+        }
+    }
+
+    /// Replace the buffer and place the cursor at an absolute `char` index.
+    fn set_buffer(&mut self, text: &str, cursor: usize) {
+        self.state.texteditor.replace(text);
+        self.set_cursor(cursor);
+    }
+
+    /// Apply the vi NORMAL-mode prefix or the INSERT-mode (focus) prefix.
+    fn refresh_prefix(&mut self) {
+        let Some(mode) = self.vi.as_ref().map(|v| v.mode) else {
+            return;
+        };
+        self.state.config.prefix = match mode {
+            vi::Mode::Normal => self.vi_normal_prefix.clone(),
+            vi::Mode::Insert => self.insert_prefix.clone(),
+        };
+    }
+
+    fn push_undo(&mut self, text: String, cursor: usize) {
+        self.undo_stack.push((text, cursor));
+        self.redo_stack.clear();
+    }
+
+    fn undo(&mut self) {
+        if let Some((text, cursor)) = self.undo_stack.pop() {
+            self.redo_stack.push((self.text(), self.cursor()));
+            self.set_buffer(&text, cursor);
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some((text, cursor)) = self.redo_stack.pop() {
+            self.undo_stack.push((self.text(), self.cursor()));
+            self.set_buffer(&text, cursor);
+        }
+    }
+
     /// Handle a user input event to update the query editor's state accordingly.
     /// Returns `true` if the event triggers the completion action, otherwise `false`.
     fn handle_user_event(&mut self, event: &Event) -> bool {
@@ -76,6 +153,78 @@ impl QueryEditor {
             return true;
         }
 
+        if self.vi.is_some() {
+            self.handle_vi_event(event);
+        } else {
+            self.handle_plain_event(event);
+        }
+        false
+    }
+
+    /// Route an event through the vi state machine. In INSERT mode all keys
+    /// except <kbd>Esc</kbd> fall through to the normal text-editing path, so
+    /// character insertion and the configured keybinds keep working.
+    fn handle_vi_event(&mut self, event: &Event) {
+        let Event::Key(key) = event else {
+            return;
+        };
+        if key.kind != KeyEventKind::Press {
+            return;
+        }
+
+        let mode = self.vi.as_ref().map(|v| v.mode).unwrap_or(vi::Mode::Insert);
+        match mode {
+            vi::Mode::Insert => {
+                if key.code == KeyCode::Esc {
+                    let cursor = self.cursor();
+                    let new_cursor = self.vi.as_mut().expect("vi enabled").leave_insert(cursor);
+                    self.set_cursor(new_cursor);
+                    self.refresh_prefix();
+                } else {
+                    self.handle_plain_event(event);
+                }
+            }
+            vi::Mode::Normal => {
+                let pending = self.vi.as_ref().expect("vi enabled").is_pending();
+                // `u` / Ctrl+R are undo/redo, but only when not mid-command
+                // (so `fu`, `ru`, etc. still see `u` as their argument).
+                if !pending {
+                    if key.code == KeyCode::Char('u') && key.modifiers == KeyModifiers::NONE {
+                        self.undo();
+                        return;
+                    }
+                    if key.code == KeyCode::Char('r') && key.modifiers == KeyModifiers::CONTROL {
+                        self.redo();
+                        return;
+                    }
+                }
+
+                let text = self.text();
+                let cursor = self.cursor();
+                let outcome = self
+                    .vi
+                    .as_mut()
+                    .expect("vi enabled")
+                    .handle_normal(key, &text, cursor);
+                match outcome {
+                    vi::Outcome::Move(pos) => self.set_cursor(pos),
+                    vi::Outcome::Replace {
+                        text: new_text,
+                        cursor: new_cursor,
+                    } => {
+                        self.push_undo(text, cursor);
+                        self.set_buffer(&new_text, new_cursor);
+                    }
+                    vi::Outcome::Noop => {}
+                }
+                self.refresh_prefix();
+            }
+        }
+    }
+
+    /// Handle an event as plain (non-modal) text editing — the original editor
+    /// behavior, also used for vi INSERT mode.
+    fn handle_plain_event(&mut self, event: &Event) {
         match event {
             key if self.editor_keybinds.backward.contains(key) => {
                 self.state.texteditor.backward();
@@ -132,7 +281,6 @@ impl QueryEditor {
             },
             _ => {}
         }
-        false
     }
 }
 
