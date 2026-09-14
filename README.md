@@ -5,6 +5,9 @@
 
 [![ci](https://github.com/ynqa/jnv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ynqa/jnv/actions/workflows/ci.yml)
 
+> [!TIP]
+> For JSON and YAML tree browsing, subtree exploration, and side-by-side query results, try [vy](https://vy.ynqa.dev), another terminal tool by the author of jnv.
+
 *jnv* is designed for navigating JSON,
 offering an interactive JSON viewer and `jq` filter editor.
 
