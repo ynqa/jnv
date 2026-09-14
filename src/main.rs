@@ -21,6 +21,7 @@ use tokio::sync::{mpsc, RwLock};
 
 mod completion;
 use completion::{CompletionAction, CompletionNavigator};
+mod completion_ctx;
 mod config;
 use config::{Config, DEFAULT_CONFIG};
 mod context;
@@ -209,6 +210,8 @@ async fn main() -> anyhow::Result<()> {
             config: config.completion.listbox,
         },
         config.completion.search_result_chunk_size,
+        input,
+        config.json.max_streams,
     );
 
     // Initialize the query editor with the default filter, configuration, and keybindings.
