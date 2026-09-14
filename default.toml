@@ -136,9 +136,9 @@ backward = ["Left"]
 forward = ["Right"]
 
 # Move cursor to beginning of line
-move_to_head = ["Ctrl+A"]
+move_to_head = ["Ctrl+A", "Home"]
 # Move cursor to end of line
-move_to_tail = ["Ctrl+E"]
+move_to_tail = ["Ctrl+E", "End"]
 # Move cursor to previous word boundary
 move_to_previous_nearest = ["Alt+B"]
 # Move cursor to next word boundary
@@ -150,7 +150,7 @@ erase = ["Backspace"]
 erase_all = ["Ctrl+U"]
 
 # Delete from cursor to previous word boundary
-erase_to_previous_nearest = ["Ctrl+W"]
+erase_to_previous_nearest = ["Ctrl+W", "Alt+Backspace"]
 # Delete from cursor to next word boundary
 erase_to_next_nearest = ["Alt+D"]
 # Trigger completion

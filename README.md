@@ -140,13 +140,13 @@ cat data.json | jnv -- --write-to-stdout > result.json
 | <kbd>Tab</kbd> | Enter suggestion |
 | <kbd>←</kbd> | Move cursor left |
 | <kbd>→</kbd> | Move cursor right |
-| <kbd>Ctrl + A</kbd> | Move cursor to line start |
-| <kbd>Ctrl + E</kbd> | Move cursor to line end |
+| <kbd>Ctrl + A</kbd>, <kbd>Home</kbd> | Move cursor to line start |
+| <kbd>Ctrl + E</kbd>, <kbd>End</kbd> | Move cursor to line end |
 | <kbd>Backspace</kbd> | Delete character before cursor |
 | <kbd>Ctrl + U</kbd> | Clear entire line |
 | <kbd>Alt + B</kbd>   | Move the cursor to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
 | <kbd>Alt + F</kbd>   | Move the cursor to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
-| <kbd>Ctrl + W</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
+| <kbd>Ctrl + W</kbd>, <kbd>Alt + Backspace</kbd>  | Erase to the previous nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
 | <kbd>Alt + D</kbd>   | Erase to the next nearest character within set(`.`,`\|`,`(`,`)`,`[`,`]`) |
 
 #### Suggestion in Editor (after <kbd>Tab</kbd>)
@@ -372,9 +372,9 @@ backward = ["Left"]
 forward = ["Right"]
 
 # Move cursor to beginning of line
-move_to_head = ["Ctrl+A"]
+move_to_head = ["Ctrl+A", "Home"]
 # Move cursor to end of line
-move_to_tail = ["Ctrl+E"]
+move_to_tail = ["Ctrl+E", "End"]
 # Move cursor to previous word boundary
 move_to_previous_nearest = ["Alt+B"]
 # Move cursor to next word boundary
@@ -386,7 +386,7 @@ erase = ["Backspace"]
 erase_all = ["Ctrl+U"]
 
 # Delete from cursor to previous word boundary
-erase_to_previous_nearest = ["Ctrl+W"]
+erase_to_previous_nearest = ["Ctrl+W", "Alt+Backspace"]
 # Delete from cursor to next word boundary
 erase_to_next_nearest = ["Alt+D"]
 # Trigger completion
