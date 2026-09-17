@@ -7,6 +7,13 @@ description = "JSON navigator and interactive filter leveraging jq"
 repository = "https://github.com/ynqa/jnv"
 license = "MIT"
 readme = "README.md"
+include = [
+    "/src/**",
+    "/default.toml",
+    "/README.md",
+    "/LICENSE",
+    "/Cargo.lock",
+]
 
 [dependencies]
 anyhow = "1.0.102"
