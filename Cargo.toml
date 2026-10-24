@@ -8,11 +8,11 @@ repository = "https://github.com/ynqa/jnv"
 license = "MIT"
 readme = "README.md"
 include = [
-    "/src/**",
-    "/default.toml",
-    "/README.md",
-    "/LICENSE",
-    "/Cargo.lock",
+    "src/**/*",
+    "default.toml",
+    "README.md",
+    "LICENSE",
+    "Cargo.lock",
 ]
 
 [dependencies]
