@@ -1,0 +1,88 @@
+# Demo style: custom prompt, JSON colors, indentation, and completion colors.
+# All other settings follow default.toml.
+
+no_hint = false
+
+[editor.on_focus]
+
+edit_mode = "Insert"
+
+word_break_chars = [".", "|", "(", ")", "[", "]"]
+
+prefix = "jq ❯ "
+prefix_style = "fg=#50FA7B,attr=bold"
+active_char_style = "bg=#BD93F9,fg=#282A36"
+inactive_char_style = ""
+
+[editor.on_defocus]
+prefix = "jq ▾ "
+prefix_style = "fg=#50FA7B,attr=dim"
+active_char_style = "attr=dim"
+inactive_char_style = "attr=dim"
+
+[json]
+
+[json.stream]
+indent = 4
+curly_brackets_style = "fg=#F8F8F2,attr=bold"
+square_brackets_style = "fg=#F8F8F2,attr=bold"
+key_style = "fg=#FF79C6"
+string_value_style = "fg=#F1FA8C"
+number_value_style = "fg=#BD93F9"
+boolean_value_style = "fg=#BD93F9"
+null_value_style = "fg=grey"
+active_item_attribute = "bold"
+inactive_item_attribute = "normalintensity"
+overflow_mode = "Wrap"
+
+[completion]
+search_result_chunk_size = 100
+
+search_load_chunk_size = 50000
+
+[completion.listbox]
+lines = 3
+cursor = "→ "
+active_item_style = "fg=#282A36,bg=#50FA7B,attr=bold"
+inactive_item_style = "fg=#BD93F9"
+
+[keybinds]
+exit = ["Ctrl+C"]
+copy_query = ["Ctrl+Q"]
+copy_result = ["Ctrl+O"]
+switch_mode = ["Shift+Down", "Shift+Up"]
+
+[keybinds.on_editor]
+backward = ["Left"]
+
+forward = ["Right"]
+
+move_to_head = ["Ctrl+A"]
+move_to_tail = ["Ctrl+E"]
+move_to_previous_nearest = ["Alt+B"]
+move_to_next_nearest = ["Alt+F"]
+erase = ["Backspace"]
+
+erase_all = ["Ctrl+U"]
+
+erase_to_previous_nearest = ["Ctrl+W"]
+erase_to_next_nearest = ["Alt+D"]
+completion = ["Tab"]
+on_completion.up = ["Up"]
+on_completion.down = ["Down", "Tab"]
+
+[keybinds.on_json_viewer]
+up = ["Up", "Ctrl+K", "ScrollUp"]
+down = ["Down", "Ctrl+J", "ScrollDown"]
+move_to_head = ["Ctrl+L"]
+move_to_tail = ["Ctrl+H"]
+toggle = ["Enter"]
+expand = ["Ctrl+P"]
+collapse = ["Ctrl+N"]
+
+[reactivity_control]
+query_debounce_duration = "600ms"
+
+resize_debounce_duration = "200ms"
+
+spin_duration = "300ms"
