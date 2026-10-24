@@ -11,7 +11,7 @@
 *jnv* is designed for navigating JSON,
 offering an interactive JSON viewer and `jq` filter editor.
 
-![jnv.gif](https://github.com/ynqa/ynqa/blob/master/demo/jnv.gif)
+![demo](tapes/demo.gif)
 
 Inspired by [jid](https://github.com/simeji/jid)
 and [jiq](https://github.com/fiatjaf/jiq).
