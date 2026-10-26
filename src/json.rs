@@ -5,7 +5,7 @@ use jaq_core::{
 use jaq_json::Val;
 
 use promkit_widgets::{
-    jsonstream::jsonz,
+    json::jsonz,
     serde_json::{self, Deserializer, Value},
 };
 

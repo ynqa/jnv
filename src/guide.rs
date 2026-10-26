@@ -1,11 +1,15 @@
 use arboard::Clipboard;
 use promkit_widgets::{
-    core::{render::SharedRenderer, Widget},
-    status::{self, Severity},
+    core::{
+        crossterm::style::{Color, ContentStyle},
+        render::SharedRenderer,
+        Widget,
+    },
+    text::{self, Text},
 };
 use tokio::{sync::mpsc, task::JoinHandle};
 
-use crate::context::{Index, SharedContext};
+use crate::context::Index;
 
 /// Represent a message to be shown in the guide.
 /// This is used to decouple the logic of generating messages from the logic of rendering them.
@@ -28,44 +32,48 @@ pub enum GuideAction {
     Show(GuideMessage),
 }
 
-fn message_to_state(message: GuideMessage) -> status::State {
-    match message {
-        GuideMessage::CopiedToClipboard => {
-            status::State::new("Copied to clipboard", Severity::Success)
-        }
+fn message_to_state(message: GuideMessage) -> text::State {
+    let (message, color) = match message {
+        GuideMessage::CopiedToClipboard => ("Copied to clipboard".to_owned(), Color::Green),
         GuideMessage::FailedToCopyToClipboard(e) => {
-            status::State::new(format!("Failed to copy to clipboard: {e}"), Severity::Error)
+            (format!("Failed to copy to clipboard: {e}"), Color::Red)
         }
         GuideMessage::FailedToSetupClipboard(e) => {
-            status::State::new(format!("Failed to setup clipboard: {e}"), Severity::Error)
+            (format!("Failed to setup clipboard: {e}"), Color::Red)
         }
-        GuideMessage::FailedToCopyWhileRenderingInProgress => status::State::new(
-            "Failed to copy while rendering is in progress.",
-            Severity::Warning,
+        GuideMessage::FailedToCopyWhileRenderingInProgress => (
+            "Failed to copy while rendering is in progress.".to_owned(),
+            Color::Yellow,
         ),
-        GuideMessage::FailedToSwitchModeWhileRenderingInProgress => status::State::new(
-            "Failed to switch mode while rendering is in progress.",
-            Severity::Warning,
+        GuideMessage::FailedToSwitchModeWhileRenderingInProgress => (
+            "Failed to switch mode while rendering is in progress.".to_owned(),
+            Color::Yellow,
         ),
-        GuideMessage::LoadedAllSuggestions(count) => status::State::new(
-            format!("Loaded all ({count}) suggestions"),
-            Severity::Success,
-        ),
-        GuideMessage::LoadedPartiallySuggestions(count) => status::State::new(
+        GuideMessage::LoadedAllSuggestions(count) => {
+            (format!("Loaded all ({count}) suggestions"), Color::Green)
+        }
+        GuideMessage::LoadedPartiallySuggestions(count) => (
             format!("Loaded partially ({count}) suggestions"),
-            Severity::Success,
+            Color::Green,
         ),
-        GuideMessage::NoSuggestionFound(prefix) => status::State::new(
-            format!("No suggestion found for '{prefix}'"),
-            Severity::Warning,
-        ),
-        GuideMessage::JqReturnedNull(input) => status::State::new(
-            format!("jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"),
-            Severity::Warning,
-        ),
-        GuideMessage::JqFailed(e) => {
-            status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+        GuideMessage::NoSuggestionFound(prefix) => {
+            (format!("No suggestion found for '{prefix}'"), Color::Yellow)
         }
+        GuideMessage::JqReturnedNull(input) => (
+            format!("jq returned 'null', which may indicate a typo or incorrect filter: `{input}`"),
+            Color::Yellow,
+        ),
+        GuideMessage::JqFailed(e) => (format!("jq failed: `{e}`"), Color::Red),
+    };
+    text::State {
+        text: Text::from(message),
+        config: text::Config {
+            style: Some(ContentStyle {
+                foreground_color: Some(color),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
     }
 }
 
@@ -84,20 +92,18 @@ pub fn copy_to_clipboard_message(content: &str) -> GuideMessage {
 pub fn start_guide_task(
     mut action_rx: mpsc::Receiver<GuideAction>,
     shared_renderer: SharedRenderer<Index>,
-    shared_ctx: SharedContext,
     no_hint: bool,
 ) -> JoinHandle<anyhow::Result<()>> {
     tokio::spawn(async move {
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let area = shared_ctx.area().await;
                     let view = if no_hint {
                         Default::default()
                     } else {
                         match action {
-                            GuideAction::Clear => status::State::default().create_graphemes(area.0, area.1),
-                            GuideAction::Show(message) => message_to_state(message).create_graphemes(area.0, area.1),
+                            GuideAction::Clear => text::State::default().create_graphemes(),
+                            GuideAction::Show(message) => message_to_state(message).create_graphemes(),
                         }
                     };
                     shared_renderer.update([(Index::Guide, view)]).render().await?;

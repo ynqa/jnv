@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use promkit_widgets::{core::crossterm::event::Event, jsonstream, listbox, text_editor};
+use promkit_widgets::{core::crossterm::event::Event, json, listbox, text_editor};
 use serde::{Deserialize, Serialize};
 use termcfg::crossterm_config::event_set_serde;
 use tokio::time::Duration;
@@ -17,7 +17,7 @@ pub struct EditorConfig {
 #[derive(Serialize, Deserialize)]
 pub struct JsonConfig {
     pub max_streams: Option<usize>,
-    pub stream: jsonstream::Config,
+    pub stream: json::Config,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -138,5 +138,43 @@ pub struct Config {
 impl Config {
     pub fn load_from(content: &str) -> anyhow::Result<Self> {
         toml::from_str(content).map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use promkit_widgets::{core::crossterm::style::Color, json::config::OverflowMode};
+
+    #[test]
+    fn loads_existing_default_config_with_new_widget_defaults() {
+        let config = Config::load_from(DEFAULT_CONFIG).unwrap();
+        assert_eq!(config.editor.on_focus.prefix, "❯❯ ");
+        assert!(config.editor.on_focus.continuation_prefix.is_empty());
+        assert_eq!(config.json.stream.indent, 2);
+        assert_eq!(config.json.stream.overflow_mode, OverflowMode::Wrap);
+        assert!(!config.json.stream.show_line_numbers);
+        assert_eq!(config.completion.listbox.lines, Some(3));
+    }
+
+    #[test]
+    fn preserves_custom_styles_in_existing_config() {
+        let custom = DEFAULT_CONFIG
+            .replace("❯❯ ", "jq ❯ ")
+            .replace("indent = 2", "indent = 4")
+            .replace("key_style = \"fg=cyan\"", "key_style = \"fg=#FF79C6\"")
+            .replace("cursor = \"❯ \"", "cursor = \"→ \"");
+        let config = Config::load_from(&custom).unwrap();
+        assert_eq!(config.editor.on_focus.prefix, "jq ❯ ");
+        assert_eq!(config.json.stream.indent, 4);
+        assert_eq!(
+            config.json.stream.key_style.foreground_color,
+            Some(Color::Rgb {
+                r: 255,
+                g: 121,
+                b: 198
+            })
+        );
+        assert_eq!(config.completion.listbox.cursor, "→ ");
     }
 }

@@ -10,8 +10,8 @@ use clap::Parser;
 use promkit_widgets::{
     core::{
         crossterm,
-        grapheme::StyledGraphemes,
         render::{Renderer, SharedRenderer},
+        CreatedGraphemes,
     },
     listbox::{self, Listbox},
     spinner::{self, Spinner},
@@ -238,13 +238,10 @@ async fn main() -> anyhow::Result<()> {
     let renderer = SharedRenderer::new(
         Renderer::try_new_with_graphemes(
             [
-                (
-                    Index::QueryEditor,
-                    query_editor.create_graphemes(terminal_size.0, terminal_size.1),
-                ),
-                (Index::Guide, StyledGraphemes::default()),
-                (Index::Completion, StyledGraphemes::default()),
-                (Index::JsonViewer, StyledGraphemes::default()),
+                (Index::QueryEditor, query_editor.create_graphemes()),
+                (Index::Guide, CreatedGraphemes::default()),
+                (Index::Completion, CreatedGraphemes::default()),
+                (Index::JsonViewer, CreatedGraphemes::default()),
             ]
             .into_iter(),
             true,
@@ -320,12 +317,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn the guide task, which will manage the display of hints and guidance
     // to the user based on their interactions with the interface.
-    let guide_task = guide::start_guide_task(
-        guide_action_rx,
-        renderer.clone(),
-        ctx.clone(),
-        config.no_hint,
-    );
+    let guide_task = guide::start_guide_task(guide_action_rx, renderer.clone(), config.no_hint);
 
     // Wrap the query editor and completion navigator in Arc<Mutex<>> to allow shared mutable access across async tasks.
     let shared_query_editor = Arc::new(RwLock::new(query_editor));

@@ -3,8 +3,7 @@ use std::sync::Arc;
 use promkit_widgets::{
     core::{
         crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers},
-        grapheme::StyledGraphemes,
-        Widget,
+        CreatedGraphemes, Widget,
     },
     text_editor,
 };
@@ -60,8 +59,8 @@ impl QueryEditor {
     }
 
     /// Create graphemes for rendering the query editor.
-    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
-        self.state.create_graphemes(width, height)
+    pub fn create_graphemes(&self) -> CreatedGraphemes {
+        self.state.create_graphemes()
     }
 
     /// Replace the current text of the query editor with the given text.
@@ -169,7 +168,6 @@ pub fn start_query_editor_task(
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let area = shared_ctx.area().await;
                     let (editor_view, current_text) = {
                         let mut editor = shared_editor.write().await;
                         match action {
@@ -194,7 +192,7 @@ pub fn start_query_editor_task(
                             }
                         }
                         let current_text = editor.text();
-                        (editor.create_graphemes(area.0, area.1), current_text)
+                        (editor.create_graphemes(), current_text)
                     };
 
                     // If the text has changed, send it to the debounce channel for processing.
