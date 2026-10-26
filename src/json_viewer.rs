@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, render::SharedRenderer, Widget},
-    jsonstream::{self, JsonStream},
+    core::{crossterm::event::Event, render::SharedRenderer, CreatedGraphemes, Widget},
+    json::{self as json_widget, Document},
     serde_json::{self, Value},
 };
 use tokio::{
@@ -30,7 +30,7 @@ pub enum RenderTrigger {
 /// JSON viewer that maintains the state of JSON stream
 /// and handles user interactions and query processing.
 pub struct JsonViewer {
-    state: jsonstream::State,
+    state: json_widget::State,
     json: Vec<serde_json::Value>,
     keybinds: JsonViewerKeybinds,
 }
@@ -40,7 +40,7 @@ pub type SharedJsonViewer = Arc<Mutex<JsonViewer>>;
 impl JsonViewer {
     /// Get the formatted content of current JSON stream.
     pub fn formatted_content(&self) -> String {
-        self.state.config.format_raw_json(self.state.stream.rows())
+        self.state.render_pretty_json()
     }
 
     /// Handle user event and update the viewer state accordingly.
@@ -48,35 +48,35 @@ impl JsonViewer {
         match event {
             // Move up.
             event if self.keybinds.up.contains(event) => {
-                self.state.stream.up();
+                self.state.document.up();
             }
 
             // Move down.
             event if self.keybinds.down.contains(event) => {
-                self.state.stream.down();
+                self.state.document.down();
             }
 
             // Move to head
             event if self.keybinds.move_to_head.contains(event) => {
-                self.state.stream.head();
+                self.state.document.head();
             }
 
             // Move to tail
             event if self.keybinds.move_to_tail.contains(event) => {
-                self.state.stream.tail();
+                self.state.document.tail();
             }
 
             // Toggle collapse/expand
             event if self.keybinds.toggle.contains(event) => {
-                self.state.stream.toggle();
+                self.state.document.toggle();
             }
 
             event if self.keybinds.expand.contains(event) => {
-                self.state.stream.set_nodes_visibility(false);
+                self.state.document.set_nodes_visibility(false);
             }
 
             event if self.keybinds.collapse.contains(event) => {
-                self.state.stream.set_nodes_visibility(true);
+                self.state.document.set_nodes_visibility(true);
             }
 
             _ => (),
@@ -88,26 +88,29 @@ impl JsonViewer {
         &mut self,
         area: (u16, u16),
         input: String,
-    ) -> (Option<GuideMessage>, Option<StyledGraphemes>) {
+    ) -> (Option<GuideMessage>, Option<CreatedGraphemes>) {
         match json::run_jaq(&input, &self.json) {
             Ok(ret) => {
                 let mut guide = None;
                 if ret.iter().all(|val| *val == Value::Null) {
                     guide = Some(GuideMessage::JqReturnedNull(input));
 
-                    self.state.stream = JsonStream::new(self.json.iter());
+                    self.state.document = Document::new(self.json.iter());
                 } else {
-                    self.state.stream = JsonStream::new(ret.iter());
+                    self.state.document = Document::new(ret.iter());
                 }
 
-                (guide, Some(self.state.create_graphemes(area.0, area.1)))
+                (
+                    guide,
+                    Some(self.state.create_graphemes_in_viewport(area.0, area.1)),
+                )
             }
             Err(e) => {
-                self.state.stream = JsonStream::new(self.json.iter());
+                self.state.document = Document::new(self.json.iter());
 
                 (
                     Some(GuideMessage::JqFailed(e.to_string())),
-                    Some(self.state.create_graphemes(area.0, area.1)),
+                    Some(self.state.create_graphemes_in_viewport(area.0, area.1)),
                 )
             }
         }
@@ -132,9 +135,9 @@ pub async fn initialize(
     }
 
     let input_stream = json::deserialize(input, config.max_streams)?;
-    let stream = JsonStream::new(input_stream.iter());
-    let state = jsonstream::State {
-        stream,
+    let document = Document::new(input_stream.iter());
+    let state = json_widget::State {
+        document,
         config: config.stream,
     };
 
@@ -145,13 +148,14 @@ pub async fn initialize(
     }
 
     {
-        let ctx = shared_ctx.lock().await;
-        let area = ctx.area;
-        drop(ctx);
+        let area = shared_ctx.area().await;
 
         // TODO: error handling
         let _ = shared_renderer
-            .update([(Index::JsonViewer, state.create_graphemes(area.0, area.1))])
+            .update([(
+                Index::JsonViewer,
+                state.create_graphemes_in_viewport(area.0, area.1),
+            )])
             .render()
             .await;
     }
@@ -203,15 +207,12 @@ async fn handle_user_event(
     shared_ctx: SharedContext,
     event: Event,
 ) {
-    let area = {
-        let ctx = shared_ctx.lock().await;
-        ctx.area
-    };
+    let area = shared_ctx.area().await;
 
     let graphemes = {
         let mut viewer = shared_viewer_state.lock().await;
         viewer.handle_user_event(&event);
-        viewer.state.create_graphemes(area.0, area.1)
+        viewer.state.create_graphemes_in_viewport(area.0, area.1)
     };
 
     // TODO: error handling
@@ -302,9 +303,7 @@ fn spawn_query_update_task(
         }
 
         let (maybe_guide, maybe_resp) = {
-            let ctx = shared_ctx.lock().await;
-            let area = ctx.area;
-            drop(ctx);
+            let area = shared_ctx.area().await;
 
             let mut runtime = shared_viewer_state.lock().await;
             runtime.refresh_view_with_query(area, query).await
@@ -324,7 +323,7 @@ fn spawn_query_update_task(
         let _ = shared_renderer
             .update([(
                 Index::JsonViewer,
-                maybe_resp.unwrap_or(StyledGraphemes::default()),
+                maybe_resp.unwrap_or(CreatedGraphemes::default()),
             )])
             .render()
             .await;
@@ -388,4 +387,125 @@ pub fn start_viewer_task(
         }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{Config, DEFAULT_CONFIG};
+    use promkit_widgets::core::{render::RendererLayout, WidthMode};
+
+    fn viewer(input: &str) -> JsonViewer {
+        let config = Config::load_from(DEFAULT_CONFIG).unwrap();
+        let json = json::deserialize(input, None).unwrap();
+        JsonViewer {
+            state: json_widget::State {
+                document: Document::new(json.iter()),
+                config: config.json.stream,
+            },
+            json,
+            keybinds: config.keybinds.on_json_viewer,
+        }
+    }
+
+    #[test]
+    fn folding_and_navigation_preserve_complete_json_stream_output() {
+        let mut viewer = viewer("{\"nested\": [1, 2]}\n{\"message\": \"こんにちは\"}");
+        let original = viewer.formatted_content();
+        assert_eq!(
+            original,
+            "{\n  \"nested\": [\n    1,\n    2\n  ]\n},\n{\n  \"message\": \"こんにちは\"\n}"
+        );
+
+        let toggle = viewer.keybinds.toggle.iter().next().unwrap().clone();
+        viewer.handle_user_event(&toggle);
+        assert!(viewer
+            .state
+            .create_graphemes()
+            .graphemes
+            .to_string()
+            .contains('…'));
+        assert_eq!(viewer.formatted_content(), original);
+
+        let tail = viewer.keybinds.move_to_tail.iter().next().unwrap().clone();
+        viewer.handle_user_event(&tail);
+        assert!(viewer.state.document.visible_position() > 0);
+        let collapse = viewer.keybinds.collapse.iter().next().unwrap().clone();
+        viewer.handle_user_event(&collapse);
+        assert_eq!(viewer.state.document.visible_position(), 0);
+        assert_eq!(viewer.formatted_content(), original);
+
+        let expand = viewer.keybinds.expand.iter().next().unwrap().clone();
+        viewer.handle_user_event(&expand);
+        assert!(!viewer
+            .state
+            .create_graphemes()
+            .graphemes
+            .to_string()
+            .contains('…'));
+    }
+
+    #[tokio::test]
+    async fn filtered_results_use_the_configured_format_and_layout() {
+        let mut viewer = viewer("{\"items\": [1, 2, 3]}");
+        let (guide, view) = viewer
+            .refresh_view_with_query((40, 6), ".items[] | . * 2".into())
+            .await;
+        assert!(guide.is_none());
+        assert_eq!(viewer.formatted_content(), "2,\n4,\n6");
+        assert_eq!(view.unwrap().layout.width_mode, WidthMode::Wrap);
+    }
+
+    #[tokio::test]
+    async fn null_and_invalid_filters_restore_the_input_and_show_a_guide() {
+        let mut viewer = viewer("{\"items\": [1, 2, 3]}");
+        viewer
+            .refresh_view_with_query((40, 6), ".items".into())
+            .await;
+        let (guide, _) = viewer
+            .refresh_view_with_query((40, 6), ".missing".into())
+            .await;
+        assert!(matches!(guide, Some(GuideMessage::JqReturnedNull(_))));
+        assert_eq!(
+            json::deserialize(&viewer.formatted_content(), None).unwrap(),
+            viewer.json
+        );
+        let (guide, _) = viewer.refresh_view_with_query((40, 6), ".[".into()).await;
+        assert!(matches!(guide, Some(GuideMessage::JqFailed(_))));
+        assert_eq!(
+            json::deserialize(&viewer.formatted_content(), None).unwrap(),
+            viewer.json
+        );
+    }
+
+    #[test]
+    fn long_documents_keep_the_selected_tail_visible_after_resize() {
+        let mut viewer = viewer(&format!("{:?}", (0..1000).collect::<Vec<_>>()));
+        viewer.state.document.tail();
+        let mut layout = RendererLayout::default();
+        for (width, height) in [(40, 10), (20, 5), (80, 24)] {
+            let json = viewer.state.create_graphemes_in_viewport(width, height);
+            assert!(json.graphemes.logical_lines().len() <= height as usize);
+            let prepared = layout
+                .layout(
+                    [
+                        (
+                            Index::QueryEditor,
+                            promkit_widgets::core::grapheme::StyledGraphemes::from("❯❯ .").into(),
+                        ),
+                        (Index::JsonViewer, json),
+                    ],
+                    width,
+                    height,
+                )
+                .unwrap();
+            let panes = prepared.panes();
+            assert!(panes
+                .last()
+                .unwrap()
+                .iter()
+                .any(|row| row.to_string().contains(']')));
+            assert!(prepared.visible_row_count() <= height as usize);
+        }
+    }
 }

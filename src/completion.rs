@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use promkit_widgets::{
-    core::{crossterm::event::Event, grapheme::StyledGraphemes, Widget},
+    core::{crossterm::event::Event, CreatedGraphemes, Widget},
     listbox::{self, Listbox},
 };
 use tokio::{
@@ -133,8 +133,8 @@ impl CompletionNavigator {
     }
 
     /// Create graphemes for rendering the completion navigator.
-    pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
-        self.state.create_graphemes(width, height)
+    pub fn create_graphemes(&self) -> CreatedGraphemes {
+        self.state.create_graphemes()
     }
 
     /// Returns true when the cursor is close enough to the visible tail
@@ -252,7 +252,6 @@ pub fn start_completion_task(
         loop {
             tokio::select! {
                 Some(action) = action_rx.recv() => {
-                    let area = shared_ctx.area().await;
                     let completion_view = {
                         let mut completion = shared_completion.write().await;
                         match action {
@@ -296,7 +295,7 @@ pub fn start_completion_task(
                                 completion.clear_session_state();
                             }
                         }
-                        completion.create_graphemes(area.0, area.1)
+                        completion.create_graphemes()
                     };
 
                     shared_renderer

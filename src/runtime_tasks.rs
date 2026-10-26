@@ -45,10 +45,7 @@ pub fn spawn_resize_render_task(
             let (editor_view, completion_view) = {
                 let editor = shared_editor.read().await;
                 let completion = shared_completion.read().await;
-                (
-                    editor.create_graphemes(area.0, area.1),
-                    completion.create_graphemes(area.0, area.1),
-                )
+                (editor.create_graphemes(), completion.create_graphemes())
             };
             shared_renderer
                 .update([
