@@ -20,6 +20,8 @@ pub enum GuideMessage {
     NoSuggestionFound(String),
     JqReturnedNull(String),
     JqFailed(String),
+    /// The query is empty, so the full input is shown unfiltered.
+    NoFilter,
 }
 
 /// Represent an action to be performed on the guide.
@@ -65,6 +67,9 @@ fn message_to_state(message: GuideMessage) -> status::State {
         ),
         GuideMessage::JqFailed(e) => {
             status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+        }
+        GuideMessage::NoFilter => {
+            status::State::new("no filter — showing full input", Severity::Success)
         }
     }
 }

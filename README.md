@@ -41,6 +41,8 @@ and [jiq](https://github.com/fiatjaf/jiq).
     - [Object Identifier-Index](https://jqlang.github.io/jq/manual/#object-identifier-index)
     - [Array Index](https://jqlang.github.io/jq/manual/#array-index)
 - Hint message to evaluate the filter
+- Keeps the last successful result visible when a query returns null or fails,
+  so the view stays stable while you fix the filter
 
 ## Installation
 
