@@ -4,7 +4,8 @@ use futures::StreamExt;
 use promkit_widgets::{
     core::crossterm::{
         event::{
-            DisableMouseCapture, EnableMouseCapture, Event, EventStream, MouseEvent, MouseEventKind,
+            DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyEvent, KeyEventKind,
+            KeyEventState, MouseEvent, MouseEventKind,
         },
         execute, terminal,
     },
@@ -32,6 +33,43 @@ enum Action {
     SwitchMode,
 }
 
+/// Canonicalize a terminal event so it can be matched against configured
+/// keybinds, which rely on exact [`Event`] equality.
+///
+/// - Key events: only `Press` is actionable; `Release`/`Repeat` (emitted when
+///   the keyboard enhancement protocol is active) return `None`. The
+///   [`KeyEventState`] flags (e.g. Caps/Num Lock) are stripped so a binding
+///   matches regardless of lock state.
+/// - Mouse wheel events: `column`/`row` are zeroed so they match the
+///   position-agnostic `ScrollUp`/`ScrollDown` bindings.
+fn normalize_event(event: Event) -> Option<Event> {
+    match event {
+        Event::Key(key) => {
+            if key.kind != KeyEventKind::Press {
+                return None;
+            }
+            Some(Event::Key(KeyEvent {
+                state: KeyEventState::NONE,
+                ..key
+            }))
+        }
+        Event::Mouse(mouse)
+            if matches!(
+                mouse.kind,
+                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+            ) =>
+        {
+            Some(Event::Mouse(MouseEvent {
+                kind: mouse.kind,
+                column: 0,
+                row: 0,
+                modifiers: mouse.modifiers,
+            }))
+        }
+        other => Some(other),
+    }
+}
+
 /// Spawn a background task to listen for terminal events and dispatch corresponding actions
 /// to the appropriate components (query editor, completion navigator, JSON viewer, guide).
 pub fn spawn_terminal_event_dispatch_task(
@@ -48,23 +86,12 @@ pub fn spawn_terminal_event_dispatch_task(
         'main: loop {
             tokio::select! {
                 Some(Ok(event)) = stream.next() => {
-                    // Note: `HashSet<Event>::contains` compares full mouse events (including `column`/`row`),
-                    // so wheel events are normalized to `(0, 0)` to match configured `ScrollUp`/`ScrollDown` bindings.
-                    let event = match event {
-                        Event::Mouse(mouse)
-                            if matches!(
-                                mouse.kind,
-                                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-                            ) =>
-                        {
-                            Event::Mouse(MouseEvent {
-                                kind: mouse.kind,
-                                column: 0,
-                                row: 0,
-                                modifiers: mouse.modifiers,
-                            })
-                        }
-                        other => other,
+                    // Keybinds are matched by exact `Event` equality, so incoming
+                    // events must be canonicalized first. `None` means the event is
+                    // not actionable (e.g. a key release) and should be ignored.
+                    let event = match normalize_event(event) {
+                        Some(event) => event,
+                        None => continue,
                     };
                     guide_action_tx.send(GuideAction::Clear).await?;
 
@@ -164,4 +191,68 @@ pub fn spawn_terminal_event_dispatch_task(
         }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use promkit_widgets::core::crossterm::event::{
+        KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent,
+        MouseEventKind,
+    };
+
+    use super::*;
+
+    fn key(kind: KeyEventKind, state: KeyEventState) -> Event {
+        Event::Key(KeyEvent {
+            code: KeyCode::Char('j'),
+            modifiers: KeyModifiers::CONTROL,
+            kind,
+            state,
+        })
+    }
+
+    #[test]
+    fn drops_non_press_key_events() {
+        assert!(normalize_event(key(KeyEventKind::Release, KeyEventState::NONE)).is_none());
+        assert!(normalize_event(key(KeyEventKind::Repeat, KeyEventState::NONE)).is_none());
+    }
+
+    #[test]
+    fn strips_lock_state_from_press_events() {
+        let normalized = normalize_event(key(KeyEventKind::Press, KeyEventState::CAPS_LOCK));
+        assert_eq!(
+            normalized,
+            Some(key(KeyEventKind::Press, KeyEventState::NONE))
+        );
+    }
+
+    #[test]
+    fn zeroes_scroll_position() {
+        let scroll = Event::Mouse(MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 42,
+            row: 7,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert_eq!(
+            normalize_event(scroll),
+            Some(Event::Mouse(MouseEvent {
+                kind: MouseEventKind::ScrollDown,
+                column: 0,
+                row: 0,
+                modifiers: KeyModifiers::NONE,
+            }))
+        );
+    }
+
+    #[test]
+    fn passes_through_other_mouse_events() {
+        let click = Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 3,
+            row: 4,
+            modifiers: KeyModifiers::NONE,
+        });
+        assert_eq!(normalize_event(click.clone()), Some(click));
+    }
 }

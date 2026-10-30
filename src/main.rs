@@ -157,10 +157,18 @@ fn determine_config_file(config_path: Option<PathBuf>) -> anyhow::Result<PathBuf
 }
 
 /// A guard that ensures terminal state is restored when dropped.
-struct TerminalCleanupGuard;
+struct TerminalCleanupGuard {
+    /// Whether the keyboard enhancement protocol was pushed during setup and
+    /// therefore needs to be popped on teardown.
+    keyboard_enhanced: bool,
+}
 
 impl Drop for TerminalCleanupGuard {
     fn drop(&mut self) {
+        if self.keyboard_enhanced {
+            let _ =
+                crossterm::execute!(io::stdout(), crossterm::event::PopKeyboardEnhancementFlags);
+        }
         let _ = crossterm::execute!(
             io::stdout(),
             crossterm::cursor::Show,
@@ -191,7 +199,24 @@ async fn main() -> anyhow::Result<()> {
 
     // Set up terminal
     crossterm::terminal::enable_raw_mode()?;
-    let _terminal_cleanup_guard = TerminalCleanupGuard;
+    // Negotiate the keyboard enhancement protocol (e.g. kitty's) when the
+    // terminal supports it. This disambiguates legacy escape codes so that
+    // bindings like Ctrl+J (otherwise indistinguishable from Enter) and
+    // modified/bracket keys are reported reliably. Falls back silently to
+    // legacy behavior on terminals that don't support it.
+    let keyboard_enhanced = matches!(
+        crossterm::terminal::supports_keyboard_enhancement(),
+        Ok(true)
+    );
+    if keyboard_enhanced {
+        crossterm::execute!(
+            io::stdout(),
+            crossterm::event::PushKeyboardEnhancementFlags(
+                crossterm::event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            )
+        )?;
+    }
+    let _terminal_cleanup_guard = TerminalCleanupGuard { keyboard_enhanced };
     crossterm::execute!(io::stdout(), crossterm::cursor::Hide)?;
 
     // Spawn the completion loader task, which will asynchronously load suggestions based on the input data.
