@@ -57,6 +57,21 @@ active_char_style = "attr=dim"
 # Style for all other characters when unfocused
 inactive_char_style = "attr=dim"
 
+# vi-style modal editing for the query editor
+[editor.vi]
+# Enable vi-style modal editing.
+# When true, the editor starts in NORMAL mode and interprets keys as vi
+# motions, operators, and edit commands. Press i/a/I/A to enter INSERT mode
+# (where typing, completion, and the keybinds above all work as usual), and
+# Esc to return to NORMAL mode.
+# Supported in NORMAL mode: motions h l 0 $ ^ w W b B e E f F t T gg G;
+# operators d c y with those motions plus the linewise dd cc yy; edits
+# x X D C s S r ~ p P; counts (e.g. 3w, d2w); and undo u / redo Ctrl+R.
+# The buffer is single-line, so linewise commands act on the whole line.
+enable = false
+# Prefix shown while in NORMAL mode (INSERT mode shows on_focus.prefix above).
+normal_prefix = "❮❮ "
+
 # JSON display settings
 [json]
 # Maximum number of JSON objects to read from streams (e.g., JSON Lines format)
