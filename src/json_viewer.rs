@@ -91,14 +91,15 @@ impl JsonViewer {
     ) -> (Option<GuideMessage>, Option<StyledGraphemes>) {
         match json::run_jaq(&input, &self.json) {
             Ok(ret) => {
-                let mut guide = None;
-                if ret.iter().all(|val| *val == Value::Null) {
-                    guide = Some(GuideMessage::JqReturnedNull(input));
-
+                // `all` is vacuously true for an empty result, so this also
+                // covers the "filter produced nothing" case.
+                let guide = if ret.iter().all(|val| *val == Value::Null) {
                     self.state.stream = JsonStream::new(self.json.iter());
+                    Some(GuideMessage::JqReturnedNull(input))
                 } else {
                     self.state.stream = JsonStream::new(ret.iter());
-                }
+                    Some(GuideMessage::ResultSummary(json::summarize(&ret)))
+                };
 
                 (guide, Some(self.state.create_graphemes(area.0, area.1)))
             }

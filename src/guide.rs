@@ -20,6 +20,8 @@ pub enum GuideMessage {
     NoSuggestionFound(String),
     JqReturnedNull(String),
     JqFailed(String),
+    /// Type/length summary of the current jq result (e.g. `object · 3 keys`).
+    ResultSummary(String),
 }
 
 /// Represent an action to be performed on the guide.
@@ -65,6 +67,9 @@ fn message_to_state(message: GuideMessage) -> status::State {
         ),
         GuideMessage::JqFailed(e) => {
             status::State::new(format!("jq failed: `{e}`"), Severity::Error)
+        }
+        GuideMessage::ResultSummary(summary) => {
+            status::State::new(format!("result: {summary}"), Severity::Success)
         }
     }
 }
