@@ -20,6 +20,12 @@ use crate::{
     guide::{self, GuideAction},
 };
 
+/// Convert a `char` index into a byte offset within `s`. An index at or past
+/// the end maps to `s.len()`. The result is always on a char boundary.
+fn char_index_to_byte(s: &str, char_idx: usize) -> usize {
+    s.char_indices().nth(char_idx).map_or(s.len(), |(b, _)| b)
+}
+
 /// Editor for inputting jq query. It manages the state of the text editor
 /// and handles user input events to update the query text accordingly.
 pub struct QueryEditor {
@@ -59,14 +65,36 @@ impl QueryEditor {
         self.state.texteditor.text_without_cursor().to_string()
     }
 
+    /// Current text (without cursor) and the cursor as a BYTE offset into it.
+    /// promkit's `position()` is a `char` index; this converts it to the byte
+    /// offset the completion segmentation expects (always on a char boundary).
+    pub fn text_and_cursor_byte(&self) -> (String, usize) {
+        let text = self.text();
+        let byte = char_index_to_byte(&text, self.state.texteditor.position());
+        (text, byte)
+    }
+
     /// Create graphemes for rendering the query editor.
     pub fn create_graphemes(&self, width: u16, height: u16) -> StyledGraphemes {
         self.state.create_graphemes(width, height)
     }
 
-    /// Replace the current text of the query editor with the given text.
-    pub fn replace_text(&mut self, text: &str) {
+    /// Move the cursor to an absolute `char` index.
+    fn set_cursor(&mut self, pos: usize) {
+        self.state.texteditor.move_to_head();
+        for _ in 0..pos {
+            if !self.state.texteditor.forward() {
+                break;
+            }
+        }
+    }
+
+    /// Replace the current text and place the cursor at an absolute `char`
+    /// index. Used by completion to splice a suggestion mid-line and land the
+    /// cursor right after the inserted text.
+    pub fn replace_text_at(&mut self, text: &str, cursor: usize) {
         self.state.texteditor.replace(text);
+        self.set_cursor(cursor);
     }
 
     /// Handle a user input event to update the query editor's state accordingly.
@@ -145,8 +173,9 @@ pub enum QueryEditorAction {
     Leave,
     /// Copy the current query text to clipboard.
     CopyQuery,
-    /// Replace the current query text.
-    ReplaceText(String),
+    /// Replace the current query text and place the cursor at `cursor`
+    /// (a `char` index into `text`).
+    ReplaceText { text: String, cursor: usize },
     /// Handle user input events to update the query editor's state.
     UserEvent(Event),
 }
@@ -179,16 +208,15 @@ pub fn start_query_editor_task(
                                 let message = guide::copy_to_clipboard_message(&editor.text());
                                 guide_action_tx.send(GuideAction::Show(message)).await?;
                             }
-                            QueryEditorAction::ReplaceText(text) => {
-                                editor.replace_text(&text);
+                            QueryEditorAction::ReplaceText { text, cursor } => {
+                                editor.replace_text_at(&text, cursor);
                             }
                             QueryEditorAction::UserEvent(event) => {
                                 if editor.handle_user_event(&event) {
                                     shared_ctx.set_active_index(Index::Completion).await;
+                                    let (query, cursor) = editor.text_and_cursor_byte();
                                     completion_action_tx
-                                        .send(CompletionAction::Enter {
-                                            prefix: editor.text(),
-                                        })
+                                        .send(CompletionAction::Enter { query, cursor })
                                         .await?;
                                 }
                             }
@@ -214,4 +242,24 @@ pub fn start_query_editor_task(
         }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn char_index_to_byte_ascii_and_multibyte() {
+        // ASCII: char index == byte offset.
+        assert_eq!(char_index_to_byte("abc", 0), 0);
+        assert_eq!(char_index_to_byte("abc", 2), 2);
+        // At or past the end maps to len().
+        assert_eq!(char_index_to_byte("abc", 3), 3);
+        assert_eq!(char_index_to_byte("abc", 99), 3);
+        assert_eq!(char_index_to_byte("", 0), 0);
+
+        // Multi-byte: "café" is 'c','a','f','é' where 'é' is 2 bytes.
+        assert_eq!(char_index_to_byte("café", 3), 3); // start of 'é'
+        assert_eq!(char_index_to_byte("café", 4), 5); // end of string (3 + 2)
+    }
 }
